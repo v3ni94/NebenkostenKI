@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #1a1a1a;
+
+  /* HVM CI-Farben (siehe tailwind.config.ts und ARCHITECTURE.md) */
+  --hvm-orange: #e6a83c;
+  --hvm-anthrazit: #87888a;
+  --hvm-mittelgrau: #9c9d9f;
+  --hvm-hellgrau: #d7d8da;
+  --hvm-umrissgrau: #ececec;
+  --hvm-textschwarz: #1a1a1a;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* CI-Design-Tokens der Hausverwaltung Müller GmbH als Tailwind-Utilities,
+     z.B. bg-hvm-orange, text-hvm-textschwarz, border-hvm-umrissgrau */
+  --color-hvm-orange: var(--hvm-orange);
+  --color-hvm-anthrazit: var(--hvm-anthrazit);
+  --color-hvm-mittelgrau: var(--hvm-mittelgrau);
+  --color-hvm-hellgrau: var(--hvm-hellgrau);
+  --color-hvm-umrissgrau: var(--hvm-umrissgrau);
+  --color-hvm-textschwarz: var(--hvm-textschwarz);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
