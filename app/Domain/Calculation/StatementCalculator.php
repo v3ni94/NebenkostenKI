@@ -91,7 +91,7 @@ final class StatementCalculator
 
     public function __construct(?LargestRemainderDistributor $distributor = null)
     {
-        $this->distributor = $distributor ?? new LargestRemainderDistributor();
+        $this->distributor = $distributor ?? new LargestRemainderDistributor;
     }
 
     public function calculate(StatementCalculationInput $input): CalculationRunResult
@@ -281,7 +281,7 @@ final class StatementCalculator
             $vacancyShares[] = new OwnerVacancyShare(
                 $participant->participantKey,
                 $participant->unitKey,
-                $input->unit($participant->unitKey)?->label ?? $participant->unitKey,
+                $input->unit($participant->unitKey)->label ?? $participant->unitKey,
                 $participant->kind,
                 $participant->period,
                 $lines,
@@ -581,9 +581,9 @@ final class StatementCalculator
         $assumptions = [];
         $statementFindings = [];
 
-        $target = $prepayment?->targetAmount ?? Money::zero();
+        $target = $prepayment->targetAmount ?? Money::zero();
         $actual = $prepayment?->deductibleAmount() ?? Money::zero();
-        $assumed = $prepayment?->assumedFromTarget ?? false;
+        $assumed = $prepayment->assumedFromTarget ?? false;
 
         if (! $prepayment instanceof PrepaymentInput) {
             $finding = CheckFinding::warning(
@@ -690,7 +690,7 @@ final class StatementCalculator
         return new UnitStatementResult(
             $participant->participantKey,
             $participant->unitKey,
-            $input->unit($participant->unitKey)?->label ?? $participant->unitKey,
+            $input->unit($participant->unitKey)->label ?? $participant->unitKey,
             $participant->label,
             $input->billingPeriod,
             $participant->period,

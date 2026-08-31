@@ -76,9 +76,6 @@ enum AllocationKeyType: string
     {
         return match ($this) {
             self::LIVING_AREA, self::HEATED_LIVING_AREA => 'm²',
-            self::PERSONS => 'Personen',
-            self::PERSON_DAYS => 'Personentage',
-            self::UNITS => 'Einheiten',
             self::DIRECT_ASSIGNMENT => 'EUR',
             default => '',
         };

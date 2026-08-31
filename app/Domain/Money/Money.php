@@ -18,6 +18,12 @@ use Brick\Math\BigRational;
  *
  * Die Persistenzschicht bildet ihre eigenen Enums/Spalten auf
  * App\Domain\Money\Currency ab; die Domain kennt keine Eloquent-Casts.
+ *
+ * Währung: fachlich freigegeben ist ausschließlich EUR. Solange
+ * App\Domain\Money\Currency nur diesen Fall kennt, ist eine Vermischung
+ * unterschiedlicher Währungen typseitig ausgeschlossen. Wird eine weitere
+ * Währung aufgenommen, ist in plus(), minus() und compareTo() eine
+ * Währungsprüfung zu ergänzen.
  */
 final readonly class Money
 {
@@ -52,15 +58,11 @@ final readonly class Money
 
     public function plus(self $other): self
     {
-        $this->assertSameCurrency($other);
-
         return new self($this->cents + $other->cents, $this->currency);
     }
 
     public function minus(self $other): self
     {
-        $this->assertSameCurrency($other);
-
         return new self($this->cents - $other->cents, $this->currency);
     }
 
@@ -91,13 +93,11 @@ final readonly class Money
 
     public function equals(self $other): bool
     {
-        return $this->cents === $other->cents && $this->currency === $other->currency;
+        return $this->cents === $other->cents;
     }
 
     public function compareTo(self $other): int
     {
-        $this->assertSameCurrency($other);
-
         return $this->cents <=> $other->cents;
     }
 
@@ -182,12 +182,5 @@ final readonly class Money
     public function __toString(): string
     {
         return $this->format();
-    }
-
-    private function assertSameCurrency(self $other): void
-    {
-        if ($this->currency !== $other->currency) {
-            throw CurrencyMismatchException::between($this->currency, $other->currency);
-        }
     }
 }
