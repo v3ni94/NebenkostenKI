@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Application\Account\OrganizationContext;
+use App\Application\BillingRun\IllegalStatusTransitionException;
 use App\Enums\AdminRole;
 use App\Http\Middleware\EnsureOrganizationContext;
 use App\Http\Middleware\ForceHttps;
@@ -70,7 +71,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // liefert eine verstaendliche deutsche Meldung, siehe
         // App\Application\BillingRun\IllegalStatusTransitionException.
         $exceptions->dontReport(
-            App\Application\BillingRun\IllegalStatusTransitionException::class,
+            IllegalStatusTransitionException::class,
         );
     })
     ->booted(function (): void {

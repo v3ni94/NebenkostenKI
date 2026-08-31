@@ -1,0 +1,245 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Feature\Auth;
+
+use App\Application\Account\EmailVerification;
+use App\Enums\BillingRunStatus;
+use App\Enums\UserStatus;
+use App\Models\AuditLog;
+use App\Models\BillingRun;
+use App\Models\Organization;
+use App\Models\OrganizationUser;
+use App\Models\Property;
+use App\Models\User;
+use App\Notifications\VerifyEmailAddress;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\URL;
+use Tests\TestCase;
+
+/**
+ * E-Mail-Verifizierung.
+ *
+ * App\Models\User implementiert MustVerifyEmail nicht, der Ablauf arbeitet
+ * deshalb ueber eine eigene signierte Route und das Gate email-verified.
+ */
+final class EmailVerificationTest extends TestCase
+{
+    use RefreshDatabase;
+
+    /**
+     * @return array{user: User, organization: Organization}
+     */
+    private function welt(bool $verifiziert): array
+    {
+        /** @var User $nutzer */
+        $nutzer = $verifiziert
+            ? User::factory()->create()
+            : User::factory()->unverified()->create();
+
+        $organisation = Organization::factory()->create();
+
+        OrganizationUser::query()->create([
+            'organization_id' => $organisation->getKey(),
+            'user_id' => $nutzer->getKey(),
+            'role' => 'OWNER',
+            'joined_at' => now(),
+        ]);
+
+        return ['user' => $nutzer, 'organization' => $organisation];
+    }
+
+    private function lauf(Organization $organisation, User $nutzer): BillingRun
+    {
+        $objekt = Property::factory()->create([
+            'organization_id' => $organisation->getKey(),
+            'created_by_user_id' => $nutzer->getKey(),
+        ]);
+
+        /** @var BillingRun $lauf */
+        $lauf = BillingRun::factory()->create([
+            'organization_id' => $organisation->getKey(),
+            'property_id' => $objekt->getKey(),
+            'created_by_user_id' => $nutzer->getKey(),
+            'status' => BillingRunStatus::PREVIEW_READY,
+        ]);
+
+        return $lauf;
+    }
+
+    public function test_hinweisseite_zeigt_die_hinterlegte_adresse(): void
+    {
+        $welt = $this->welt(false);
+
+        $antwort = $this->actingAs($welt['user'])->get(route('verification.notice'));
+
+        $antwort->assertOk();
+        $antwort->assertSee('Bitte bestätigen Sie Ihre E-Mail-Adresse');
+        $antwort->assertSee((string) $welt['user']->getAttribute('email'));
+    }
+
+    public function test_bestaetigter_nutzer_wird_von_der_hinweisseite_weitergeleitet(): void
+    {
+        $welt = $this->welt(true);
+
+        $antwort = $this->actingAs($welt['user'])->get(route('verification.notice'));
+
+        $antwort->assertRedirect(route('portal.dashboard'));
+    }
+
+    public function test_signierter_link_bestaetigt_die_adresse(): void
+    {
+        $welt = $this->welt(false);
+        $verifikation = app(EmailVerification::class);
+
+        $antwort = $this->actingAs($welt['user'])->get($verifikation->signedUrl($welt['user']));
+
+        $antwort->assertRedirect(route('portal.dashboard'));
+
+        $frisch = $welt['user']->fresh();
+        self::assertInstanceOf(User::class, $frisch);
+        self::assertNotNull($frisch->getAttribute('email_verified_at'));
+        self::assertSame(UserStatus::AKTIV, $frisch->getAttribute('status'));
+    }
+
+    public function test_bestaetigung_schreibt_einen_revisionseintrag(): void
+    {
+        $welt = $this->welt(false);
+        $verifikation = app(EmailVerification::class);
+
+        $this->actingAs($welt['user'])->get($verifikation->signedUrl($welt['user']));
+
+        self::assertTrue(
+            AuditLog::query()
+                ->where('action', 'account.email_verified')
+                ->where('actor_user_id', $welt['user']->getKey())
+                ->exists()
+        );
+    }
+
+    public function test_link_mit_falschem_hash_wird_abgewiesen(): void
+    {
+        $welt = $this->welt(false);
+
+        $url = URL::temporarySignedRoute(
+            'verification.verify',
+            Carbon::now()->addMinutes(60),
+            ['user' => $welt['user']->getKey(), 'hash' => sha1('fremde@adresse.invalid')]
+        );
+
+        $antwort = $this->actingAs($welt['user'])->get($url);
+
+        $antwort->assertForbidden();
+        self::assertNull($welt['user']->fresh()?->getAttribute('email_verified_at'));
+    }
+
+    public function test_abgelaufener_link_wird_abgewiesen(): void
+    {
+        $welt = $this->welt(false);
+        $verifikation = app(EmailVerification::class);
+
+        $url = $verifikation->signedUrl($welt['user']);
+
+        $this->travel(EmailVerification::LINK_GUELTIGKEIT_MINUTEN + 5)->minutes();
+
+        $antwort = $this->actingAs($welt['user'])->get($url);
+
+        $antwort->assertForbidden();
+        self::assertNull($welt['user']->fresh()?->getAttribute('email_verified_at'));
+    }
+
+    public function test_unsignierter_link_wird_abgewiesen(): void
+    {
+        $welt = $this->welt(false);
+        $verifikation = app(EmailVerification::class);
+
+        $antwort = $this->actingAs($welt['user'])->get(route('verification.verify', [
+            'user' => $welt['user']->getKey(),
+            'hash' => $verifikation->hash($welt['user']),
+        ]));
+
+        $antwort->assertForbidden();
+    }
+
+    public function test_erneuter_versand_ist_moeglich(): void
+    {
+        Notification::fake();
+        $welt = $this->welt(false);
+
+        $antwort = $this->actingAs($welt['user'])
+            ->from(route('verification.notice'))
+            ->post(route('verification.send'));
+
+        $antwort->assertRedirect(route('verification.notice'));
+        Notification::assertSentTo($welt['user'], VerifyEmailAddress::class);
+    }
+
+    public function test_verifizierungspflicht_blockiert_die_bestaetigung_vor_der_finalisierung(): void
+    {
+        $welt = $this->welt(false);
+        $lauf = $this->lauf($welt['organization'], $welt['user']);
+
+        $antwort = $this->actingAs($welt['user'])->post(
+            route('portal.abrechnungen.bestaetigen', ['billingRun' => $lauf->getKey()]),
+            ['werte_geprueft' => '1', 'verantwortung_uebernommen' => '1']
+        );
+
+        $antwort->assertForbidden();
+        self::assertNull($lauf->fresh()?->getAttribute('review_confirmed_at'));
+    }
+
+    public function test_bestaetigter_nutzer_darf_die_pruefung_bestaetigen(): void
+    {
+        $welt = $this->welt(true);
+        $lauf = $this->lauf($welt['organization'], $welt['user']);
+
+        $antwort = $this->actingAs($welt['user'])->post(
+            route('portal.abrechnungen.bestaetigen', ['billingRun' => $lauf->getKey()]),
+            ['werte_geprueft' => '1', 'verantwortung_uebernommen' => '1']
+        );
+
+        $antwort->assertRedirect(route('portal.abrechnungen.show', ['billingRun' => $lauf->getKey()]));
+
+        $frisch = $lauf->fresh();
+        self::assertInstanceOf(BillingRun::class, $frisch);
+        self::assertNotNull($frisch->getAttribute('review_confirmed_at'));
+        self::assertNotNull($frisch->getAttribute('responsibility_confirmed_at'));
+    }
+
+    public function test_ohne_beide_haken_wird_die_bestaetigung_nicht_gespeichert(): void
+    {
+        $welt = $this->welt(true);
+        $lauf = $this->lauf($welt['organization'], $welt['user']);
+
+        $antwort = $this->actingAs($welt['user'])
+            ->from(route('portal.abrechnungen.show', ['billingRun' => $lauf->getKey()]))
+            ->post(
+                route('portal.abrechnungen.bestaetigen', ['billingRun' => $lauf->getKey()]),
+                ['werte_geprueft' => '1']
+            );
+
+        $antwort->assertSessionHasErrors('werte_geprueft');
+        self::assertNull($lauf->fresh()?->getAttribute('review_confirmed_at'));
+    }
+
+    public function test_bestaetigungsmail_enthaelt_html_und_klartext(): void
+    {
+        $welt = $this->welt(false);
+        $verifikation = app(EmailVerification::class);
+
+        $nachricht = (new VerifyEmailAddress($verifikation->signedUrl($welt['user'])))
+            ->toMail($welt['user']);
+
+        self::assertSame('Bitte bestätigen Sie Ihre E-Mail-Adresse', $nachricht->subject);
+        self::assertSame(
+            ['emails.auth.verifizierung', 'emails.auth.verifizierung-text'],
+            $nachricht->view
+        );
+
+        $gerendert = $nachricht->render();
+        self::assertStringContainsString('Bitte bestätigen Sie Ihre E-Mail-Adresse', (string) $gerendert);
+    }
+}

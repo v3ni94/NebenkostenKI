@@ -45,12 +45,16 @@ Route::name('legal.')->group(function (): void {
 });
 
 // --- Anwendung ---------------------------------------------------------------
-// Die Routen werden in Phase 1 mit Controllern hinterlegt. Bis dahin bleibt der
-// Bereich bewusst leer, damit keine ungeschuetzten Einstiegspunkte entstehen.
+//
+// Der Bereich verlangt eine Anmeldung und einen gueltigen Mandantenkontext.
+// Die E-Mail-Verifizierung ist hier bewusst NICHT vorgeschaltet: Konto und
+// Entwuerfe sind kostenlos und sollen ohne Huerde nutzbar sein. Verbindlich ist
+// die Verifizierung erst vor Zahlung und vor dem finalen Download; sie wird
+// dort ueber das Gate "email-verified" an der einzelnen Route durchgesetzt.
 
 Route::prefix('app')
     ->name('portal.')
-    ->middleware(['auth', 'verified'])
+    ->middleware(['auth'])
     ->group(base_path('routes/portal.php'));
 
 // --- Adminbereich ------------------------------------------------------------

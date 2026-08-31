@@ -498,6 +498,9 @@ fachliche Grundlage ist und ohne Infrastruktur testbar bleibt.
 | Externe Heizkostenabrechnungen sind formatvielfältig | mittel, Extraktionsqualität | Prüfsumme gegen Gesamtbetrag, Abweichung blockiert Finalisierung |
 | Gewerbemietverhältnisse | mittel | im Datenmodell vorbereitet, keine automatische Finalisierung, klarer Hinweis |
 | mPDF-Layouttreue bei sehr langen Tabellen | niedrig | Seitenumbruchtests je Template, konservatives CSS |
+| CSP benötigt `unsafe-eval` für den Alpine-Standardbuild | mittel | offener Punkt: Wechsel auf `@alpinejs/csp` und Umschreiben der `x-data`-Ausdrücke, danach `unsafe-eval` entfernen |
+| Registrierung verrät über die Eindeutigkeitsprüfung, ob eine E-Mail bereits ein Konto hat | mittel | offener Punkt: einheitliche Bestätigungsmeldung unabhängig vom Ergebnis, bei vorhandenem Konto stattdessen eine Hinweismail an die Adresse |
+| Einwilligungen werden noch nicht in `legal_acceptances` protokolliert | mittel | offener Punkt: Textversion, Zweck, Zeitpunkt, gekürzte IP und gehashter User-Agent bei Registrierung und im Checkout schreiben |
 
 ---
 

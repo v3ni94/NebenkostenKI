@@ -1,0 +1,245 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Feature\Portal;
+
+use App\Models\AuditLog;
+use App\Models\Property;
+use App\Models\Unit;
+
+/**
+ * Objekte und Einheiten: Anlegen, Bearbeiten, Loeschen und Plausibilitaet.
+ */
+final class PropertyAndUnitTest extends PortalTestCase
+{
+    /**
+     * @param  array<string, mixed>  $abweichungen
+     * @return array<string, mixed>
+     */
+    private function objektangaben(array $abweichungen = []): array
+    {
+        return array_merge([
+            'label' => 'Rheinpromenade 13',
+            'address_line' => 'Rheinpromenade 13',
+            'postal_code' => '40789',
+            'city' => 'Monheim am Rhein',
+            'kind' => 'MEHRFAMILIENHAUS',
+            'total_living_area_sqm' => '480,50',
+            'mea_denominator' => '1000',
+        ], $abweichungen);
+    }
+
+    public function test_objekt_wird_angelegt_und_dem_mandanten_zugeordnet(): void
+    {
+        $mandant = $this->mandant();
+
+        $antwort = $this->actingAs($mandant['user'])
+            ->post(route('portal.objekte.store'), $this->objektangaben());
+
+        $neu = Property::query()->where('label', 'Rheinpromenade 13')->first();
+
+        self::assertInstanceOf(Property::class, $neu);
+        $antwort->assertRedirect(route('portal.einheiten.index', ['property' => $neu->getKey()]));
+        self::assertSame($mandant['organization']->getKey(), $neu->getAttribute('organization_id'));
+        self::assertSame($mandant['user']->getKey(), $neu->getAttribute('created_by_user_id'));
+
+        // Das Komma der Eingabe wird zur Dezimalzahl normalisiert.
+        self::assertSame('480.5000', (string) $neu->getAttribute('total_living_area_sqm'));
+    }
+
+    public function test_anlegen_schreibt_einen_revisionseintrag(): void
+    {
+        $mandant = $this->mandant();
+
+        $this->actingAs($mandant['user'])->post(route('portal.objekte.store'), $this->objektangaben());
+
+        self::assertTrue(
+            AuditLog::query()
+                ->where('action', 'property.created')
+                ->where('actor_user_id', $mandant['user']->getKey())
+                ->exists()
+        );
+    }
+
+    public function test_objekt_ohne_pflichtangaben_wird_abgelehnt(): void
+    {
+        $mandant = $this->mandant();
+
+        $antwort = $this->actingAs($mandant['user'])
+            ->from(route('portal.objekte.create'))
+            ->post(route('portal.objekte.store'), [
+                'label' => '',
+                'address_line' => '',
+                'postal_code' => '',
+                'city' => '',
+                'kind' => 'GIBT_ES_NICHT',
+            ]);
+
+        $antwort->assertSessionHasErrors(['label', 'address_line', 'postal_code', 'city', 'kind']);
+
+        $fehler = session('errors');
+        self::assertNotNull($fehler);
+        self::assertStringContainsString('Bitte füllen Sie das Feld', (string) $fehler->first('label'));
+    }
+
+    public function test_objekt_wird_bearbeitet(): void
+    {
+        $mandant = $this->mandant();
+
+        $antwort = $this->actingAs($mandant['user'])->put(
+            route('portal.objekte.update', ['property' => $mandant['property']->getKey()]),
+            $this->objektangaben(['label' => 'Neue Bezeichnung'])
+        );
+
+        $antwort->assertRedirect(route('portal.objekte.index'));
+        self::assertSame(
+            'Neue Bezeichnung',
+            Property::query()->findOrFail($mandant['property']->getKey())->getAttribute('label')
+        );
+    }
+
+    public function test_objekt_wird_nur_weich_geloescht(): void
+    {
+        $mandant = $this->mandant();
+
+        $antwort = $this->actingAs($mandant['user'])->delete(
+            route('portal.objekte.destroy', ['property' => $mandant['property']->getKey()])
+        );
+
+        $antwort->assertRedirect(route('portal.objekte.index'));
+        self::assertNull(Property::query()->find($mandant['property']->getKey()));
+        self::assertNotNull(Property::query()->withTrashed()->find($mandant['property']->getKey()));
+    }
+
+    public function test_einheit_wird_mit_allen_schluesselwerten_angelegt(): void
+    {
+        $mandant = $this->mandant();
+
+        $antwort = $this->actingAs($mandant['user'])->post(
+            route('portal.einheiten.store', ['property' => $mandant['property']->getKey()]),
+            [
+                'label' => 'WE 12',
+                'location' => '2. OG links',
+                'living_area_sqm' => '72,50',
+                'heated_area_sqm' => '70,25',
+                'mea' => '87,5',
+                'individual_key_1_value' => '2',
+                'individual_key_5_value' => '1,5',
+            ]
+        );
+
+        $antwort->assertRedirect(route('portal.einheiten.index', ['property' => $mandant['property']->getKey()]));
+
+        $einheit = Unit::query()->where('label', 'WE 12')->firstOrFail();
+
+        self::assertSame($mandant['organization']->getKey(), $einheit->getAttribute('organization_id'));
+        self::assertSame('72.5000', (string) $einheit->getAttribute('living_area_sqm'));
+        self::assertSame('87.500000', (string) $einheit->getAttribute('mea'));
+        self::assertSame('2.0000', (string) $einheit->getAttribute('individual_key_1_value'));
+        self::assertSame('1.5000', (string) $einheit->getAttribute('individual_key_5_value'));
+    }
+
+    public function test_einheit_ohne_bezeichnung_wird_abgelehnt(): void
+    {
+        $mandant = $this->mandant();
+
+        $antwort = $this->actingAs($mandant['user'])
+            ->from(route('portal.einheiten.create', ['property' => $mandant['property']->getKey()]))
+            ->post(route('portal.einheiten.store', ['property' => $mandant['property']->getKey()]), [
+                'label' => '',
+            ]);
+
+        $antwort->assertSessionHasErrors('label');
+        self::assertStringContainsString(
+            'Bezeichnung für die Einheit',
+            (string) session('errors')?->first('label')
+        );
+    }
+
+    public function test_negative_flaeche_wird_abgelehnt(): void
+    {
+        $mandant = $this->mandant();
+
+        $antwort = $this->actingAs($mandant['user'])
+            ->from(route('portal.einheiten.create', ['property' => $mandant['property']->getKey()]))
+            ->post(route('portal.einheiten.store', ['property' => $mandant['property']->getKey()]), [
+                'label' => 'WE 99',
+                'living_area_sqm' => '-5',
+            ]);
+
+        $antwort->assertSessionHasErrors('living_area_sqm');
+    }
+
+    public function test_einheit_wird_bearbeitet_und_entfernt(): void
+    {
+        $mandant = $this->mandant();
+
+        $bearbeiten = $this->actingAs($mandant['user'])->put(
+            route('portal.einheiten.update', ['unit' => $mandant['unit']->getKey()]),
+            ['label' => 'WE neu', 'living_area_sqm' => '80']
+        );
+
+        $bearbeiten->assertRedirect(route('portal.einheiten.index', ['property' => $mandant['property']->getKey()]));
+        self::assertSame('WE neu', Unit::query()->findOrFail($mandant['unit']->getKey())->getAttribute('label'));
+
+        $entfernen = $this->actingAs($mandant['user'])->delete(
+            route('portal.einheiten.destroy', ['unit' => $mandant['unit']->getKey()])
+        );
+
+        $entfernen->assertRedirect(route('portal.einheiten.index', ['property' => $mandant['property']->getKey()]));
+        self::assertNull(Unit::query()->find($mandant['unit']->getKey()));
+    }
+
+    public function test_plausibilitaetshinweis_bei_abweichender_flaechensumme(): void
+    {
+        $mandant = $this->mandant();
+
+        // Objekt fuehrt 480,00 m², die einzige Einheit hat 72,50 m².
+        $mandant['property']->forceFill(['total_living_area_sqm' => '480.0000'])->save();
+
+        $antwort = $this->actingAs($mandant['user'])->get(
+            route('portal.einheiten.index', ['property' => $mandant['property']->getKey()])
+        );
+
+        $antwort->assertOk();
+        $antwort->assertSee('Hinweis zur Plausibilität');
+        $antwort->assertSee('Die Summe der Einheitenflächen beträgt 72,5 Quadratmeter');
+        $antwort->assertSee('Abweichungen sind nicht zwingend ein Fehler');
+    }
+
+    public function test_plausibilitaetshinweis_bei_abweichender_anteilssumme(): void
+    {
+        $mandant = $this->mandant();
+
+        $mandant['property']->forceFill([
+            'total_living_area_sqm' => '72.5000',
+            'mea_denominator' => '1000.000000',
+        ])->save();
+
+        $antwort = $this->actingAs($mandant['user'])->get(
+            route('portal.einheiten.index', ['property' => $mandant['property']->getKey()])
+        );
+
+        $antwort->assertOk();
+        $antwort->assertSee('Die Summe der Miteigentumsanteile beträgt 87,5');
+    }
+
+    public function test_keine_hinweise_bei_stimmigen_summen(): void
+    {
+        $mandant = $this->mandant();
+
+        $mandant['property']->forceFill([
+            'total_living_area_sqm' => '72.5000',
+            'total_heated_area_sqm' => '70.2500',
+            'mea_denominator' => '87.500000',
+        ])->save();
+
+        $antwort = $this->actingAs($mandant['user'])->get(
+            route('portal.einheiten.index', ['property' => $mandant['property']->getKey()])
+        );
+
+        $antwort->assertOk();
+        $antwort->assertDontSee('Hinweis zur Plausibilität');
+    }
+}
