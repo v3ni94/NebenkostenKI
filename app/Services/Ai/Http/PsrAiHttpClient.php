@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Services\Ai\Http;
 
 use App\Services\Ai\Exceptions\ProviderTransportException;
-use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
 use Psr\Http\Message\StreamFactoryInterface;
@@ -52,7 +51,7 @@ final class PsrAiHttpClient implements AiHttpClientInterface
 
         try {
             $psrResponse = $this->client->sendRequest($psrRequest);
-        } catch (ClientExceptionInterface|Throwable $exception) {
+        } catch (Throwable $exception) {
             // Bewusst ohne Body und ohne Providermeldung.
             throw ProviderTransportException::network($this->providerKeyForErrors, $exception);
         }

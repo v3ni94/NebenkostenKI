@@ -31,12 +31,18 @@ final class FieldNode implements SchemaNode
     public const MAX_SOURCE_EXCERPT_LENGTH = 240;
 
     /**
+     * Jedes Feld ist zwingend nullbar.
+     *
+     * Begruendung: Fehlende Werte werden niemals geschaetzt (Grundsatz 5). Ein
+     * nicht im Dokument enthaltener Wert wird als null ausgegeben und erzeugt
+     * eine konkrete Pruefaufgabe. Ein Pflichtwert auf Schemaebene wuerde das
+     * Modell zum Raten draengen.
+     *
      * @param  list<string>|null  $enumValues
      */
     private function __construct(
         public readonly ValueKind $kind,
         public readonly string $description,
-        public readonly bool $nullable = true,
         public readonly ?int $maxLength = null,
         public readonly ?array $enumValues = null,
         public readonly bool $boundingBoxAllowed = false,
@@ -138,7 +144,7 @@ final class FieldNode implements SchemaNode
      */
     private function valueJsonSchema(): array
     {
-        $schema = match ($this->kind) {
+        return match ($this->kind) {
             ValueKind::AMOUNT_CENT => [
                 'type' => ['integer', 'null'],
                 'description' => 'Betrag ausschliesslich als Integer in Cent.',
@@ -159,12 +165,6 @@ final class FieldNode implements SchemaNode
             ],
             ValueKind::TEXT => ['type' => ['string', 'null']],
         };
-
-        if (! $this->nullable) {
-            $schema['type'] = is_array($schema['type']) ? $schema['type'][0] : $schema['type'];
-        }
-
-        return $schema;
     }
 
     /**

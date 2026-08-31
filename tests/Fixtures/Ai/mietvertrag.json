@@ -1,0 +1,178 @@
+{
+    "vertragsart": {
+        "value": "MIETVERTRAG",
+        "confidence": 0.97,
+        "source_page": 1,
+        "source_excerpt": "Mietvertrag ueber Wohnraum"
+    },
+    "nutzungsart": {
+        "value": "WOHNRAUM",
+        "confidence": 0.96,
+        "source_page": 1,
+        "source_excerpt": "Wohnraum"
+    },
+    "vermieter_name": {
+        "value": "Beispiel Bestand GmbH",
+        "confidence": 0.93,
+        "source_page": 1,
+        "source_excerpt": "Vermieter: Beispiel Bestand GmbH"
+    },
+    "mieter_name": {
+        "value": "Erika Beispiel",
+        "confidence": 0.92,
+        "source_page": 1,
+        "source_excerpt": "Mieter: Erika Beispiel"
+    },
+    "objektanschrift": {
+        "value": "Beispielweg 7, 40000 Musterstadt",
+        "confidence": 0.94,
+        "source_page": 1,
+        "source_excerpt": "Beispielweg 7"
+    },
+    "einheitsbezeichnung": {
+        "value": "Wohnung 4, 2. OG rechts",
+        "confidence": 0.9,
+        "source_page": 1,
+        "source_excerpt": "Wohnung 4"
+    },
+    "wohnflaeche_qm": {
+        "value": "72.40",
+        "confidence": 0.91,
+        "source_page": 1,
+        "source_excerpt": "72,40 qm"
+    },
+    "mietbeginn": {
+        "value": "2023-04-01",
+        "confidence": 0.95,
+        "source_page": 1,
+        "source_excerpt": "01.04.2023"
+    },
+    "mietende": {
+        "value": null,
+        "confidence": 0,
+        "source_page": null,
+        "source_excerpt": null
+    },
+    "personenanzahl": {
+        "value": 2,
+        "confidence": 0.82,
+        "source_page": 1,
+        "source_excerpt": "2 Personen"
+    },
+    "nettokaltmiete_cent": {
+        "value": 78500,
+        "confidence": 0.94,
+        "source_page": 2,
+        "source_excerpt": "Nettokaltmiete 785,00 EUR"
+    },
+    "betriebskostenvorauszahlung_monatlich_cent": {
+        "value": 14000,
+        "confidence": 0.93,
+        "source_page": 2,
+        "source_excerpt": "Betriebskostenvorauszahlung 140,00 EUR"
+    },
+    "heizkostenvorauszahlung_monatlich_cent": {
+        "value": 9000,
+        "confidence": 0.92,
+        "source_page": 2,
+        "source_excerpt": "Heizkostenvorauszahlung 90,00 EUR"
+    },
+    "vorauszahlung_art": {
+        "value": "VORAUSZAHLUNG",
+        "confidence": 0.94,
+        "source_page": 2,
+        "source_excerpt": "Vorauszahlung mit Abrechnung"
+    },
+    "umlage_sonstige_betriebskosten_vereinbart": {
+        "value": false,
+        "confidence": 0.71,
+        "source_page": 3,
+        "source_excerpt": "keine benannten sonstigen Betriebskosten"
+    },
+    "standardverteilerschluessel": {
+        "value": "WOHNFLAECHE",
+        "confidence": 0.9,
+        "source_page": 3,
+        "source_excerpt": "nach Wohnflaeche"
+    },
+    "heizkostenabrechnung_extern": {
+        "value": true,
+        "confidence": 0.88,
+        "source_page": 3,
+        "source_excerpt": "Abrechnung durch externen Dienstleister"
+    },
+    "dezentrale_energieversorgung": {
+        "value": false,
+        "confidence": 0.9,
+        "source_page": 3,
+        "source_excerpt": "Zentralheizung"
+    },
+    "abweichende_regelung_hinweis": {
+        "value": null,
+        "confidence": 0,
+        "source_page": null,
+        "source_excerpt": null
+    },
+    "vereinbarte_kostenarten": [
+        {
+            "bezeichnung": {
+                "value": "Wasserversorgung und Entwaesserung",
+                "confidence": 0.9,
+                "source_page": 3,
+                "source_excerpt": "Wasser/Abwasser"
+            },
+            "umlage_vereinbart": {
+                "value": true,
+                "confidence": 0.92,
+                "source_page": 3,
+                "source_excerpt": "umlagefaehig vereinbart"
+            },
+            "verteilerschluessel": {
+                "value": "WOHNFLAECHE",
+                "confidence": 0.9,
+                "source_page": 3,
+                "source_excerpt": "nach Wohnflaeche"
+            }
+        },
+        {
+            "bezeichnung": {
+                "value": "Grundsteuer",
+                "confidence": 0.9,
+                "source_page": 3,
+                "source_excerpt": "Grundsteuer"
+            },
+            "umlage_vereinbart": {
+                "value": true,
+                "confidence": 0.9,
+                "source_page": 3,
+                "source_excerpt": "umlagefaehig vereinbart"
+            },
+            "verteilerschluessel": {
+                "value": "DIREKTE_ZUORDNUNG",
+                "confidence": 0.78,
+                "source_page": 3,
+                "source_excerpt": "direkt zugeordnet"
+            }
+        },
+        {
+            "bezeichnung": {
+                "value": "Muellbeseitigung",
+                "confidence": 0.9,
+                "source_page": 3,
+                "source_excerpt": "Muellgebuehren"
+            },
+            "umlage_vereinbart": {
+                "value": true,
+                "confidence": 0.9,
+                "source_page": 3,
+                "source_excerpt": "umlagefaehig vereinbart"
+            },
+            "verteilerschluessel": {
+                "value": "PERSONEN",
+                "confidence": 0.74,
+                "source_page": 3,
+                "source_excerpt": "nach Personen"
+            }
+        }
+    ]
+}

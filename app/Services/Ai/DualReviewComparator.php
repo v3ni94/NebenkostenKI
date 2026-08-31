@@ -52,10 +52,10 @@ final class DualReviewComparator
                 $path,
                 $providerA,
                 $fieldA?->value,
-                $fieldA?->confidence ?? 0.0,
+                $fieldA->confidence ?? 0.0,
                 $providerB,
                 $fieldB?->value,
-                $fieldB?->confidence ?? 0.0,
+                $fieldB->confidence ?? 0.0,
             );
         }
 

@@ -1,0 +1,102 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Services\Storage;
+
+use ZipArchive;
+
+/**
+ * Bestimmt die Seitenzahl beziehungsweise die Blattzahl einer Datei.
+ *
+ * Abschnitt 6.3 Schritt 6 verlangt Seitenzahl und die unbedingt erforderlichen
+ * technischen Metadaten, mehr nicht.
+ *
+ * DATENSCHUTZ: Es wird kein Text extrahiert, kein Seitenbild erzeugt und kein
+ * Inhalt zurueckgegeben. Ist die Seitenzahl nicht sicher bestimmbar, bleibt sie
+ * null. Es wird niemals geschaetzt (Grundsatz 5).
+ */
+final class PageCounter
+{
+    /**
+     * Gelesen wird hoechstens dieser Umfang, damit ein grosses PDF den
+     * Speicher eines IONOS-Prozesses nicht sprengt.
+     */
+    private const MAX_SCAN_BYTES = 8 * 1024 * 1024;
+
+    public function count(string $absolutePath, FileCategory $category, string $mimeType): ?int
+    {
+        if (! is_file($absolutePath)) {
+            return null;
+        }
+
+        return match ($category) {
+            FileCategory::PDF => $this->countPdfPages($absolutePath),
+            FileCategory::BILD, FileCategory::HEIC => 1,
+            FileCategory::TABELLE => $mimeType === 'text/csv' ? 1 : $this->countWorksheets($absolutePath),
+            FileCategory::ARCHIV => null,
+        };
+    }
+
+    /**
+     * Zaehlt Seitenobjekte im PDF. Kann die Zahl nicht sicher bestimmt werden,
+     * wird null zurueckgegeben und in validation_issues eine Pruefaufgabe
+     * erzeugt, statt einen Wert zu erfinden.
+     */
+    private function countPdfPages(string $absolutePath): ?int
+    {
+        $contents = (string) file_get_contents($absolutePath, false, null, 0, self::MAX_SCAN_BYTES);
+
+        if ($contents === '') {
+            return null;
+        }
+
+        $pageObjects = preg_match_all('#/Type\s*/Page[^s]#', $contents);
+
+        if (is_int($pageObjects) && $pageObjects > 0) {
+            return $pageObjects;
+        }
+
+        // Alternativ traegt der Seitenbaum die Gesamtzahl. Der groesste Wert
+        // ist die Wurzel des Baums.
+        $matches = [];
+
+        if (preg_match_all('#/Count\s+(\d+)#', $contents, $matches) === 1 || $matches !== []) {
+            $counts = array_map('intval', $matches[1] ?? []);
+            $counts = array_filter($counts, static fn (int $value): bool => $value > 0);
+
+            if ($counts !== []) {
+                return max($counts);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Zaehlt die Arbeitsblaetter einer XLSX-Datei ueber das ZIP-Verzeichnis.
+     * Die Datei wird dabei nicht entpackt und nicht gelesen.
+     */
+    private function countWorksheets(string $absolutePath): ?int
+    {
+        $archive = new ZipArchive;
+
+        if ($archive->open($absolutePath, ZipArchive::RDONLY) !== true) {
+            return null;
+        }
+
+        $sheets = 0;
+
+        for ($index = 0; $index < $archive->numFiles; $index++) {
+            $name = $archive->getNameIndex($index);
+
+            if (is_string($name) && preg_match('#^xl/worksheets/sheet\d+\.xml$#', $name) === 1) {
+                $sheets++;
+            }
+        }
+
+        $archive->close();
+
+        return $sheets > 0 ? $sheets : null;
+    }
+}

@@ -28,6 +28,7 @@ use App\Services\Ai\Dto\ReconcileDocumentsRequest;
 use App\Services\Ai\Dto\ReconciliationResult;
 use App\Services\Ai\Exceptions\UnsupportedFileTypeException;
 use App\Services\Ai\JsonSchemaValidator;
+use App\Services\Ai\Prompts\PromptDefinition;
 use App\Services\Ai\Prompts\PromptRegistry;
 use App\Services\Ai\RedactingLogger;
 use App\Services\Ai\Schemas\SchemaRegistry;
@@ -123,7 +124,7 @@ final class FakeAiProvider implements AiDocumentProviderInterface
         return new ClassificationResult(
             $result,
             is_string($rawType) ? DocumentType::tryFrom($rawType) : null,
-            $typeField?->confidence ?? 0.0,
+            $typeField->confidence ?? 0.0,
             [],
             $instructionField?->value === true,
         );
@@ -231,7 +232,7 @@ final class FakeAiProvider implements AiDocumentProviderInterface
         return $result;
     }
 
-    private function promptFor(AiCallPurpose $purpose, string $schemaKey): \App\Services\Ai\Prompts\PromptDefinition
+    private function promptFor(AiCallPurpose $purpose, string $schemaKey): PromptDefinition
     {
         $schema = $this->schemas->get($schemaKey);
 

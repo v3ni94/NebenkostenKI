@@ -221,12 +221,9 @@ final class JsonSchemaValidator
     private function validateValue(FieldNode $node, mixed $value, string $path): bool
     {
         if ($value === null) {
-            if (! $node->nullable) {
-                $this->violate($path, SchemaViolationCode::NULL_NICHT_ZULAESSIG, $node->kind->value, 'null');
-
-                return false;
-            }
-
+            // Jedes Feld ist zwingend nullbar. Fehlende Werte werden niemals
+            // geschaetzt (Grundsatz 5), sie bleiben null und erzeugen eine
+            // konkrete Pruefaufgabe.
             return true;
         }
 
@@ -359,6 +356,14 @@ final class JsonSchemaValidator
 
     private function validateConfidence(mixed $value, string $path): ?float
     {
+        // Anders als der Wert selbst ist die Konfidenz nie nullbar. Ein nicht
+        // erkannter Wert erhaelt value gleich null und confidence gleich 0.
+        if ($value === null) {
+            $this->violate($path, SchemaViolationCode::NULL_NICHT_ZULAESSIG, 'number', 'null');
+
+            return null;
+        }
+
         if (is_int($value)) {
             $value = (float) $value;
         }

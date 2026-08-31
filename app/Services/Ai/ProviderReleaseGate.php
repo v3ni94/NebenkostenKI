@@ -44,18 +44,28 @@ final class ProviderReleaseGate
      */
     public const NON_PRODUCTION_ENVIRONMENTS = ['local', 'testing'];
 
+    /**
+     * @param  list<string>|null  $approvedProviderKeys  Ausdrueckliche Freigabe je Providerorganisation.
+     *                                                   null bedeutet, dass ausschliesslich die globale
+     *                                                   Freigabe aus ai.data_retention_approved gilt.
+     */
     public function __construct(
         private readonly bool $requireZeroDataRetention,
         private readonly bool $dataRetentionApproved,
         private readonly string $environment,
+        private readonly ?array $approvedProviderKeys = null,
     ) {}
 
-    public static function fromConfig(AiConfig $config, string $environment): self
+    /**
+     * @param  list<string>|null  $approvedProviderKeys
+     */
+    public static function fromConfig(AiConfig $config, string $environment, ?array $approvedProviderKeys = null): self
     {
         return new self(
             $config->requireZeroDataRetention,
             $config->dataRetentionApproved,
             $environment,
+            $approvedProviderKeys,
         );
     }
 
@@ -84,6 +94,22 @@ final class ProviderReleaseGate
 
         if (! $this->requireZeroDataRetention) {
             return null;
+        }
+
+        // Die Freigabe gilt nach Abschnitt 13.5 fuer die konkrete
+        // Providerorganisation. Ist eine Liste freigegebener Organisationen
+        // hinterlegt, entscheidet ausschliesslich sie.
+        if ($this->approvedProviderKeys !== null) {
+            if (in_array($provider->value, $this->approvedProviderKeys, true)) {
+                return null;
+            }
+
+            return sprintf(
+                'Fuer die Providerorganisation "%s" liegt keine Datenschutzfreigabe vor. Zero Data Retention '
+                .'beziehungsweise eine gleichwertig freigegebene Kurzzeitverarbeitung ist je Organisation, '
+                .'Modell und genutzter Funktion nachzuweisen.',
+                $provider->value,
+            );
         }
 
         if ($this->dataRetentionApproved) {

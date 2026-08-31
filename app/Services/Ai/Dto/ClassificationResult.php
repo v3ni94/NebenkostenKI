@@ -61,6 +61,6 @@ final class ClassificationResult
 
         $field = $this->extraction->field('dokumenttyp');
 
-        return $field?->requiresReview ?? true;
+        return $field->requiresReview ?? true;
     }
 }

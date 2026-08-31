@@ -1,0 +1,265 @@
+{
+    "abrechnungszeitraum_von": {
+        "value": "2025-01-01",
+        "confidence": 0.97,
+        "source_page": 1,
+        "source_excerpt": "01.01.2025"
+    },
+    "abrechnungszeitraum_bis": {
+        "value": "2025-12-31",
+        "confidence": 0.97,
+        "source_page": 1,
+        "source_excerpt": "31.12.2025"
+    },
+    "anzahl_geprueft": {
+        "value": 3,
+        "confidence": 0.99,
+        "source_page": 1,
+        "source_excerpt": "3 Quellen"
+    },
+    "grundsteuer_moeglicherweise_doppelt": {
+        "value": null,
+        "confidence": 0.4,
+        "source_page": 1,
+        "source_excerpt": "Grundsteuer in der Hausgeldabrechnung nicht eindeutig erkennbar"
+    },
+    "heizkosten_moeglicherweise_doppelt": {
+        "value": true,
+        "confidence": 0.86,
+        "source_page": 1,
+        "source_excerpt": "Heizkosten in beiden Quellen ausgewiesen"
+    },
+    "matrix": [
+        {
+            "quelle": {
+                "value": "HAUSGELDABRECHNUNG",
+                "confidence": 0.95,
+                "source_page": 1,
+                "source_excerpt": "Hausgeldabrechnung"
+            },
+            "quellenbezeichnung": {
+                "value": "Dokument 01 - Hausgeldabrechnung",
+                "confidence": 0.98,
+                "source_page": 1,
+                "source_excerpt": "Dokument 01"
+            },
+            "kostenart": {
+                "value": "Heizkosten",
+                "confidence": 0.92,
+                "source_page": 1,
+                "source_excerpt": "Heizung"
+            },
+            "betrag_cent": {
+                "value": 98750,
+                "confidence": 0.92,
+                "source_page": 1,
+                "source_excerpt": "987,50",
+                "bounding_box": null
+            },
+            "einheitsbezeichnung": {
+                "value": "Wohnung 4",
+                "confidence": 0.9,
+                "source_page": 1,
+                "source_excerpt": "Wohnung 4"
+            },
+            "zeitraum_von": {
+                "value": "2025-01-01",
+                "confidence": 0.94,
+                "source_page": 1,
+                "source_excerpt": "01.01.2025"
+            },
+            "zeitraum_bis": {
+                "value": "2025-12-31",
+                "confidence": 0.94,
+                "source_page": 1,
+                "source_excerpt": "31.12.2025"
+            },
+            "vorgeschlagene_behandlung": {
+                "value": "VERGLEICHSSUMME",
+                "confidence": 0.85,
+                "source_page": 1,
+                "source_excerpt": "Vergleichssumme"
+            }
+        },
+        {
+            "quelle": {
+                "value": "EXTERNE_HEIZKOSTENABRECHNUNG",
+                "confidence": 0.96,
+                "source_page": 1,
+                "source_excerpt": "externe Heizkostenabrechnung"
+            },
+            "quellenbezeichnung": {
+                "value": "Dokument 03 - Heizkostenabrechnung",
+                "confidence": 0.98,
+                "source_page": 1,
+                "source_excerpt": "Dokument 03"
+            },
+            "kostenart": {
+                "value": "Heizkosten",
+                "confidence": 0.93,
+                "source_page": 1,
+                "source_excerpt": "Heizung"
+            },
+            "betrag_cent": {
+                "value": 98750,
+                "confidence": 0.93,
+                "source_page": 1,
+                "source_excerpt": "987,50",
+                "bounding_box": null
+            },
+            "einheitsbezeichnung": {
+                "value": "Wohnung 4",
+                "confidence": 0.9,
+                "source_page": 1,
+                "source_excerpt": "Wohnung 4"
+            },
+            "zeitraum_von": {
+                "value": "2025-01-01",
+                "confidence": 0.94,
+                "source_page": 1,
+                "source_excerpt": "01.01.2025"
+            },
+            "zeitraum_bis": {
+                "value": "2025-12-31",
+                "confidence": 0.94,
+                "source_page": 1,
+                "source_excerpt": "31.12.2025"
+            },
+            "vorgeschlagene_behandlung": {
+                "value": "MIETERANTEIL",
+                "confidence": 0.87,
+                "source_page": 1,
+                "source_excerpt": "Mieteranteil"
+            }
+        },
+        {
+            "quelle": {
+                "value": "GRUNDSTEUERBESCHEID",
+                "confidence": 0.97,
+                "source_page": 1,
+                "source_excerpt": "Grundsteuerbescheid"
+            },
+            "quellenbezeichnung": {
+                "value": "Dokument 02 - Grundsteuerbescheid",
+                "confidence": 0.98,
+                "source_page": 1,
+                "source_excerpt": "Dokument 02"
+            },
+            "kostenart": {
+                "value": "Grundsteuer",
+                "confidence": 0.95,
+                "source_page": 1,
+                "source_excerpt": "Grundsteuer B"
+            },
+            "betrag_cent": {
+                "value": 24960,
+                "confidence": 0.96,
+                "source_page": 1,
+                "source_excerpt": "249,60",
+                "bounding_box": null
+            },
+            "einheitsbezeichnung": {
+                "value": "Wohnung 4",
+                "confidence": 0.78,
+                "source_page": 1,
+                "source_excerpt": "Wohnung 4"
+            },
+            "zeitraum_von": {
+                "value": "2025-01-01",
+                "confidence": 0.94,
+                "source_page": 1,
+                "source_excerpt": "01.01.2025"
+            },
+            "zeitraum_bis": {
+                "value": "2025-12-31",
+                "confidence": 0.94,
+                "source_page": 1,
+                "source_excerpt": "31.12.2025"
+            },
+            "vorgeschlagene_behandlung": {
+                "value": "DUBLETTENPRUEFUNG",
+                "confidence": 0.8,
+                "source_page": 1,
+                "source_excerpt": "Dublettenpruefung"
+            }
+        }
+    ],
+    "befunde": [
+        {
+            "befundart": {
+                "value": "MOEGLICHE_DUBLETTE",
+                "confidence": 0.88,
+                "source_page": 1,
+                "source_excerpt": "moegliche Dublette"
+            },
+            "beschreibung": {
+                "value": "Heizkosten sind in der Hausgeldabrechnung und in der externen Abrechnung ausgewiesen.",
+                "confidence": 0.88,
+                "source_page": 1,
+                "source_excerpt": "Heizkosten doppelt"
+            },
+            "betroffene_kostenart": {
+                "value": "Heizkosten",
+                "confidence": 0.9,
+                "source_page": 1,
+                "source_excerpt": "Heizung"
+            },
+            "quellenbezeichnung_a": {
+                "value": "Dokument 01 - Hausgeldabrechnung",
+                "confidence": 0.95,
+                "source_page": 1,
+                "source_excerpt": "Dokument 01"
+            },
+            "quellenbezeichnung_b": {
+                "value": "Dokument 03 - Heizkostenabrechnung",
+                "confidence": 0.95,
+                "source_page": 1,
+                "source_excerpt": "Dokument 03"
+            },
+            "differenz_cent": {
+                "value": 0,
+                "confidence": 0.9,
+                "source_page": 1,
+                "source_excerpt": "keine Differenz"
+            }
+        },
+        {
+            "befundart": {
+                "value": "NICHT_UMLAGEFAEHIGE_POSITION",
+                "confidence": 0.92,
+                "source_page": 2,
+                "source_excerpt": "Verwalterverguetung"
+            },
+            "beschreibung": {
+                "value": "Verwalterverguetung ist in der Hausgeldabrechnung enthalten und nicht auf Mieter umlegbar.",
+                "confidence": 0.92,
+                "source_page": 2,
+                "source_excerpt": "Verwalterverguetung 302,40"
+            },
+            "betroffene_kostenart": {
+                "value": "Verwalterverguetung",
+                "confidence": 0.95,
+                "source_page": 2,
+                "source_excerpt": "Verwaltung"
+            },
+            "quellenbezeichnung_a": {
+                "value": "Dokument 01 - Hausgeldabrechnung",
+                "confidence": 0.95,
+                "source_page": 2,
+                "source_excerpt": "Dokument 01"
+            },
+            "quellenbezeichnung_b": {
+                "value": null,
+                "confidence": 0,
+                "source_page": null,
+                "source_excerpt": null
+            },
+            "differenz_cent": {
+                "value": 30240,
+                "confidence": 0.92,
+                "source_page": 2,
+                "source_excerpt": "302,40"
+            }
+        }
+    ]
+}

@@ -1,0 +1,146 @@
+{
+    "abrechnungszeitraum_von": {
+        "value": "2024-01-01",
+        "confidence": 0.96,
+        "source_page": 1,
+        "source_excerpt": "01.01.2024"
+    },
+    "abrechnungszeitraum_bis": {
+        "value": "2024-12-31",
+        "confidence": 0.96,
+        "source_page": 1,
+        "source_excerpt": "31.12.2024"
+    },
+    "objektanschrift": {
+        "value": "Beispielweg 7, 40000 Musterstadt",
+        "confidence": 0.93,
+        "source_page": 1,
+        "source_excerpt": "Beispielweg 7"
+    },
+    "einheitsbezeichnung": {
+        "value": "Wohnung 4",
+        "confidence": 0.9,
+        "source_page": 1,
+        "source_excerpt": "Wohnung 4"
+    },
+    "mieter_name": {
+        "value": "Erika Beispiel",
+        "confidence": 0.9,
+        "source_page": 1,
+        "source_excerpt": "Erika Beispiel"
+    },
+    "nutzungszeitraum_von": {
+        "value": "2024-01-01",
+        "confidence": 0.94,
+        "source_page": 1,
+        "source_excerpt": "01.01.2024"
+    },
+    "nutzungszeitraum_bis": {
+        "value": "2024-12-31",
+        "confidence": 0.94,
+        "source_page": 1,
+        "source_excerpt": "31.12.2024"
+    },
+    "summe_umlagefaehige_kosten_cent": {
+        "value": 268400,
+        "confidence": 0.94,
+        "source_page": 2,
+        "source_excerpt": "Summe 2.684,00"
+    },
+    "vorauszahlungen_cent": {
+        "value": 276000,
+        "confidence": 0.95,
+        "source_page": 2,
+        "source_excerpt": "Vorauszahlungen 2.760,00"
+    },
+    "ergebnis_cent": {
+        "value": -7600,
+        "confidence": 0.94,
+        "source_page": 2,
+        "source_excerpt": "Guthaben 76,00"
+    },
+    "heizkosten_extern_abgerechnet": {
+        "value": true,
+        "confidence": 0.9,
+        "source_page": 2,
+        "source_excerpt": "externe Heizkostenabrechnung"
+    },
+    "kostenzeilen": [
+        {
+            "bezeichnung": {
+                "value": "Grundsteuer",
+                "confidence": 0.92,
+                "source_page": 2,
+                "source_excerpt": "Grundsteuer"
+            },
+            "gesamtkosten_cent": {
+                "value": 24000,
+                "confidence": 0.92,
+                "source_page": 2,
+                "source_excerpt": "240,00"
+            },
+            "mieteranteil_cent": {
+                "value": 24000,
+                "confidence": 0.92,
+                "source_page": 2,
+                "source_excerpt": "240,00"
+            },
+            "verteilerschluessel": {
+                "value": "DIREKTE_ZUORDNUNG",
+                "confidence": 0.88,
+                "source_page": 2,
+                "source_excerpt": "direkt"
+            },
+            "nenner": {
+                "value": null,
+                "confidence": 0,
+                "source_page": null,
+                "source_excerpt": null
+            },
+            "zaehler": {
+                "value": null,
+                "confidence": 0,
+                "source_page": null,
+                "source_excerpt": null
+            }
+        },
+        {
+            "bezeichnung": {
+                "value": "Wasser und Abwasser",
+                "confidence": 0.92,
+                "source_page": 2,
+                "source_excerpt": "Wasser/Abwasser"
+            },
+            "gesamtkosten_cent": {
+                "value": 612000,
+                "confidence": 0.92,
+                "source_page": 2,
+                "source_excerpt": "6.120,00"
+            },
+            "mieteranteil_cent": {
+                "value": 52400,
+                "confidence": 0.91,
+                "source_page": 2,
+                "source_excerpt": "524,00"
+            },
+            "verteilerschluessel": {
+                "value": "WOHNFLAECHE",
+                "confidence": 0.9,
+                "source_page": 2,
+                "source_excerpt": "Wohnflaeche"
+            },
+            "nenner": {
+                "value": "845.00",
+                "confidence": 0.88,
+                "source_page": 2,
+                "source_excerpt": "845,00 qm"
+            },
+            "zaehler": {
+                "value": "72.40",
+                "confidence": 0.88,
+                "source_page": 2,
+                "source_excerpt": "72,40 qm"
+            }
+        }
+    ]
+}

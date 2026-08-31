@@ -672,7 +672,7 @@ abstract class AbstractHttpAiProvider implements AiDocumentProviderInterface
         return new ClassificationResult(
             $result,
             $documentType,
-            $typeField?->confidence ?? 0.0,
+            $typeField->confidence ?? 0.0,
             $alternatives,
             $instructionField?->value === true,
         );

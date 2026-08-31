@@ -1,0 +1,139 @@
+{
+    "behoerde": {
+        "value": "Stadtkasse Musterstadt",
+        "confidence": 0.95,
+        "source_page": 1,
+        "source_excerpt": "Stadtkasse Musterstadt"
+    },
+    "bescheiddatum": {
+        "value": "2025-01-20",
+        "confidence": 0.96,
+        "source_page": 1,
+        "source_excerpt": "20.01.2025"
+    },
+    "aktenzeichen": {
+        "value": "KZ-0000-0000-0001",
+        "confidence": 0.93,
+        "source_page": 1,
+        "source_excerpt": "Kassenzeichen KZ-0000-0000-0001"
+    },
+    "objektanschrift": {
+        "value": "Beispielweg 7, 40000 Musterstadt",
+        "confidence": 0.94,
+        "source_page": 1,
+        "source_excerpt": "Beispielweg 7"
+    },
+    "einheitsbezeichnung": {
+        "value": "Wohnung 4",
+        "confidence": 0.75,
+        "source_page": 1,
+        "source_excerpt": "Wohnung 4"
+    },
+    "steuerjahr": {
+        "value": 2025,
+        "confidence": 0.98,
+        "source_page": 1,
+        "source_excerpt": "Kalenderjahr 2025"
+    },
+    "zeitraum_von": {
+        "value": "2025-01-01",
+        "confidence": 0.94,
+        "source_page": 1,
+        "source_excerpt": "01.01.2025"
+    },
+    "zeitraum_bis": {
+        "value": "2025-12-31",
+        "confidence": 0.94,
+        "source_page": 1,
+        "source_excerpt": "31.12.2025"
+    },
+    "jahresbetrag_cent": {
+        "value": 24960,
+        "confidence": 0.97,
+        "source_page": 1,
+        "source_excerpt": "Grundsteuer B 249,60 EUR",
+        "bounding_box": null
+    },
+    "grundsteuer_art": {
+        "value": "GRUNDSTEUER_B",
+        "confidence": 0.95,
+        "source_page": 1,
+        "source_excerpt": "Grundsteuer B"
+    },
+    "betrifft_teilzeitraum": {
+        "value": false,
+        "confidence": 0.9,
+        "source_page": 1,
+        "source_excerpt": "ganzes Kalenderjahr"
+    },
+    "eigentumswechsel_erwaehnt": {
+        "value": false,
+        "confidence": 0.9,
+        "source_page": 1,
+        "source_excerpt": "kein Hinweis"
+    },
+    "sonstige_abgaben_enthalten": {
+        "value": false,
+        "confidence": 0.88,
+        "source_page": 1,
+        "source_excerpt": "nur Grundsteuer ausgewiesen"
+    },
+    "faelligkeiten": [
+        {
+            "faelligkeitsdatum": {
+                "value": "2025-02-15",
+                "confidence": 0.93,
+                "source_page": 1,
+                "source_excerpt": "15.02.2025"
+            },
+            "betrag_cent": {
+                "value": 6240,
+                "confidence": 0.93,
+                "source_page": 1,
+                "source_excerpt": "62,40"
+            }
+        },
+        {
+            "faelligkeitsdatum": {
+                "value": "2025-05-15",
+                "confidence": 0.93,
+                "source_page": 1,
+                "source_excerpt": "15.05.2025"
+            },
+            "betrag_cent": {
+                "value": 6240,
+                "confidence": 0.93,
+                "source_page": 1,
+                "source_excerpt": "62,40"
+            }
+        },
+        {
+            "faelligkeitsdatum": {
+                "value": "2025-08-15",
+                "confidence": 0.93,
+                "source_page": 1,
+                "source_excerpt": "15.08.2025"
+            },
+            "betrag_cent": {
+                "value": 6240,
+                "confidence": 0.93,
+                "source_page": 1,
+                "source_excerpt": "62,40"
+            }
+        },
+        {
+            "faelligkeitsdatum": {
+                "value": "2025-11-15",
+                "confidence": 0.93,
+                "source_page": 1,
+                "source_excerpt": "15.11.2025"
+            },
+            "betrag_cent": {
+                "value": 6240,
+                "confidence": 0.93,
+                "source_page": 1,
+                "source_excerpt": "62,40"
+            }
+        }
+    ]
+}

@@ -150,8 +150,8 @@ final class AiServiceFactory
 
         $httpClient = $this->httpClient ?? $this->makeHttpClient($providerConfig);
 
-        return match ($key) {
-            AiProviderKey::OPENAI => new OpenAiResponsesProvider(
+        if ($key === AiProviderKey::OPENAI) {
+            return new OpenAiResponsesProvider(
                 $providerConfig,
                 $httpClient,
                 $schemas,
@@ -162,21 +162,21 @@ final class AiServiceFactory
                 $costLimiter,
                 $logger,
                 $this->config->maxRetries,
-            ),
-            AiProviderKey::ANTHROPIC => new AnthropicMessagesProvider(
-                $providerConfig,
-                $httpClient,
-                $schemas,
-                $prompts,
-                $validator,
-                $confidence,
-                $costEstimator,
-                $costLimiter,
-                $logger,
-                $this->config->maxRetries,
-            ),
-            AiProviderKey::FAKE => null,
-        };
+            );
+        }
+
+        return new AnthropicMessagesProvider(
+            $providerConfig,
+            $httpClient,
+            $schemas,
+            $prompts,
+            $validator,
+            $confidence,
+            $costEstimator,
+            $costLimiter,
+            $logger,
+            $this->config->maxRetries,
+        );
     }
 
     private function makeHttpClient(ProviderConfig $providerConfig): AiHttpClientInterface

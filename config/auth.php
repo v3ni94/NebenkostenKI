@@ -92,12 +92,22 @@ return [
     |
     */
 
+    /*
+    | Vorgabe des Masterprompts, Abschnitt 8.1: kurzlebiges Einmal-Token.
+    |
+    | expire   Gueltigkeit des Reset-Tokens in Minuten. Laravel-Standard ist 60,
+    |          hier bewusst auf 30 Minuten verkuerzt. Das Token wird nach
+    |          erfolgreicher Verwendung geloescht und ist damit einmalig.
+    | throttle Wartezeit in Sekunden, bevor derselbe Nutzer ein weiteres Token
+    |          anfordern kann.
+    */
+
     'passwords' => [
         'users' => [
             'provider' => 'users',
             'table' => env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'password_reset_tokens'),
-            'expire' => 60,
-            'throttle' => 60,
+            'expire' => (int) env('AUTH_PASSWORD_RESET_EXPIRE_MINUTES', 30),
+            'throttle' => (int) env('AUTH_PASSWORD_RESET_THROTTLE_SECONDS', 60),
         ],
     ],
 
