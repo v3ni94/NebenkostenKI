@@ -112,9 +112,10 @@ return Application::configure(basePath: dirname(__DIR__))
          *
          * Das Gate wird bewusst anstelle der Laravel-Middleware "verified"
          * verwendet: App\Models\User implementiert MustVerifyEmail derzeit
-         * nicht, und die Portalroutengruppe traegt "verified" pauschal fuer den
-         * gesamten Bereich. Ueber das Gate wird die Pflicht punktgenau an den
-         * zahlungsnahen Handlungen durchgesetzt.
+         * nicht, und eine pauschale Pflicht fuer den gesamten Portalbereich
+         * waere ein Widerspruch zu Abschnitt 8.1. Ueber das Gate wird die
+         * Pflicht punktgenau an den zahlungsnahen Handlungen und am finalen
+         * Download durchgesetzt.
          */
         Gate::define('email-verified', function (User $user): AccessResponse {
             return $user->getAttribute('email_verified_at') !== null

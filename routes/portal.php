@@ -5,9 +5,12 @@ declare(strict_types=1);
 use App\Http\Controllers\Portal\AccountController;
 use App\Http\Controllers\Portal\BillingRunController;
 use App\Http\Controllers\Portal\DashboardController;
+use App\Http\Controllers\Portal\DownloadController;
 use App\Http\Controllers\Portal\PropertyController;
 use App\Http\Controllers\Portal\TenancyController;
 use App\Http\Controllers\Portal\UnitController;
+use App\Http\Controllers\Portal\Upload\ChunkUploadController;
+use App\Http\Controllers\Portal\Upload\UploadStatusController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -35,8 +38,8 @@ use Illuminate\Support\Facades\Route;
 | POST-, PUT- oder DELETE-Aufruf mit anschliessender Weiterleitung und
 | Statusmeldung. Der Ablauf ist damit jederzeit unterbrechbar.
 |
-| Zahlung, Upload, Vorschau und Download folgen in den spaeteren Phasen und
-| erhalten dann eigene, gesondert ratenbegrenzte Routen.
+| Upload und Download haben eigene, gesondert ratenbegrenzte Routen. Zahlung
+| und Vorschau folgen in den spaeteren Phasen.
 |
 */
 
@@ -107,6 +110,40 @@ Route::middleware('organisation')->group(function (): void {
     Route::delete('/abrechnungen/{billingRun}', [BillingRunController::class, 'destroy'])
         ->name('abrechnungen.destroy');
 
+    // --- Upload und Verarbeitungsstatus --------------------------------------
+    //
+    // Der Upload laeuft in Abschnitten (Chunks), damit die Post-Limits von
+    // IONOS nicht zum Abbruch fuehren. Die Originaldateien liegen ausschliesslich
+    // im temporaeren Bereich und werden nach der Auswertung geloescht.
+
+    Route::get('/abrechnungen/{billingRun}/upload', [UploadStatusController::class, 'show'])
+        ->name('uploads.index');
+    Route::get('/abrechnungen/{billingRun}/uploads/status', [UploadStatusController::class, 'index'])
+        ->name('uploads.status');
+    Route::get('/uploads/{upload}', [UploadStatusController::class, 'upload'])
+        ->name('uploads.show');
+
+    Route::middleware('throttle:uploads')->group(function (): void {
+        Route::post('/abrechnungen/{billingRun}/uploads', [ChunkUploadController::class, 'store'])
+            ->name('uploads.store');
+        Route::post('/uploads/{upload}/abschnitte', [ChunkUploadController::class, 'storeChunk'])
+            ->name('uploads.chunk');
+        Route::post('/uploads/{upload}/abschluss', [ChunkUploadController::class, 'complete'])
+            ->name('uploads.complete');
+    });
+
+    // --- Downloads erzeugter Artefakte ---------------------------------------
+    //
+    // Ausgeliefert werden ausschliesslich vom System erzeugte Dateien, niemals
+    // Originaluploads. Jeder Abruf prueft die Eigentuemerschaft. Die
+    // E-Mail-Verifizierung ist fuer den finalen Download verbindlich
+    // (Masterprompt 8.1).
+
+    Route::middleware(['throttle:downloads', 'can:email-verified'])->group(function (): void {
+        Route::get('/downloads/{generatedDocument}', [DownloadController::class, 'stream'])
+            ->name('downloads.stream');
+    });
+
     // --- Konto ---------------------------------------------------------------
 
     Route::get('/konto', [AccountController::class, 'edit'])->name('konto.edit');
@@ -114,3 +151,13 @@ Route::middleware('organisation')->group(function (): void {
     Route::put('/konto/e-mail', [AccountController::class, 'updateEmail'])->name('konto.email');
     Route::put('/konto/erinnerungen', [AccountController::class, 'updateReminders'])->name('konto.erinnerungen');
 });
+
+// --- Signierter Download ------------------------------------------------------
+//
+// Kurzlebiger signierter Link aus einer Transaktionsmail. Die Signatur ersetzt
+// nicht die Autorisierung: der Controller prueft zusaetzlich die
+// Eigentuemerschaft. Gueltigkeitsdauer aus SIGNED_DOWNLOAD_TTL_MINUTES.
+
+Route::get('/downloads/{generatedDocument}/signiert', [DownloadController::class, 'signed'])
+    ->middleware(['signed', 'throttle:downloads'])
+    ->name('downloads.signed');

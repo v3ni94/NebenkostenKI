@@ -23,7 +23,7 @@ final class SampleFiles
     {
         $objects = "%PDF-1.4\n"
             ."1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
-            ."2 0 obj<</Type/Pages/Count ".$pages."/Kids[";
+            .'2 0 obj<</Type/Pages/Count '.$pages.'/Kids[';
 
         for ($page = 0; $page < $pages; $page++) {
             $objects .= ($page + 3).' 0 R ';
@@ -35,7 +35,7 @@ final class SampleFiles
             $objects .= ($page + 3)." 0 obj<</Type/Page /Parent 2 0 R>>endobj\n";
         }
 
-        return $objects."trailer<</Root 1 0 R/Size ".($pages + 3).">>\nstartxref\n0\n%%EOF\n";
+        return $objects.'trailer<</Root 1 0 R/Size '.($pages + 3).">>\nstartxref\n0\n%%EOF\n";
     }
 
     /**

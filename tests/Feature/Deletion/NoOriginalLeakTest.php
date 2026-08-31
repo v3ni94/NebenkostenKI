@@ -92,13 +92,13 @@ class NoOriginalLeakTest extends TestCase
 
     public function test_kein_dateiinhalt_in_den_logs(): void
     {
-        Log::spy();
+        $protokoll = Log::spy();
 
         $this->ladeDateiHoch($this->markiertesPdf(), 'pdf');
         $this->verarbeiteQueue();
 
-        Log::shouldNotHaveReceived('error');
-        Log::shouldNotHaveReceived('critical');
+        $protokoll->shouldNotHaveReceived('error');
+        $protokoll->shouldNotHaveReceived('critical');
 
         $logdatei = storage_path('logs/laravel.log');
 

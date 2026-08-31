@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Deletion;
 
+use App\Application\Documents\DeleteOriginalSources;
 use App\Application\Documents\RetryFailedDeletions;
 use App\Enums\AiProvider;
 use App\Enums\DeletionStatus;
@@ -61,7 +62,7 @@ class RetryFailedDeletionsTest extends TestCase
 
         $this->assertSame(DeletionStatus::FEHLGESCHLAGEN, $dokument->getAttribute('deletion_status'));
         $this->assertSame(1, (new RetryFailedDeletions($this->app->make(
-            \App\Application\Documents\DeleteOriginalSources::class
+            DeleteOriginalSources::class
         )))->openAlertCount());
 
         // Der Provider ist wieder erreichbar.

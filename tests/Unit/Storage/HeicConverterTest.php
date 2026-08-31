@@ -53,10 +53,16 @@ class HeicConverterTest extends TestCase
         }
     }
 
-    public function test_die_verfuegbarkeitspruefung_wirft_niemals(): void
+    public function test_die_verfuegbarkeitspruefung_ist_stabil_und_wirft_niemals(): void
     {
         $converter = new HeicConverter;
 
-        $this->assertIsBool($converter->isAvailable());
+        // Die Pruefung darf keine Ausnahme werfen, auch nicht ohne Erweiterung,
+        // und muss bei wiederholtem Aufruf dasselbe Ergebnis liefern.
+        $erste = $converter->isAvailable();
+        $zweite = $converter->isAvailable();
+
+        $this->assertSame($erste, $zweite);
+        $this->assertNotSame('', $converter->fallbackInstruction());
     }
 }

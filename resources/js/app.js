@@ -1,4 +1,5 @@
 import './bootstrap';
+import './components/upload.js';
 
 import Alpine from 'alpinejs';
 

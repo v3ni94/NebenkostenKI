@@ -32,6 +32,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
+use Symfony\Component\HttpFoundation\Response;
 use Tests\Unit\Storage\SampleFiles;
 
 /**
@@ -138,6 +139,8 @@ trait BuildsUploadWorld
 
     /**
      * Startet einen Upload ueber die HTTP-Route.
+     *
+     * @return TestResponse<Response>
      */
     protected function starteUpload(string $dateiname, int $groesse, ?string $kategorie = null): TestResponse
     {
@@ -153,6 +156,9 @@ trait BuildsUploadWorld
         );
     }
 
+    /**
+     * @return TestResponse<Response>
+     */
     protected function sendeAbschnitt(string $uploadId, int $index, string $inhalt): TestResponse
     {
         return $this->actingAs($this->welt()['user'])->post(
@@ -165,6 +171,9 @@ trait BuildsUploadWorld
         );
     }
 
+    /**
+     * @return TestResponse<Response>
+     */
     protected function schliesseUploadAb(string $uploadId, string $erweiterung): TestResponse
     {
         return $this->actingAs($this->welt()['user'])->postJson(
