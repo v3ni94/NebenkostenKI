@@ -1,0 +1,96 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+@source '../**/*.js';
+
+/*
+  Designsystem der Hausverwaltung Mueller GmbH.
+  Claim: Die digitalste Hausverwaltung.
+
+  Verbindliche Regeln:
+  - HVM Orange nur fuer Akzente, primaere Buttons, Fortschritt und
+    Tabellenkoepfe, niemals fuer Fliesstext.
+  - Status wird nie ausschliesslich ueber Farbe kommuniziert. Jede Statusfarbe
+    tritt zusammen mit Text und Symbol auf.
+  - Die Mieterabrechnungs-PDFs bleiben bewusst neutral und tragen kein HVM-CI.
+*/
+@theme {
+    --font-sans: system-ui, 'Helvetica Neue', Arial, sans-serif;
+
+    /* Markenfarben */
+    --color-hvm-orange: #e6a83c;
+    --color-hvm-anthrazit: #87888a;
+    --color-hvm-mittelgrau: #9c9d9f;
+    --color-hvm-hellgrau: #d7d8da;
+    --color-hvm-umrissgrau: #ececec;
+    --color-hvm-textschwarz: #1a1a1a;
+
+    /* Abgeleitete Interaktionszustaende */
+    --color-hvm-orange-dark: #c98f2b;
+    --color-hvm-orange-soft: #fbf1de;
+
+    /*
+      Statusfarben. Kontrastwerte gegen Weiss und gegen die jeweilige
+      Flaechenfarbe sind auf WCAG 2.2 AA ausgelegt und vor Livegang mit einem
+      Kontrastpruefer zu verifizieren.
+    */
+    --color-status-success: #1f7a45;
+    --color-status-success-soft: #e6f2eb;
+    --color-status-warning: #8a5a00;
+    --color-status-warning-soft: #fdf3e0;
+    --color-status-error: #a3242b;
+    --color-status-error-soft: #fbeaeb;
+    --color-status-info: #1f5d8a;
+    --color-status-info-soft: #e8f1f8;
+}
+
+@layer base {
+    body {
+        color: var(--color-hvm-textschwarz);
+        background-color: #ffffff;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+        color: var(--color-hvm-anthrazit);
+        font-weight: 600;
+    }
+
+    /* Sichtbarer Fokus fuer Tastaturbedienung. */
+    :focus-visible {
+        outline: 2px solid var(--color-hvm-orange-dark);
+        outline-offset: 2px;
+    }
+}
+
+@layer components {
+    /*
+      HVM-Kennlinie: horizontales Band mit diagonalen Uebergaengen.
+      Anthrazit 0 bis 40 Prozent, Mittelgrau 40 bis 60 Prozent,
+      Orange 60 bis 67,5 Prozent, Hellgrau 67,5 bis 100 Prozent der Breite.
+      Im Webheader etwa 4 px, auf der HVM-Rechnung etwa 3 mm.
+    */
+    .hvm-kennlinie {
+        height: 4px;
+        width: 100%;
+        background-image: linear-gradient(
+            100deg,
+            var(--color-hvm-anthrazit) 0%,
+            var(--color-hvm-anthrazit) 40%,
+            var(--color-hvm-mittelgrau) 40%,
+            var(--color-hvm-mittelgrau) 60%,
+            var(--color-hvm-orange) 60%,
+            var(--color-hvm-orange) 67.5%,
+            var(--color-hvm-hellgrau) 67.5%,
+            var(--color-hvm-hellgrau) 100%
+        );
+    }
+
+    .hvm-table-zebra tbody tr:nth-child(even) {
+        background-color: var(--color-hvm-umrissgrau);
+    }
+}
