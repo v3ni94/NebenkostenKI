@@ -61,16 +61,14 @@ final class PageCounter
         // ist die Wurzel des Baums.
         $matches = [];
 
-        if (preg_match_all('#/Count\s+(\d+)#', $contents, $matches) === 1 || $matches !== []) {
-            $counts = array_map('intval', $matches[1] ?? []);
-            $counts = array_filter($counts, static fn (int $value): bool => $value > 0);
+        preg_match_all('#/Count\s+(\d+)#', $contents, $matches);
 
-            if ($counts !== []) {
-                return max($counts);
-            }
-        }
+        $counts = array_filter(
+            array_map('intval', $matches[1]),
+            static fn (int $value): bool => $value > 0
+        );
 
-        return null;
+        return $counts === [] ? null : max($counts);
     }
 
     /**

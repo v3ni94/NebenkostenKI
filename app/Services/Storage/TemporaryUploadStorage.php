@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Storage;
 
 use App\Services\Storage\Exceptions\UploadRejectedException;
-use Illuminate\Contracts\Filesystem\Filesystem;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -39,7 +39,13 @@ final class TemporaryUploadStorage
      */
     private const ROOT = 'quarantaene';
 
-    public function disk(): Filesystem
+    /**
+     * Der konkrete Adaptertyp ist bewusst festgelegt: Struktur- und
+     * Malwarepruefung arbeiten auf einem absoluten Pfad, und die Loeschung
+     * eines gesamten Praefixes verlangt Verzeichniszugriff. Die Disk ist
+     * deshalb immer lokal.
+     */
+    public function disk(): FilesystemAdapter
     {
         return Storage::disk(self::DISK);
     }
@@ -202,15 +208,7 @@ final class TemporaryUploadStorage
      */
     public function absolutePath(string $key): string
     {
-        $disk = $this->disk();
-
-        if (! method_exists($disk, 'path')) {
-            throw new RuntimeException(
-                'Die Disk "'.self::DISK.'" muss lokal sein, damit Struktur- und Malwarepruefung moeglich sind.'
-            );
-        }
-
-        return $disk->path($key);
+        return $this->disk()->path($key);
     }
 
     /**
@@ -268,17 +266,11 @@ final class TemporaryUploadStorage
 
         $disk = $this->disk();
 
-        if (! $disk->directoryExists($prefix)) {
-            // Bereits geloescht. Die Loeschung ist damit erfolgreich, weil der
-            // Zielzustand erreicht ist. Das haelt den Vorgang idempotent.
-            return true;
-        }
-
+        // Ein bereits geloeschtes Praefix gilt als erfolgreich geloescht, weil
+        // der Zielzustand erreicht ist. Das haelt den Vorgang idempotent.
         $disk->deleteDirectory($prefix);
 
-        return ! $disk->directoryExists($prefix)
-            && $disk->files($prefix) === []
-            && ! $disk->exists($this->originalKey($prefix));
+        return $this->countFiles($prefix) === 0;
     }
 
     /**
