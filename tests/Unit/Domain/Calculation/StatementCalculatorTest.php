@@ -25,6 +25,7 @@ use App\Domain\Calculation\OverlappingOccupancyException;
 use App\Domain\Calculation\Result\CalculationRunResult;
 use App\Domain\Calculation\Result\CheckCode;
 use App\Domain\Calculation\Result\CheckSeverity;
+use App\Domain\Calculation\Result\UnitStatementResult;
 use App\Domain\Calculation\StatementCalculator;
 use App\Domain\Calculation\TaxBenefitCategory;
 use App\Domain\Money\Money;
@@ -100,11 +101,11 @@ final class StatementCalculatorTest extends TestCase
             ['flaeche' => new LivingAreaKey(['W-1' => '62.50', 'W-2' => '37.50'])]
         );
 
-        $this->assertSame(30993, $result->statement('mv-1')?->allocableTotal->cents);
-        $this->assertSame(31507, $result->statement('mv-2')?->allocableTotal->cents);
-        $this->assertSame(37500, $result->statement('mv-3')?->allocableTotal->cents);
-        $this->assertSame(181, $result->statement('mv-1')?->usageDays());
-        $this->assertSame(184, $result->statement('mv-2')?->usageDays());
+        $this->assertSame(30993, $this->statement($result, 'mv-1')->allocableTotal->cents);
+        $this->assertSame(31507, $this->statement($result, 'mv-2')->allocableTotal->cents);
+        $this->assertSame(37500, $this->statement($result, 'mv-3')->allocableTotal->cents);
+        $this->assertSame(181, $this->statement($result, 'mv-1')->usageDays());
+        $this->assertSame(184, $this->statement($result, 'mv-2')->usageDays());
         $this->assertSame(100000, 30993 + 31507 + 37500);
         $this->assertTrue($result->ownerOverview->isBalanced());
     }
@@ -126,10 +127,10 @@ final class StatementCalculatorTest extends TestCase
             ['flaeche' => new LivingAreaKey(['W-1' => '80.00'])]
         );
 
-        $this->assertSame(49727, $result->statement('mv-1')?->allocableTotal->cents);
-        $this->assertSame(50273, $result->statement('mv-2')?->allocableTotal->cents);
-        $this->assertSame(182, $result->statement('mv-1')?->usageDays());
-        $this->assertSame(184, $result->statement('mv-2')?->usageDays());
+        $this->assertSame(49727, $this->statement($result, 'mv-1')->allocableTotal->cents);
+        $this->assertSame(50273, $this->statement($result, 'mv-2')->allocableTotal->cents);
+        $this->assertSame(182, $this->statement($result, 'mv-1')->usageDays());
+        $this->assertSame(184, $this->statement($result, 'mv-2')->usageDays());
     }
 
     #[Test]
@@ -150,9 +151,9 @@ final class StatementCalculatorTest extends TestCase
             ['flaeche' => new LivingAreaKey(['W-1' => '100.00'])]
         );
 
-        $this->assertSame(90000, $result->statement('mv-1')?->allocableTotal->cents);
-        $this->assertSame(91000, $result->statement('mv-2')?->allocableTotal->cents);
-        $this->assertSame(184000, $result->statement('mv-3')?->allocableTotal->cents);
+        $this->assertSame(90000, $this->statement($result, 'mv-1')->allocableTotal->cents);
+        $this->assertSame(91000, $this->statement($result, 'mv-2')->allocableTotal->cents);
+        $this->assertSame(184000, $this->statement($result, 'mv-3')->allocableTotal->cents);
         $this->assertSame(365000, 90000 + 91000 + 184000);
         $this->assertSame(3, $result->statementCount());
         $this->assertSame([], $result->findingsWithCode(CheckCode::COVERAGE_GAP));
@@ -175,7 +176,7 @@ final class StatementCalculatorTest extends TestCase
         );
 
         $this->assertSame(1, $result->statementCount());
-        $this->assertSame(275000, $result->statement('mv-1')?->allocableTotal->cents);
+        $this->assertSame(275000, $this->statement($result, 'mv-1')->allocableTotal->cents);
         $this->assertSame(90000, $result->ownerOverview->vacancyTotal->cents);
         $this->assertCount(1, $result->ownerOverview->vacancyShares);
         $this->assertSame(OccupancyKind::VACANCY, $result->ownerOverview->vacancyShares[0]->kind);
@@ -200,8 +201,8 @@ final class StatementCalculatorTest extends TestCase
             ['flaeche' => new LivingAreaKey(['W-1' => '100.00'])]
         );
 
-        $this->assertSame(151000, $result->statement('mv-1')?->allocableTotal->cents);
-        $this->assertSame(122000, $result->statement('mv-2')?->allocableTotal->cents);
+        $this->assertSame(151000, $this->statement($result, 'mv-1')->allocableTotal->cents);
+        $this->assertSame(122000, $this->statement($result, 'mv-2')->allocableTotal->cents);
         $this->assertSame(92000, $result->ownerOverview->vacancyTotal->cents);
         $this->assertSame(365000, 151000 + 122000 + 92000);
     }
@@ -221,7 +222,7 @@ final class StatementCalculatorTest extends TestCase
             ['flaeche' => new LivingAreaKey(['W-1' => '100.00'])]
         );
 
-        $this->assertSame(334000, $result->statement('mv-1')?->allocableTotal->cents);
+        $this->assertSame(334000, $this->statement($result, 'mv-1')->allocableTotal->cents);
         $this->assertSame(31000, $result->ownerOverview->vacancyTotal->cents);
     }
 
@@ -300,8 +301,8 @@ final class StatementCalculatorTest extends TestCase
         }
 
         $this->assertSame(100000, $sum);
-        $this->assertSame(14286, $result->statement('mv-1')?->allocableTotal->cents);
-        $this->assertSame(14285, $result->statement('mv-7')?->allocableTotal->cents);
+        $this->assertSame(14286, $this->statement($result, 'mv-1')->allocableTotal->cents);
+        $this->assertSame(14285, $this->statement($result, 'mv-7')->allocableTotal->cents);
         $this->assertTrue($result->ownerOverview->isBalanced());
         $this->assertTrue($result->hasFinding(CheckCode::CHECKSUM_BALANCED));
     }
@@ -323,11 +324,11 @@ final class StatementCalculatorTest extends TestCase
             ['einheiten' => UnitCountKey::forUnits(['W-1', 'W-2', 'W-3'])]
         );
 
-        $this->assertSame(3334, $result->statement('mv-1')?->allocableTotal->cents);
-        $this->assertSame(1, $result->statement('mv-1')?->lines[0]->roundingAdjustmentCent);
-        $this->assertSame(0, $result->statement('mv-2')?->lines[0]->roundingAdjustmentCent);
-        $this->assertSame(1, $result->statement('mv-1')?->totalRoundingAdjustmentCent());
-        $this->assertTrue($result->statement('mv-1')?->linesMatchAllocableTotal());
+        $this->assertSame(3334, $this->statement($result, 'mv-1')->allocableTotal->cents);
+        $this->assertSame(1, $this->statement($result, 'mv-1')->lines[0]->roundingAdjustmentCent);
+        $this->assertSame(0, $this->statement($result, 'mv-2')->lines[0]->roundingAdjustmentCent);
+        $this->assertSame(1, $this->statement($result, 'mv-1')->totalRoundingAdjustmentCent());
+        $this->assertTrue($this->statement($result, 'mv-1')->linesMatchAllocableTotal());
     }
 
     #[Test]
@@ -344,7 +345,7 @@ final class StatementCalculatorTest extends TestCase
             ['mea' => CoOwnershipShareKey::withTotalShares(['W-12' => '187.50'], '1000.00')]
         );
 
-        $this->assertSame(150000, $result->statement('mv-1')?->allocableTotal->cents);
+        $this->assertSame(150000, $this->statement($result, 'mv-1')->allocableTotal->cents);
         $this->assertSame(650000, $result->ownerOverview->residualTotal->cents);
         $this->assertCount(1, $result->ownerOverview->residualShares);
         $this->assertTrue($result->hasFinding(CheckCode::UNALLOCATED_RESIDUAL));
@@ -378,13 +379,13 @@ final class StatementCalculatorTest extends TestCase
             ]
         );
 
-        $this->assertSame(73000, $result->statement('mv-1')?->allocableTotal->cents);
-        $this->assertSame(54300, $result->statement('mv-2')?->allocableTotal->cents);
-        $this->assertSame(18400, $result->statement('mv-3')?->allocableTotal->cents);
-        $this->assertTrue($result->statement('mv-2')?->lines[0]->timeFactor->includedInAllocationKey);
+        $this->assertSame(73000, $this->statement($result, 'mv-1')->allocableTotal->cents);
+        $this->assertSame(54300, $this->statement($result, 'mv-2')->allocableTotal->cents);
+        $this->assertSame(18400, $this->statement($result, 'mv-3')->allocableTotal->cents);
+        $this->assertTrue($this->statement($result, 'mv-2')->lines[0]->timeFactor->includedInAllocationKey);
         $this->assertSame(
             '181 von 365 Tagen (Zeitanteil im Verteilerschlüssel enthalten)',
-            $result->statement('mv-2')?->lines[0]->timeFactor->explanation()
+            $this->statement($result, 'mv-2')->lines[0]->timeFactor->explanation()
         );
     }
 
@@ -410,7 +411,7 @@ final class StatementCalculatorTest extends TestCase
             ]
         );
 
-        $this->assertSame(54600, $result->statement('mv-1')?->allocableTotal->cents);
+        $this->assertSame(54600, $this->statement($result, 'mv-1')->allocableTotal->cents);
         $this->assertSame(0, $result->ownerOverview->vacancyTotal->cents);
         $this->assertTrue($result->ownerOverview->isBalanced());
     }
@@ -431,12 +432,12 @@ final class StatementCalculatorTest extends TestCase
             ['verbrauch' => ConsumptionKey::create(['mv-1' => '61.000', 'mv-2' => '39.000'], 'm³')]
         );
 
-        $this->assertSame(42700, $result->statement('mv-1')?->allocableTotal->cents);
-        $this->assertSame(27300, $result->statement('mv-2')?->allocableTotal->cents);
-        $this->assertFalse($result->statement('mv-1')?->lines[0]->substituteDistributionConfirmed);
+        $this->assertSame(42700, $this->statement($result, 'mv-1')->allocableTotal->cents);
+        $this->assertSame(27300, $this->statement($result, 'mv-2')->allocableTotal->cents);
+        $this->assertFalse($this->statement($result, 'mv-1')->lines[0]->substituteDistributionConfirmed);
         $this->assertSame(
             'Verbrauch 61,000 m³ von 100,000 m³',
-            $result->statement('mv-1')?->lines[0]->allocationExplanation
+            $this->statement($result, 'mv-1')->lines[0]->allocationExplanation
         );
     }
 
@@ -460,14 +461,13 @@ final class StatementCalculatorTest extends TestCase
             ]
         );
 
-        $line = $result->statement('mv-1')?->lines[0];
-        $this->assertNotNull($line);
+        $line = $this->statement($result, 'mv-1')->lines[0];
         $this->assertTrue($line->substituteDistributionConfirmed);
         $this->assertTrue($result->hasFinding(CheckCode::SUBSTITUTE_CONSUMPTION_DISTRIBUTION));
-        $this->assertNotEmpty($result->statement('mv-1')?->assumptions);
+        $this->assertNotEmpty($this->statement($result, 'mv-1')->assumptions);
         $this->assertStringContainsString(
             'ausdrücklich bestätigte Ersatzverteilung',
-            implode(' ', $result->statement('mv-1')?->assumptions ?? [])
+            implode(' ', $this->statement($result, 'mv-1')->assumptions)
         );
     }
 
@@ -492,11 +492,11 @@ final class StatementCalculatorTest extends TestCase
             ]
         );
 
-        $this->assertSame(61000, $result->statement('mv-1')?->allocableTotal->cents);
-        $this->assertSame(48000, $result->statement('mv-2')?->allocableTotal->cents);
+        $this->assertSame(61000, $this->statement($result, 'mv-1')->allocableTotal->cents);
+        $this->assertSame(48000, $this->statement($result, 'mv-2')->allocableTotal->cents);
         $this->assertSame(
             'Direktzuordnung 610,00 EUR von 1.090,00 EUR',
-            $result->statement('mv-1')?->lines[0]->allocationExplanation
+            $this->statement($result, 'mv-1')->lines[0]->allocationExplanation
         );
         $this->assertTrue($result->ownerOverview->isBalanced());
     }
@@ -534,13 +534,13 @@ final class StatementCalculatorTest extends TestCase
             ['flaeche' => new LivingAreaKey(['W-1' => '62.50', 'W-2' => '37.50'])]
         );
 
-        $this->assertSame(-11312, $result->statement('mv-a')?->allocableTotal->cents);
-        $this->assertSame(-6788, $result->statement('mv-b')?->allocableTotal->cents);
+        $this->assertSame(-11312, $this->statement($result, 'mv-a')->allocableTotal->cents);
+        $this->assertSame(-6788, $this->statement($result, 'mv-b')->allocableTotal->cents);
         $this->assertSame(-18100, -11312 + -6788);
-        $this->assertTrue($result->statement('mv-a')?->lines[0]->isCreditNote());
+        $this->assertTrue($this->statement($result, 'mv-a')->lines[0]->isCreditNote());
         $this->assertTrue($result->hasFinding(CheckCode::CREDIT_NOTE_APPLIED));
-        $this->assertTrue($result->statement('mv-a')?->isCredit());
-        $this->assertSame(11312, $result->statement('mv-a')?->credit()->cents);
+        $this->assertTrue($this->statement($result, 'mv-a')->isCredit());
+        $this->assertSame(11312, $this->statement($result, 'mv-a')->credit()->cents);
     }
 
     #[Test]
@@ -580,8 +580,8 @@ final class StatementCalculatorTest extends TestCase
             ['flaeche' => new LivingAreaKey(['W-1' => '100.00'])]
         );
 
-        $this->assertSame(60000, $result->statement('mv-1')?->allocableTotal->cents);
-        $this->assertCount(1, $result->statement('mv-1')?->lines ?? []);
+        $this->assertSame(60000, $this->statement($result, 'mv-1')->allocableTotal->cents);
+        $this->assertCount(1, $this->statement($result, 'mv-1')->lines);
         $this->assertCount(3, $result->ownerOverview->excludedCosts);
         $this->assertSame(85800, $result->ownerOverview->excludedCostTotal->cents);
         $this->assertCount(3, $result->findingsWithCode(CheckCode::NOT_ALLOCABLE_EXCLUDED));
@@ -913,7 +913,7 @@ final class StatementCalculatorTest extends TestCase
             ['flaeche' => new LivingAreaKey(['W-1' => '62.50', 'W-2' => '37.50'])]
         );
 
-        $line = $result->statement('mv-1')?->lines[0];
+        $line = $this->statement($result, 'mv-1')->lines[0];
         $this->assertNotNull($line);
         $this->assertSame('GRUNDSTEUER', $line->categoryKey);
         $this->assertSame('Grundsteuer', $line->categoryLabel);
@@ -970,6 +970,19 @@ final class StatementCalculatorTest extends TestCase
         $this->assertTrue($overview->isBalanced());
         $this->assertSame(0, $overview->checksumDifference()->cents);
         $this->assertCount(1, $overview->vacancySharesForUnit('W-2'));
+    }
+
+    /**
+     * Liefert die Abrechnung eines Mietverhältnisses und stellt sicher, dass
+     * sie erzeugt wurde.
+     */
+    private function statement(CalculationRunResult $result, string $occupancyKey): UnitStatementResult
+    {
+        $statement = $result->statement($occupancyKey);
+
+        $this->assertNotNull($statement, 'Abrechnung fehlt: '.$occupancyKey);
+
+        return $statement;
     }
 
     /**

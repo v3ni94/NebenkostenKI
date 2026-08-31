@@ -24,7 +24,9 @@ final class IndividualKey extends NumericAllocationKey
     private string $unitOfMeasure;
 
     /**
-     * @param  int<1, 5>  $index
+     * Der Index wird zur Laufzeit geprüft, damit auch Werte aus der
+     * Persistenzschicht sicher verarbeitet werden. Zulässig sind 1 bis 5.
+     *
      * @param  array<string, BigDecimal|string|int>  $values
      */
     public function __construct(

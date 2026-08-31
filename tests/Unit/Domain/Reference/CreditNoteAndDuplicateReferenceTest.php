@@ -49,12 +49,16 @@ final class CreditNoteAndDuplicateReferenceTest extends TestCase
 
         // Gutschrift -181,00 EUR: exakt -11.312,50 und -6.787,50 Cent,
         // Gleichstand der Reste, mv-a erhält den Cent.
-        $this->assertSame(-11312, $mva->line('k-02')?->share->cents);
-        $this->assertSame(-6788, $mvb->line('k-02')?->share->cents);
+        $creditA = $mva->line('k-02');
+        $creditB = $mvb->line('k-02');
+        $this->assertNotNull($creditA);
+        $this->assertNotNull($creditB);
+        $this->assertSame(-11312, $creditA->share->cents);
+        $this->assertSame(-6788, $creditB->share->cents);
         $this->assertSame(-18100, -11312 + -6788);
-        $this->assertTrue($mva->line('k-02')?->isCreditNote());
-        $this->assertSame(1, $mva->line('k-02')?->roundingAdjustmentCent);
-        $this->assertSame(0, $mvb->line('k-02')?->roundingAdjustmentCent);
+        $this->assertTrue($creditA->isCreditNote());
+        $this->assertSame(1, $creditA->roundingAdjustmentCent);
+        $this->assertSame(0, $creditB->roundingAdjustmentCent);
         $this->assertTrue($this->result->hasFinding(CheckCode::CREDIT_NOTE_APPLIED));
     }
 

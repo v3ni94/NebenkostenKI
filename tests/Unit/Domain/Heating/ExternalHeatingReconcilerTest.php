@@ -40,8 +40,9 @@ final class ExternalHeatingReconcilerTest extends TestCase
         $this->assertTrue($result->withinTolerance);
         $this->assertSame(0, $result->difference->cents);
         $this->assertFalse($result->blocksFinalization());
-        $this->assertNotNull($result->allocationKey());
-        $this->assertSame(61000, $result->allocationKey()?->amountFor('mv-1')->cents);
+        $allocationKey = $result->allocationKey();
+        $this->assertNotNull($allocationKey);
+        $this->assertSame(61000, $allocationKey->amountFor('mv-1')->cents);
         $this->assertSame(
             CheckSeverity::PASSED,
             $result->findings[0]->severity
