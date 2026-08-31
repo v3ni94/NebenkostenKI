@@ -213,6 +213,28 @@ final class TemporaryUploadStorage
         return $disk->path($key);
     }
 
+    /**
+     * Pfad der HEIC-Konvertierung. Fest benannt, damit die auswertende Schicht
+     * die umgewandelte Datei ohne zusaetzliche Datenbankspalte findet.
+     */
+    public function convertedImageKey(string $prefix): string
+    {
+        return $this->derivativeKey($prefix, TemporaryFileKind::KONVERTIERUNG, 'konvertiert.jpg');
+    }
+
+    /**
+     * Pfad eines aus einem Archiv entpackten Eintrags. Der Name wird vom System
+     * vergeben, der Eintragsname des Archivs wird verworfen.
+     */
+    public function archiveEntryKey(string $prefix, int $index, string $extension): string
+    {
+        return $this->derivativeKey(
+            $prefix,
+            TemporaryFileKind::ARCHIV_EINTRAG,
+            sprintf('%04d.%s', $index, $extension)
+        );
+    }
+
     public function putDerivative(string $prefix, TemporaryFileKind $kind, string $name, string $contents): string
     {
         $key = $this->derivativeKey($prefix, $kind, $name);
