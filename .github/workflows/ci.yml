@@ -1,0 +1,186 @@
+name: CI
+
+# Qualitaetssicherung fuer Smart Abrechnen.
+#
+# Verbindliche Nachweise dieser Pipeline:
+# - Codestil und statische Analyse
+# - Migrationen laufen gegen MariaDB 10.11 LTS und gegen 11.x
+# - Unit- und Featuretests
+# - Frontend-Build ohne Node-Laufzeit in Produktion
+#
+# Es werden niemals kostenpflichtige KI-Aufrufe ausgefuehrt. Zugangsdaten
+# stehen ausschliesslich in Repository- oder Environment-Secrets und werden
+# nicht in Logs ausgegeben.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-analysis:
+    name: Codestil und statische Analyse
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: PHP einrichten
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, intl, gd, zip, pdo_mysql, fileinfo, openssl
+          coverage: none
+
+      - name: Composer-Cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
+      - name: Abhaengigkeiten installieren
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Pint
+        run: vendor/bin/pint --test
+
+      - name: PHPStan
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
+
+  tests:
+    name: Tests (PHP ${{ matrix.php }}, MariaDB ${{ matrix.mariadb }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # MariaDB 10.11 LTS ist das primaere Ziel.
+          - php: '8.3'
+            mariadb: '10.11'
+          # Nachweis, dass die Migrationen auch auf 11.x laufen.
+          - php: '8.3'
+            mariadb: '11.4'
+          # Vorwaertskompatibilitaet der Anwendung.
+          - php: '8.4'
+            mariadb: '10.11'
+
+    services:
+      mariadb:
+        image: mariadb:${{ matrix.mariadb }}
+        env:
+          MARIADB_ROOT_PASSWORD: ci-root
+          MARIADB_DATABASE: smart_abrechnen_test
+          MARIADB_USER: smart_abrechnen
+          MARIADB_PASSWORD: ci-secret
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: PHP einrichten
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, intl, gd, zip, pdo_mysql, fileinfo, openssl
+          coverage: none
+
+      - name: Composer-Cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer
+          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ matrix.php }}-
+
+      - name: Abhaengigkeiten installieren
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Umgebung vorbereiten
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+        env:
+          APP_ENV: testing
+
+      - name: MariaDB-Serverversion protokollieren
+        run: |
+          mysql -h 127.0.0.1 -P 3306 -u smart_abrechnen -pci-secret \
+            -e "SELECT VERSION() AS mariadb_version;" smart_abrechnen_test
+
+      - name: Migrationen gegen MariaDB
+        run: php artisan migrate --force
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: mariadb
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
+          DB_DATABASE: smart_abrechnen_test
+          DB_USERNAME: smart_abrechnen
+          DB_PASSWORD: ci-secret
+
+      - name: Rollback der Migrationen pruefen
+        run: php artisan migrate:rollback --force --step=1000
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: mariadb
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
+          DB_DATABASE: smart_abrechnen_test
+          DB_USERNAME: smart_abrechnen
+          DB_PASSWORD: ci-secret
+
+      - name: Testsuite
+        run: php artisan test
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: mariadb
+          DB_HOST: 127.0.0.1
+          DB_PORT: '3306'
+          DB_DATABASE: smart_abrechnen_test
+          DB_USERNAME: smart_abrechnen
+          DB_PASSWORD: ci-secret
+          # Es werden keine echten Provider- oder Zahlungsaufrufe gemacht.
+          AI_PRIMARY_PROVIDER: fake
+          AI_FALLBACK_ENABLED: 'false'
+          AI_DATA_RETENTION_APPROVED: 'false'
+          MAIL_MAILER: array
+          FILESYSTEM_DISK: local
+
+  frontend:
+    name: Frontend-Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Abhaengigkeiten installieren
+        run: npm ci
+
+      - name: Assets bauen
+        run: npm run build
+
+      - name: Build-Artefakt sichern
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: public/build
+          retention-days: 7

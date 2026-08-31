@@ -32,5 +32,24 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+
+        <!--
+            Projektspezifische Testumgebung.
+
+            Die Werte werden nur gesetzt, wenn sie nicht bereits in der Umgebung
+            stehen. Die CI kann sie daher gezielt ueberschreiben, um die
+            Migrationen und Featuretests gegen MariaDB 10.11 und 11.x laufen zu
+            lassen. Lokal genuegt SQLite in-memory.
+        -->
+        <env name="FILESYSTEM_DISK" value="local"/>
+        <!-- Kein echter Provideraufruf im Standardtestlauf. -->
+        <env name="AI_PRIMARY_PROVIDER" value="fake"/>
+        <env name="AI_FALLBACK_ENABLED" value="false"/>
+        <env name="AI_DATA_RETENTION_APPROVED" value="false"/>
+        <env name="AI_MAX_DAILY_COST_CENT_PER_USER" value="10000"/>
+        <!-- Keine echten Zahlungsaufrufe. -->
+        <env name="STRIPE_SECRET" value=""/>
+        <env name="STRIPE_WEBHOOK_SECRET" value="whsec_test_placeholder"/>
+        <env name="MALWARE_SCANNER_DRIVER" value="disabled"/>
     </php>
 </phpunit>

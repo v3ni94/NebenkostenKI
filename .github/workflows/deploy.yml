@@ -1,0 +1,120 @@
+name: Deploy (SFTP)
+
+# Vorlage fuer das SFTP-Deployment auf IONOS.
+#
+# Ablauf: Releasepaket bauen, auf Staging ausliefern, Smoke-Test, danach
+# Produktion nur aus einem geschuetzten Branch und nur mit manueller Freigabe.
+#
+# Verbindliche Regeln:
+# - Upload in ein NEUES Releaseverzeichnis, niemals halb ueber die aktive Version.
+# - Document Root beziehungsweise Releasezeiger erst nach dem Smoke-Test umschalten.
+# - Vorherige Version fuer ein Rollback erhalten.
+# - Migrationen werden ueber einen gezielt aktivierten CLI-Cronjob im
+#   IONOS-Control-Center ausgefuehrt. Es gibt keine frei erreichbare migrate.php.
+# - SFTP-, Datenbank- und API-Zugangsdaten ausschliesslich als Secrets.
+#   Keine Secrets in Workflow-Logs ausgeben.
+#
+# Vor der ersten Nutzung sind folgende Secrets zu setzen:
+#   SFTP_HOST, SFTP_PORT, SFTP_USERNAME, SFTP_PASSWORD oder SFTP_PRIVATE_KEY,
+#   SFTP_DEPLOY_ROOT (privater Zielpfad), SMOKE_TEST_URL
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Zielumgebung
+        required: true
+        default: staging
+        type: choice
+        options: [staging, production]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Releasepaket bauen
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: PHP einrichten
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, intl, gd, zip, pdo_mysql, fileinfo, openssl
+          coverage: none
+
+      - name: Node einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Tests vor der Paketierung
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          php artisan test
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ':memory:'
+          MAIL_MAILER: array
+          FILESYSTEM_DISK: local
+
+      - name: Produktionsabhaengigkeiten und Assets
+        run: |
+          rm -rf vendor
+          composer install --no-dev --no-interaction --prefer-dist \
+            --classmap-authoritative --optimize-autoloader --no-progress
+          npm ci
+          npm run build
+
+      - name: Releasepaket zusammenstellen
+        run: |
+          RELEASE="release-$(date -u +%Y%m%d%H%M%S)-${GITHUB_SHA::7}"
+          echo "RELEASE=$RELEASE" >> "$GITHUB_ENV"
+          mkdir -p "build-release/$RELEASE"
+          rsync -a --delete \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude '.env' \
+            --exclude 'node_modules' \
+            --exclude 'tests' \
+            --exclude 'storage/logs/*' \
+            --exclude 'storage/app/temporary-uploads/*' \
+            --exclude 'build-release' \
+            ./ "build-release/$RELEASE/"
+          # Versionsmetadaten und Healthcheck
+          printf '{\n  "release": "%s",\n  "commit": "%s",\n  "built_at": "%s"\n}\n' \
+            "$RELEASE" "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            > "build-release/$RELEASE/public/version.json"
+
+      - name: Paket sichern
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.RELEASE }}
+          path: build-release
+          retention-days: 14
+
+  deploy:
+    name: Ausliefern (${{ inputs.target }})
+    needs: build
+    runs-on: ubuntu-latest
+    # Production erfordert eine manuelle Freigabe ueber den Environment-Schutz.
+    environment: ${{ inputs.target }}
+    steps:
+      - name: Hinweis
+        run: |
+          echo "Die eigentliche SFTP-Uebertragung ist bewusst noch nicht aktiviert."
+          echo "Sie wird erst eingeschaltet, wenn Zielpfad und Zugangsdaten des"
+          echo "IONOS-Kontos bestaetigt vorliegen (siehe README, Vor Livegang)."
+          echo "Schritte danach:"
+          echo "1. Paket in ein neues Releaseverzeichnis unter SFTP_DEPLOY_ROOT laden."
+          echo "2. Smoke-Test gegen SMOKE_TEST_URL ausfuehren."
+          echo "3. Releasezeiger umschalten, vorherige Version behalten."
+          echo "4. Migrationen ueber den CLI-Cronjob im IONOS-Control-Center starten."
