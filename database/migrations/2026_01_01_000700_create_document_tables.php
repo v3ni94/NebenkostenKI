@@ -81,15 +81,15 @@ return new class extends Migration
 
             $table->string('processing_status', 48)->default('HOCHGELADEN')
                 ->comment('PHP-Enum App\Enums\DocumentProcessingStatus');
-            $table->timestamp('security_checked_at')->nullable();
+            $table->dateTime('security_checked_at')->nullable();
             $table->string('malware_scanner_driver', 20)->nullable()
                 ->comment('clamav, external oder disabled');
             $table->boolean('malware_scan_clean')->nullable();
-            $table->timestamp('classified_at')->nullable();
-            $table->timestamp('extracted_at')->nullable();
+            $table->dateTime('classified_at')->nullable();
+            $table->dateTime('extracted_at')->nullable();
 
             // Loeschnachweis der Originaldatei.
-            $table->timestamp('original_deleted_at')->nullable();
+            $table->dateTime('original_deleted_at')->nullable();
             $table->string('deletion_status', 48)->default('OFFEN')
                 ->comment('PHP-Enum App\Enums\DeletionStatus');
 
@@ -125,15 +125,15 @@ return new class extends Migration
             $table->unsignedSmallInteger('received_chunks')->default(0);
             $table->unsignedBigInteger('received_bytes')->default(0);
 
-            $table->timestamp('first_chunk_at')->nullable()
+            $table->dateTime('first_chunk_at')->nullable()
                 ->comment('Beginn der Kurzzeit-TTL nach Abschnitt 19');
-            $table->timestamp('expires_at')
+            $table->dateTime('expires_at')
                 ->comment('Spaetester Loeschzeitpunkt, standardmaessig maximal 120 Minuten');
 
             $table->unsignedSmallInteger('deletion_attempts')->default(0);
             $table->string('last_error', 500)->nullable()
                 ->comment('Letzter Loeschfehler, ohne Dateiinhalt');
-            $table->timestamp('deleted_at')->nullable();
+            $table->dateTime('deleted_at')->nullable();
             $table->boolean('is_tombstone')->default(false)
                 ->comment('Inhaltsloser Lösch-Tombstone nach erfolgreicher Loeschung');
 
@@ -142,7 +142,7 @@ return new class extends Migration
             $table->string('provider', 48)->nullable()
                 ->comment('PHP-Enum App\Enums\AiProvider');
             $table->string('provider_file_id', 190)->nullable();
-            $table->timestamp('provider_file_deleted_at')->nullable();
+            $table->dateTime('provider_file_deleted_at')->nullable();
             $table->string('provider_deletion_status', 48)->default('NICHT_ERFORDERLICH')
                 ->comment('PHP-Enum App\Enums\DeletionStatus');
 
@@ -197,7 +197,7 @@ return new class extends Migration
                 ->comment('Referenz auf ai_calls, ohne Fremdschluessel wegen Migrationsreihenfolge');
             $table->foreignUlid('confirmed_by_user_id')->nullable()
                 ->constrained('users')->nullOnDelete();
-            $table->timestamp('confirmed_at')->nullable();
+            $table->dateTime('confirmed_at')->nullable();
 
             $table->timestamps();
 
@@ -244,7 +244,7 @@ return new class extends Migration
             $table->string('provider', 48)->nullable()
                 ->comment('PHP-Enum App\Enums\AiProvider');
 
-            $table->timestamp('occurred_at');
+            $table->dateTime('occurred_at');
             $table->unsignedSmallInteger('attempt')->default(1);
             $table->string('error_code', 120)->nullable();
             $table->string('error_message', 500)->nullable()

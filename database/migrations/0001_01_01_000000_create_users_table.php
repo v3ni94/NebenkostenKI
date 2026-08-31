@@ -22,6 +22,13 @@ use Illuminate\Support\Facades\Schema;
 | Anzeige und fachliche Fristen laufen in Europe/Berlin und sind Sache der
 | Anwendungsschicht.
 |
+| Fachliche Zeitpunkte werden als DATETIME angelegt, nicht als TIMESTAMP. Damit
+| entfaellt auf MariaDB jede Abhaengigkeit von explicit_defaults_for_timestamp,
+| es entsteht kein implizites ON UPDATE CURRENT_TIMESTAMP auf der ersten
+| Zeitstempelspalte einer Tabelle, und die Werte sind nicht auf das Jahr 2038
+| begrenzt. Nur created_at, updated_at und deleted_at bleiben beim Laravel-
+| Standard.
+|
 | Statuswerte sind kurze string-Spalten mit PHP-Enum-Cast im Modell. Das ist
 | migrationssicher und erweiterbar, ohne die Tabelle umbauen zu muessen.
 |
@@ -35,7 +42,7 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->string('name');
             $table->string('email')->unique();
-            $table->timestamp('email_verified_at')->nullable();
+            $table->dateTime('email_verified_at')->nullable();
 
             // Passworthash. Produktiv Argon2id, im Test der konfigurierte Treiber.
             $table->string('password');
@@ -49,9 +56,9 @@ return new class extends Migration
             // Optionale TOTP-Zwei-Faktor-Authentifizierung, fuer Admins Pflicht.
             $table->text('two_factor_secret')->nullable()
                 ->comment('Anwendungsseitig verschluesselt');
-            $table->timestamp('two_factor_confirmed_at')->nullable();
+            $table->dateTime('two_factor_confirmed_at')->nullable();
 
-            $table->timestamp('last_login_at')->nullable();
+            $table->dateTime('last_login_at')->nullable();
             $table->timestamps();
             $table->softDeletes();
 
@@ -62,7 +69,7 @@ return new class extends Migration
         Schema::create('password_reset_tokens', function (Blueprint $table): void {
             $table->string('email')->primary();
             $table->string('token');
-            $table->timestamp('created_at')->nullable();
+            $table->dateTime('created_at')->nullable();
         });
 
         Schema::create('sessions', function (Blueprint $table): void {

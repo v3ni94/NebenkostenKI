@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Enums\AllocationKeyType;
 use App\Enums\PropertyKind;
 use App\Models\Concerns\BelongsToOrganization;
+use Database\Factories\PropertyFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -24,10 +25,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class Property extends Model
 {
-    /** @use HasFactory<\Database\Factories\PropertyFactory> */
-    use HasFactory;
-
     use BelongsToOrganization, HasUlids, SoftDeletes;
+
+    /** @use HasFactory<PropertyFactory> */
+    use HasFactory;
 
     /**
      * @var list<string>

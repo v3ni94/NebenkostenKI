@@ -40,8 +40,8 @@ return new class extends Migration
             $table->string('version', 32);
             $table->string('hash', 64)->comment('SHA-256 des Prompttextes');
             $table->boolean('is_active')->default(false);
-            $table->timestamp('activated_at')->nullable();
-            $table->timestamp('deactivated_at')->nullable();
+            $table->dateTime('activated_at')->nullable();
+            $table->dateTime('deactivated_at')->nullable();
             $table->text('notes')->nullable();
 
             $table->timestamps();
@@ -109,11 +109,11 @@ return new class extends Migration
             $table->unsignedSmallInteger('attempts')->default(0);
             $table->unsignedSmallInteger('max_attempts')->default(3);
             $table->string('lease_owner', 120)->nullable();
-            $table->timestamp('leased_until')->nullable();
-            $table->timestamp('heartbeat_at')->nullable();
-            $table->timestamp('available_at');
-            $table->timestamp('started_at')->nullable();
-            $table->timestamp('finished_at')->nullable();
+            $table->dateTime('leased_until')->nullable();
+            $table->dateTime('heartbeat_at')->nullable();
+            $table->dateTime('available_at');
+            $table->dateTime('started_at')->nullable();
+            $table->dateTime('finished_at')->nullable();
 
             $table->json('payload')->nullable()
                 ->comment('Nur Referenz-IDs und technische Parameter, keine Inhalte');

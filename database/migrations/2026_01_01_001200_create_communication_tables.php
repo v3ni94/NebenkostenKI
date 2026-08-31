@@ -59,9 +59,9 @@ return new class extends Migration
             $table->string('message_id', 190)->nullable();
             $table->unsignedSmallInteger('attempts')->default(0);
 
-            $table->timestamp('queued_at')->nullable();
-            $table->timestamp('sent_at')->nullable();
-            $table->timestamp('failed_at')->nullable();
+            $table->dateTime('queued_at')->nullable();
+            $table->dateTime('sent_at')->nullable();
+            $table->dateTime('failed_at')->nullable();
             $table->string('error_code', 120)->nullable();
             $table->string('error_message', 500)->nullable()
                 ->comment('Keine Passwoerter, Tokens oder vertraulichen Inhalte');
@@ -79,7 +79,7 @@ return new class extends Migration
             $table->string('email');
             $table->string('reason', 48)
                 ->comment('PHP-Enum App\Enums\EmailSuppressionReason');
-            $table->timestamp('suppressed_at');
+            $table->dateTime('suppressed_at');
             $table->string('source', 120)->nullable();
             $table->string('note', 500)->nullable();
 
@@ -105,8 +105,8 @@ return new class extends Migration
 
             $table->string('unsubscribe_token', 64)
                 ->comment('Sicherer Abmeldelink ohne Login, nur fuer Erinnerungen');
-            $table->timestamp('deactivated_at')->nullable();
-            $table->timestamp('reactivated_at')->nullable();
+            $table->dateTime('deactivated_at')->nullable();
+            $table->dateTime('reactivated_at')->nullable();
 
             $table->timestamps();
 
@@ -136,8 +136,8 @@ return new class extends Migration
 
             $table->string('status', 48)->default('GEPLANT')
                 ->comment('PHP-Enum App\Enums\ReminderStatus');
-            $table->timestamp('scheduled_for');
-            $table->timestamp('sent_at')->nullable();
+            $table->dateTime('scheduled_for');
+            $table->dateTime('sent_at')->nullable();
             $table->string('suppressed_reason', 190)->nullable();
 
             $table->timestamps();
@@ -161,7 +161,7 @@ return new class extends Migration
             $table->string('subject_type', 120)->nullable();
             $table->ulid('subject_id')->nullable();
 
-            $table->timestamp('occurred_at');
+            $table->dateTime('occurred_at');
             $table->string('ip_truncated', 45)->nullable()
                 ->comment('Datensparsam gekuerzte IP, keine vollstaendige Adresse');
             $table->string('user_agent_hash', 64)->nullable();

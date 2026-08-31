@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Enums\MeterType;
 use App\Models\Concerns\BelongsToOrganization;
+use Database\Factories\MeterDeviceFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -18,10 +19,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class MeterDevice extends Model
 {
-    /** @use HasFactory<\Database\Factories\MeterDeviceFactory> */
-    use HasFactory;
-
     use BelongsToOrganization, HasUlids, SoftDeletes;
+
+    /** @use HasFactory<MeterDeviceFactory> */
+    use HasFactory;
 
     /**
      * @var list<string>

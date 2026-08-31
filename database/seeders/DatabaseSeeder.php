@@ -1,25 +1,27 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Database\Seeders;
 
-use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
+/**
+ * Basisdaten der Anwendung.
+ *
+ * Es werden ausschliesslich Stammdaten angelegt, die die Anwendung zum Betrieb
+ * benoetigt. Kundendaten und Testkonten werden hier bewusst nicht erzeugt, damit
+ * der Seeder auch in der Produktion gefahrlos laufen kann.
+ */
 class DatabaseSeeder extends Seeder
 {
     use WithoutModelEvents;
 
-    /**
-     * Seed the application's database.
-     */
     public function run(): void
     {
-        // User::factory(10)->create();
-
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+        $this->call([
+            CostCategorySeeder::class,
         ]);
     }
 }

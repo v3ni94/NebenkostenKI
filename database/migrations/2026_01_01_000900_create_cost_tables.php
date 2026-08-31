@@ -99,7 +99,7 @@ return new class extends Migration
 
             $table->foreignUlid('confirmed_by_user_id')->nullable()
                 ->constrained('users')->nullOnDelete();
-            $table->timestamp('confirmed_at')->nullable();
+            $table->dateTime('confirmed_at')->nullable();
 
             $table->timestamps();
 
@@ -133,7 +133,7 @@ return new class extends Migration
 
             $table->foreignUlid('confirmed_by_user_id')->nullable()
                 ->constrained('users')->nullOnDelete();
-            $table->timestamp('confirmed_at')->nullable();
+            $table->dateTime('confirmed_at')->nullable();
             $table->string('note', 500)->nullable();
 
             $table->timestamps();
@@ -189,7 +189,7 @@ return new class extends Migration
                 ->comment('Annahme Ist gleich Soll, nur mit sichtbarer Bestaetigung zulaessig');
             $table->foreignUlid('confirmed_by_user_id')->nullable()
                 ->constrained('users')->nullOnDelete();
-            $table->timestamp('confirmed_at')->nullable();
+            $table->dateTime('confirmed_at')->nullable();
             $table->string('note', 500)->nullable();
 
             $table->timestamps();

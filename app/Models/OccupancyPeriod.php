@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Enums\ValueSource;
 use App\Models\Concerns\BelongsToOrganization;
+use Database\Factories\OccupancyPeriodFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -19,10 +20,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class OccupancyPeriod extends Model
 {
-    /** @use HasFactory<\Database\Factories\OccupancyPeriodFactory> */
-    use HasFactory;
-
     use BelongsToOrganization, HasUlids;
+
+    /** @use HasFactory<OccupancyPeriodFactory> */
+    use HasFactory;
 
     /**
      * @return array<string, string>

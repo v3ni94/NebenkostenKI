@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Enums\MeterReadingKind;
 use App\Enums\ValueSource;
 use App\Models\Concerns\BelongsToOrganization;
+use Database\Factories\MeterReadingFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -20,10 +21,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class MeterReading extends Model
 {
-    /** @use HasFactory<\Database\Factories\MeterReadingFactory> */
-    use HasFactory;
-
     use BelongsToOrganization, HasUlids;
+
+    /** @use HasFactory<MeterReadingFactory> */
+    use HasFactory;
 
     /**
      * @var list<string>

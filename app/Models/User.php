@@ -132,7 +132,9 @@ class User extends Authenticatable
         $membership = $this->memberships->firstWhere('organization_id', $id)
             ?? $this->memberships()->where('organization_id', $id)->first();
 
-        return $membership?->role;
+        $role = $membership?->getAttribute('role');
+
+        return $role instanceof OrganizationRole ? $role : null;
     }
 
     public function belongsToOrganization(Organization|string $organization): bool

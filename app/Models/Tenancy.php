@@ -8,6 +8,7 @@ use App\Enums\TenancyKind;
 use App\Enums\TenancyStatus;
 use App\Enums\ValueSource;
 use App\Models\Concerns\BelongsToOrganization;
+use Database\Factories\TenancyFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -25,10 +26,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class Tenancy extends Model
 {
-    /** @use HasFactory<\Database\Factories\TenancyFactory> */
-    use HasFactory;
-
     use BelongsToOrganization, HasUlids, SoftDeletes;
+
+    /** @use HasFactory<TenancyFactory> */
+    use HasFactory;
 
     /**
      * @var list<string>

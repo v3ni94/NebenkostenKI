@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToOrganization;
+use Database\Factories\VacancyPeriodFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,10 +16,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class VacancyPeriod extends Model
 {
-    /** @use HasFactory<\Database\Factories\VacancyPeriodFactory> */
-    use HasFactory;
-
     use BelongsToOrganization, HasUlids;
+
+    /** @use HasFactory<VacancyPeriodFactory> */
+    use HasFactory;
 
     /**
      * @var list<string>

@@ -60,8 +60,8 @@ return new class extends Migration
 
             $table->string('role', 48)->default('MEMBER')
                 ->comment('PHP-Enum App\Enums\OrganizationRole');
-            $table->timestamp('invited_at')->nullable();
-            $table->timestamp('joined_at')->nullable();
+            $table->dateTime('invited_at')->nullable();
+            $table->dateTime('joined_at')->nullable();
             $table->timestamps();
 
             $table->unique(['organization_id', 'user_id']);
@@ -76,8 +76,8 @@ return new class extends Migration
                 ->comment('PHP-Enum App\Enums\AdminRole, getrennt von Kundenrollen');
             $table->foreignUlid('granted_by_user_id')->nullable()
                 ->constrained('users')->nullOnDelete();
-            $table->timestamp('granted_at');
-            $table->timestamp('revoked_at')->nullable();
+            $table->dateTime('granted_at');
+            $table->dateTime('revoked_at')->nullable();
             $table->string('reason', 500)->nullable()
                 ->comment('Begruendung fuer Supportzugriff, siehe audit_logs');
             $table->timestamps();
@@ -102,7 +102,7 @@ return new class extends Migration
                 ->comment('Versionierte Textfassung, damit alte Zustimmungen belegbar bleiben');
             $table->string('document_hash', 64)->nullable()
                 ->comment('SHA-256 der akzeptierten Textfassung');
-            $table->timestamp('accepted_at');
+            $table->dateTime('accepted_at');
 
             $table->string('ip_truncated', 45)->nullable()
                 ->comment('Datensparsam gekuerzte IP, keine vollstaendige Adresse');

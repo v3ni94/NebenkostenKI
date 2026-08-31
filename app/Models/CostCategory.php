@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Enums\AllocationKeyType;
 use App\Enums\ApportionmentStatus;
 use App\Enums\Paragraph35aType;
+use Database\Factories\CostCategoryFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -26,7 +27,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class CostCategory extends Model
 {
-    /** @use HasFactory<\Database\Factories\CostCategoryFactory> */
+    /** @use HasFactory<CostCategoryFactory> */
     use HasFactory;
 
     use HasUlids;

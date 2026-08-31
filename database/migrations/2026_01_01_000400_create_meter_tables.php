@@ -64,7 +64,7 @@ return new class extends Migration
 
             $table->boolean('is_estimated')->default(false)
                 ->comment('Nur nach ausdruecklicher Bestaetigung des Nutzers zulaessig');
-            $table->timestamp('confirmed_at')->nullable();
+            $table->dateTime('confirmed_at')->nullable();
             $table->foreignUlid('confirmed_by_user_id')->nullable()
                 ->constrained('users')->nullOnDelete();
 

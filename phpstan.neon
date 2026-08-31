@@ -11,5 +11,11 @@ parameters:
         - tests
     excludePaths:
         - app/Http/Controllers/Controller.php
-    checkMissingIterableValueType: false
     treatPhpDocTypesAsCertain: false
+
+    # Larastan leitet Attributtypen aus den Migrationen ab und beruecksichtigt
+    # casts() nicht. Dezimalspalten erscheinen dadurch als float, obwohl sie zur
+    # Laufzeit Strings sind. Der Migrationsscan bleibt deshalb aus; verbindlich
+    # sind die casts() der Modelle. Dezimalwerte werden nie nach float gecastet,
+    # sondern mit brick/math verarbeitet (ARCHITECTURE.md, ADR-004).
+    disableMigrationScan: true

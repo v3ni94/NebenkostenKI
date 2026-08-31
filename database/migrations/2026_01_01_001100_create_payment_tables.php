@@ -62,11 +62,11 @@ return new class extends Migration
 
             $table->string('status', 48)->default('ERSTELLT')
                 ->comment('PHP-Enum App\Enums\PaymentStatus');
-            $table->timestamp('paid_at')->nullable();
-            $table->timestamp('expired_at')->nullable();
+            $table->dateTime('paid_at')->nullable();
+            $table->dateTime('expired_at')->nullable();
             $table->bigInteger('refunded_amount_cent')->nullable();
-            $table->timestamp('refunded_at')->nullable();
-            $table->timestamp('dispute_opened_at')->nullable();
+            $table->dateTime('refunded_at')->nullable();
+            $table->dateTime('dispute_opened_at')->nullable();
             $table->string('failure_code', 120)->nullable();
 
             $table->timestamps();
@@ -100,8 +100,8 @@ return new class extends Migration
             $table->text('payload')->nullable()
                 ->comment('Anwendungsseitig verschluesselt und datensparsam gekuerzt');
 
-            $table->timestamp('received_at');
-            $table->timestamp('processed_at')->nullable();
+            $table->dateTime('received_at');
+            $table->dateTime('processed_at')->nullable();
             $table->unsignedSmallInteger('attempts')->default(0);
             $table->string('error_code', 120)->nullable();
             $table->string('error_message', 500)->nullable();

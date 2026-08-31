@@ -62,7 +62,7 @@ return new class extends Migration
             $table->string('sha256', 64)->nullable();
             $table->unsignedSmallInteger('page_count')->nullable();
             $table->string('template_version', 32)->nullable();
-            $table->timestamp('generated_at');
+            $table->dateTime('generated_at');
 
             $table->timestamps();
 

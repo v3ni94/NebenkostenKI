@@ -75,20 +75,20 @@ return new class extends Migration
             $table->bigInteger('price_total_gross_cent')->nullable();
             $table->decimal('vat_rate_percent', 7, 4)->nullable()
                 ->comment('Zum Zeitpunkt der Preisfestsetzung gueltiger Steuersatz');
-            $table->timestamp('price_quoted_at')->nullable();
-            $table->timestamp('price_locked_at')->nullable();
+            $table->dateTime('price_quoted_at')->nullable();
+            $table->dateTime('price_locked_at')->nullable();
 
             $table->unsignedBigInteger('uploaded_bytes')->default(0)
                 ->comment('Summe der ursprünglichen Dateigroessen fuer das Laufzeitlimit');
 
-            $table->timestamp('review_confirmed_at')->nullable()
+            $table->dateTime('review_confirmed_at')->nullable()
                 ->comment('Nutzer hat alle Werte und Ergebnisse geprueft');
-            $table->timestamp('responsibility_confirmed_at')->nullable()
+            $table->dateTime('responsibility_confirmed_at')->nullable()
                 ->comment('Nutzer hat die Verantwortung als Vermieter uebernommen');
 
-            $table->timestamp('paid_at')->nullable();
-            $table->timestamp('finalized_at')->nullable();
-            $table->timestamp('cancelled_at')->nullable();
+            $table->dateTime('paid_at')->nullable();
+            $table->dateTime('finalized_at')->nullable();
+            $table->dateTime('cancelled_at')->nullable();
             $table->string('failure_code', 120)->nullable();
             $table->string('failure_message', 500)->nullable()
                 ->comment('Verstaendliche Handlungsempfehlung, keine Rohdaten');
@@ -116,7 +116,7 @@ return new class extends Migration
             $table->string('reason', 500)->nullable();
             $table->foreignUlid('created_by_user_id')->nullable()
                 ->constrained('users')->nullOnDelete();
-            $table->timestamp('created_at')->nullable();
+            $table->dateTime('created_at')->nullable();
 
             $table->unique(['billing_run_id', 'version_number']);
             $table->index('organization_id');
@@ -146,7 +146,7 @@ return new class extends Migration
             $table->bigInteger('total_prepayment_actual_cent')->default(0);
             $table->bigInteger('total_balance_cent')->default(0);
 
-            $table->timestamp('locked_at')->nullable()
+            $table->dateTime('locked_at')->nullable()
                 ->comment('Gesetzt bei bestaetigter Zahlung, danach unveraenderlich');
             $table->foreignUlid('created_by_user_id')->nullable()
                 ->constrained('users')->nullOnDelete();

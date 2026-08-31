@@ -153,10 +153,10 @@ return new class extends Migration
                 ->comment('Fachliche oder rechtliche Referenz, nur wenn gesichert');
             $table->text('resolution')->nullable();
 
-            $table->timestamp('detected_at');
+            $table->dateTime('detected_at');
             $table->foreignUlid('resolved_by_user_id')->nullable()
                 ->constrained('users')->nullOnDelete();
-            $table->timestamp('resolved_at')->nullable();
+            $table->dateTime('resolved_at')->nullable();
 
             $table->timestamps();
 
@@ -183,7 +183,7 @@ return new class extends Migration
             $table->json('new_value')->nullable();
             $table->string('reason', 500)->nullable()
                 ->comment('Pflichtangabe bei Aenderung der Umlagebewertung');
-            $table->timestamp('occurred_at');
+            $table->dateTime('occurred_at');
 
             $table->timestamps();
 

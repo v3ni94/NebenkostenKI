@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\LegalDocumentPurpose;
+use Database\Factories\LegalAcceptanceFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -18,7 +19,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class LegalAcceptance extends Model
 {
-    /** @use HasFactory<\Database\Factories\LegalAcceptanceFactory> */
+    /** @use HasFactory<LegalAcceptanceFactory> */
     use HasFactory;
 
     use HasUlids;
