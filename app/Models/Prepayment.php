@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Vorauszahlung je Mietverhaeltnis und Zeitraum.
@@ -20,6 +21,29 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * In der Abrechnung wird ausschliesslich actual_cent abgezogen. target_cent dient
  * der Plausibilisierung. Die Annahme Ist gleich Soll ist nur mit
  * assumed_equal_to_target und sichtbarer Bestaetigung zulaessig.
+ *
+ * @property string $id
+ * @property string $organization_id
+ * @property string $billing_run_id
+ * @property string $tenancy_id
+ * @property string|null $document_id
+ * @property PrepaymentKind $kind
+ * @property Carbon $period_start
+ * @property Carbon $period_end
+ * @property int $target_cent
+ * @property int|null $actual_cent
+ * @property ValueSource $source
+ * @property bool $assumed_equal_to_target
+ * @property string|null $confirmed_by_user_id
+ * @property Carbon|null $confirmed_at
+ * @property string|null $note
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read BillingRun $billingRun
+ * @property-read User|null $confirmedBy
+ * @property-read Document|null $document
+ * @property-read Organization $organization
+ * @property-read Tenancy $tenancy
  */
 class Prepayment extends Model
 {

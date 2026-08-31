@@ -12,12 +12,38 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Ablesung. Verbrauchswert als DECIMAL(14,4).
  *
  * Fehlt bei einem Nutzerwechsel die Zwischenablesung, wird nicht geschaetzt. Eine
  * ausdruecklich bestaetigte Ersatzverteilung traegt is_estimated und confirmed_at.
+ *
+ * @property string $id
+ * @property string $organization_id
+ * @property string $meter_device_id
+ * @property string|null $tenancy_id
+ * @property Carbon $read_on
+ *
+ * Dezimalspalten sind bewusst String und werden mit brick/math gerechnet, nie als float (ADR-004).
+ * @property string $value
+ * @property MeterReadingKind $reading_kind
+ * @property ValueSource $source
+ * @property bool $is_estimated
+ * @property Carbon|null $confirmed_at
+ * @property string|null $confirmed_by_user_id
+ *
+ * Dezimalspalten sind bewusst String und werden mit brick/math gerechnet, nie als float (ADR-004).
+ * @property string|null $confidence
+ * @property string|null $document_id
+ * @property string|null $note
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read User|null $confirmedBy
+ * @property-read MeterDevice $meterDevice
+ * @property-read Organization $organization
+ * @property-read Tenancy|null $tenancy
  */
 class MeterReading extends Model
 {

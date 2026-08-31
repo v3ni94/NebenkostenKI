@@ -7,12 +7,14 @@ namespace App\Models;
 use App\Enums\AllocationKeyType;
 use App\Models\Concerns\BelongsToOrganization;
 use Database\Factories\UnitFactory;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 /**
  * Einheit eines Objekts.
@@ -20,6 +22,38 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * Flaechen DECIMAL(10,4), MEA DECIMAL(12,6), individuelle Schluesselwerte
  * DECIMAL(14,4). Alle Werte werden als String gelesen, damit keine binaere
  * Gleitkommaungenauigkeit entsteht.
+ *
+ * @property string $id
+ * @property string $organization_id
+ * @property string $property_id
+ * @property string $label
+ * @property string|null $location
+ * @property string|null $unit_number
+ *
+ * Dezimalspalten sind bewusst String und werden mit brick/math gerechnet, nie als float (ADR-004).
+ * @property string|null $living_area_sqm
+ * @property string|null $heated_area_sqm
+ * @property string|null $mea
+ * @property int|null $room_count
+ *
+ * Dezimalspalten sind bewusst String und werden mit brick/math gerechnet, nie als float (ADR-004).
+ * @property string|null $individual_key_1_value
+ * @property string|null $individual_key_2_value
+ * @property string|null $individual_key_3_value
+ * @property string|null $individual_key_4_value
+ * @property string|null $individual_key_5_value
+ * @property bool $is_commercial
+ * @property bool $is_owner_occupied
+ * @property string|null $notes
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
+ * @property-read Collection<int, MeterDevice> $meterDevices
+ * @property-read Organization $organization
+ * @property-read Property $property
+ * @property-read Collection<int, Tenancy> $tenancies
+ * @property-read Collection<int, UnitStatement> $unitStatements
+ * @property-read Collection<int, VacancyPeriod> $vacancyPeriods
  */
 class Unit extends Model
 {

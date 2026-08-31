@@ -13,12 +13,35 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Geplante oder versandte Erinnerung.
  *
  * deduplication_key ist eindeutig und verhindert Dubletten innerhalb eines
  * Erinnerungsfensters. Bereits finalisierte Jahreslaeufe erzeugen keine Erinnerung.
+ *
+ * @property string $id
+ * @property string|null $organization_id
+ * @property string|null $user_id
+ * @property string|null $property_id
+ * @property string|null $billing_run_id
+ * @property string|null $email_message_id
+ * @property int $billing_year
+ * @property ReminderWindow $reminder_window
+ * @property string $recipient_email
+ * @property string $deduplication_key
+ * @property ReminderStatus $status
+ * @property Carbon $scheduled_for
+ * @property Carbon|null $sent_at
+ * @property string|null $suppressed_reason
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read BillingRun|null $billingRun
+ * @property-read EmailMessage|null $emailMessage
+ * @property-read Organization|null $organization
+ * @property-read Property|null $property
+ * @property-read User|null $user
  */
 class ReminderEvent extends Model
 {

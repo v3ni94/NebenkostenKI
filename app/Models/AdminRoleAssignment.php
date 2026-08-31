@@ -11,12 +11,25 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Interne Rollenzuweisung des Betreibers, Tabelle admin_roles.
  *
  * Vollstaendig getrennt von den Kundenrollen. Supportzugriffe erfordern Rolle,
  * Begruendung und einen Audit-Eintrag.
+ *
+ * @property string $id
+ * @property string $user_id
+ * @property AdminRole $role
+ * @property string|null $granted_by_user_id
+ * @property Carbon $granted_at
+ * @property Carbon|null $revoked_at
+ * @property string|null $reason
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read User|null $grantedBy
+ * @property-read User $user
  */
 class AdminRoleAssignment extends Model
 {

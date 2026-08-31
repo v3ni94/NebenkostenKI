@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Vom System erzeugtes Ergebnisartefakt.
@@ -22,6 +23,32 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * HVM-Rechnungen und DSGVO-Exporte. Hochgeladene Originalbelege duerfen hier
  * niemals eingetragen werden. Der Zugriff erfolgt nur ueber autorisierte
  * Streaming-Routen oder kurzlebige signierte Links.
+ *
+ * @property string $id
+ * @property string|null $organization_id
+ * @property string|null $billing_run_id
+ * @property string|null $unit_statement_id
+ * @property string|null $invoice_id
+ * @property string|null $calculation_snapshot_id
+ * @property string|null $replaced_by_document_id
+ * @property GeneratedDocumentKind $kind
+ * @property GeneratedDocumentVariant $variant
+ * @property GeneratedDocumentStatus $status
+ * @property string $storage_disk
+ * @property string $storage_path
+ * @property int|null $byte_size
+ * @property string|null $sha256
+ * @property int|null $page_count
+ * @property string|null $template_version
+ * @property Carbon $generated_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read BillingRun|null $billingRun
+ * @property-read CalculationSnapshot|null $calculationSnapshot
+ * @property-read Invoice|null $invoice
+ * @property-read Organization|null $organization
+ * @property-read GeneratedDocument|null $replacedBy
+ * @property-read UnitStatement|null $unitStatement
  */
 class GeneratedDocument extends Model
 {

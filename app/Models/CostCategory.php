@@ -9,11 +9,13 @@ use App\Enums\ApportionmentStatus;
 use App\Enums\Paragraph35aType;
 use Database\Factories\CostCategoryFactory;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 /**
  * Kostenkategorie mit BetrKV-Referenz, Umlagestatus, Defaultschluessel und
@@ -24,6 +26,32 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * Abrechnungen nach Gesetzesaenderungen reproduzierbar bleiben.
  *
  * Die Umlagebewertung ist ein fachlicher Vorschlag und keine Rechtsfreigabe.
+ *
+ * @property string $id
+ * @property string|null $organization_id
+ * @property string $code
+ * @property string $name
+ * @property string|null $betrkv_reference
+ * @property ApportionmentStatus $apportionment_status
+ * @property AllocationKeyType $default_allocation_key_type
+ * @property Paragraph35aType $paragraph_35a_type
+ * @property bool $excluded_from_apportionment_by_default
+ * @property bool $requires_contract_basis
+ * @property bool $requires_manual_review
+ * @property bool $is_heating_related
+ * @property bool $is_warm_water_related
+ * @property bool $supports_labor_share
+ * @property bool $is_custom
+ * @property string|null $warning_note
+ * @property string|null $description
+ * @property int $sort_order
+ * @property Carbon $valid_from
+ * @property Carbon|null $valid_to
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read Collection<int, AllocationKey> $allocationKeys
+ * @property-read Collection<int, CostItem> $costItems
+ * @property-read Organization|null $organization
  */
 class CostCategory extends Model
 {

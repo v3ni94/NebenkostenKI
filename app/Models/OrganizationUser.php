@@ -10,12 +10,24 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Mitgliedschaft eines Nutzers in einer Organisation.
  *
  * Mitgliedschaften werden ueber dieses Modell erzeugt und nicht ueber attach(),
  * damit der ULID-Primaerschluessel gesetzt wird.
+ *
+ * @property string $id
+ * @property string $organization_id
+ * @property string $user_id
+ * @property OrganizationRole $role
+ * @property Carbon|null $invited_at
+ * @property Carbon|null $joined_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read Organization $organization
+ * @property-read User $user
  */
 class OrganizationUser extends Model
 {

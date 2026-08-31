@@ -10,12 +10,14 @@ use App\Enums\ValueSource;
 use App\Models\Concerns\BelongsToOrganization;
 use Database\Factories\TenancyFactory;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 /**
  * Mietverhaeltnis. Preisgrundlage ist die erzeugte Mieterabrechnung, daher
@@ -23,6 +25,40 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  *
  * Ueberschneidungen und Luecken prueft die Regel-Engine. Bei ausgezogenem Mieter
  * ist die Zustellanschrift zwingend erforderlich.
+ *
+ * @property string $id
+ * @property string $organization_id
+ * @property string $property_id
+ * @property string $unit_id
+ * @property TenancyKind $kind
+ * @property TenancyStatus $status
+ * @property string $tenant_display_name
+ * @property string|null $delivery_address_line
+ * @property string|null $delivery_address_extra
+ * @property string|null $delivery_postal_code
+ * @property string|null $delivery_city
+ * @property string $delivery_country
+ * @property Carbon $starts_on
+ * @property Carbon|null $ends_on
+ * @property int|null $monthly_operating_prepayment_cent
+ * @property int|null $monthly_heating_prepayment_cent
+ * @property bool $heating_prepayment_separate
+ * @property bool|null $operating_costs_apportionment_agreed
+ * @property bool|null $other_operating_costs_agreed
+ * @property ValueSource|null $contract_data_source
+ * @property string|null $contract_document_id
+ * @property string|null $notes
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
+ * @property-read Collection<int, MeterReading> $meterReadings
+ * @property-read Collection<int, OccupancyPeriod> $occupancyPeriods
+ * @property-read Organization $organization
+ * @property-read Collection<int, TenancyPerson> $persons
+ * @property-read Collection<int, Prepayment> $prepayments
+ * @property-read Property $property
+ * @property-read Unit $unit
+ * @property-read Collection<int, UnitStatement> $unitStatements
  */
 class Tenancy extends Model
 {

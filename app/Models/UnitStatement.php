@@ -9,11 +9,13 @@ use App\Enums\UnitStatementStatus;
 use App\Models\Concerns\BelongsToOrganization;
 use Database\Factories\UnitStatementFactory;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 /**
  * Mieterabrechnung. Preisgrundlage ist die erzeugte Abrechnung, nicht die Wohnung.
@@ -21,6 +23,41 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * balance_cent ist positiv bei Nachzahlung und negativ bei Guthaben. Eine
  * finalisierte Abrechnung wird nie ueberschrieben, Korrekturen erzeugen eine neue
  * Version und die alte erhaelt den Status ERSETZT.
+ *
+ * @property string $id
+ * @property string $organization_id
+ * @property string $billing_run_id
+ * @property string $tenancy_id
+ * @property string $unit_id
+ * @property string|null $calculation_snapshot_id
+ * @property string|null $replaced_by_statement_id
+ * @property int $sequence_number
+ * @property int $version_number
+ * @property Carbon $usage_period_start
+ * @property Carbon $usage_period_end
+ * @property int $days_used
+ * @property int $period_days
+ * @property int $total_apportionable_cent
+ * @property int $total_heating_cent
+ * @property int $total_excluded_cent
+ * @property int $prepayment_target_cent
+ * @property int $prepayment_actual_cent
+ * @property int $balance_cent
+ * @property int $rounding_adjustment_total_cent
+ * @property int|null $paragraph_35a_household_cent
+ * @property int|null $paragraph_35a_craftsman_cent
+ * @property StatementResultKind $result_kind
+ * @property UnitStatementStatus $status
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read BillingRun $billingRun
+ * @property-read CalculationSnapshot|null $calculationSnapshot
+ * @property-read Collection<int, GeneratedDocument> $generatedDocuments
+ * @property-read Collection<int, UnitStatementLine> $lines
+ * @property-read Organization $organization
+ * @property-read UnitStatement|null $replacedBy
+ * @property-read Tenancy $tenancy
+ * @property-read Unit $unit
  */
 class UnitStatement extends Model
 {

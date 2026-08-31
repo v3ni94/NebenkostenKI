@@ -10,12 +10,14 @@ use App\Enums\HeatingSupplyCase;
 use App\Models\Concerns\BelongsToOrganization;
 use Database\Factories\BillingRunFactory;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 /**
  * Abrechnungslauf. Zentrale Aggregatwurzel eines Abrechnungsjahres.
@@ -23,6 +25,58 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * active_calculation_snapshot_id ist eine ULID-Spalte ohne Fremdschluessel, um
  * eine zirkulaere Abhaengigkeit in den Migrationen zu vermeiden. Die Konsistenz
  * sichert die Anwendungsschicht innerhalb der Transaktion.
+ *
+ * @property string $id
+ * @property string $organization_id
+ * @property string|null $created_by_user_id
+ * @property string $property_id
+ * @property string|null $landlord_id
+ * @property string|null $previous_billing_run_id
+ * @property Carbon $period_start
+ * @property Carbon $period_end
+ * @property int $billing_year
+ * @property BillingMode $mode
+ * @property BillingRunStatus $status
+ * @property int $wizard_step
+ * @property HeatingSupplyCase|null $heating_supply_case
+ * @property string|null $active_calculation_snapshot_id
+ * @property int $statement_count
+ * @property int|null $price_per_statement_gross_cent
+ * @property int|null $price_base_gross_cent
+ * @property int|null $price_total_gross_cent
+ *
+ * Dezimalspalten sind bewusst String und werden mit brick/math gerechnet, nie als float (ADR-004).
+ * @property string|null $vat_rate_percent
+ * @property Carbon|null $price_quoted_at
+ * @property Carbon|null $price_locked_at
+ * @property int $uploaded_bytes
+ * @property Carbon|null $review_confirmed_at
+ * @property Carbon|null $responsibility_confirmed_at
+ * @property Carbon|null $paid_at
+ * @property Carbon|null $finalized_at
+ * @property Carbon|null $cancelled_at
+ * @property string|null $failure_code
+ * @property string|null $failure_message
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
+ * @property-read CalculationSnapshot|null $activeCalculationSnapshot
+ * @property-read Collection<int, AllocationKey> $allocationKeys
+ * @property-read Collection<int, CalculationSnapshot> $calculationSnapshots
+ * @property-read Collection<int, CostItem> $costItems
+ * @property-read User|null $createdBy
+ * @property-read Collection<int, Document> $documents
+ * @property-read Collection<int, GeneratedDocument> $generatedDocuments
+ * @property-read Collection<int, HeatingStatement> $heatingStatements
+ * @property-read Landlord|null $landlord
+ * @property-read Organization $organization
+ * @property-read Collection<int, Payment> $payments
+ * @property-read Collection<int, Prepayment> $prepayments
+ * @property-read BillingRun|null $previousBillingRun
+ * @property-read Property $property
+ * @property-read Collection<int, UnitStatement> $unitStatements
+ * @property-read Collection<int, ValidationIssue> $validationIssues
+ * @property-read Collection<int, BillingRunVersion> $versions
  */
 class BillingRun extends Model
 {

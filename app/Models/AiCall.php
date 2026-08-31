@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Nachweismetadaten eines KI-Aufrufs.
@@ -20,6 +21,33 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * DATENSCHUTZ: Es werden keine rohen Prompts, keine rohen Antworten, keine
  * Base64-Dateiinhalte und keine Provider-Datei-IDs gespeichert. Nach der
  * JSON-Schema-Validierung wird die rohe Modellantwort verworfen.
+ *
+ * @property string $id
+ * @property string|null $organization_id
+ * @property string|null $billing_run_id
+ * @property string|null $document_id
+ * @property string|null $ai_prompt_version_id
+ * @property AiProvider $provider
+ * @property string $model
+ * @property AiCallPurpose $purpose
+ * @property string|null $request_id
+ * @property int|null $input_tokens
+ * @property int|null $output_tokens
+ * @property int|null $cached_tokens
+ * @property int $file_count
+ * @property int|null $cost_cent
+ * @property int|null $duration_ms
+ * @property AiCallStatus $status
+ * @property bool|null $schema_valid
+ * @property int $attempt
+ * @property string|null $error_code
+ * @property string|null $error_message
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read BillingRun|null $billingRun
+ * @property-read Document|null $document
+ * @property-read Organization|null $organization
+ * @property-read AiPromptVersion|null $promptVersion
  */
 class AiCall extends Model
 {

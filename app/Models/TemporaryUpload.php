@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Einziger Ort mit einem Storage-Key auf eine Originaldatei.
@@ -22,6 +23,30 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * entfernt oder auf einen inhaltslosen Tombstone reduziert (storage_key null,
  * is_tombstone true). Ein unabhaengiger Cleanup-Job loescht ueberfaellige Dateien
  * auch dann, wenn die Verarbeitung haengen geblieben ist.
+ *
+ * @property string $id
+ * @property string $organization_id
+ * @property string $document_id
+ * @property string $storage_disk
+ * @property string|null $storage_key
+ * @property int|null $byte_size
+ * @property int|null $total_chunks
+ * @property int $received_chunks
+ * @property int $received_bytes
+ * @property Carbon|null $first_chunk_at
+ * @property Carbon $expires_at
+ * @property int $deletion_attempts
+ * @property string|null $last_error
+ * @property Carbon|null $deleted_at
+ * @property bool $is_tombstone
+ * @property AiProvider|null $provider
+ * @property string|null $provider_file_id
+ * @property Carbon|null $provider_file_deleted_at
+ * @property DeletionStatus $provider_deletion_status
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read Document $document
+ * @property-read Organization $organization
  */
 class TemporaryUpload extends Model
 {

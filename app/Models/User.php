@@ -9,6 +9,7 @@ use App\Enums\OrganizationRole;
 use App\Enums\UserStatus;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -16,12 +17,35 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Carbon;
 
 /**
  * Kundennutzer. Adminrollen liegen getrennt in admin_roles.
  *
  * Jeder Nutzer gehoert mindestens einer Organisation an. Die Organisation ist
  * der Mandant, ueber den alle Kundendaten gescopet werden.
+ *
+ * @property string $id
+ * @property string $name
+ * @property string $email
+ * @property Carbon|null $email_verified_at
+ * @property string $password
+ * @property string|null $remember_token
+ * @property UserStatus $status
+ * @property string $locale
+ * @property string $timezone
+ * @property string|null $two_factor_secret
+ * @property Carbon|null $two_factor_confirmed_at
+ * @property Carbon|null $last_login_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
+ * @property-read Collection<int, AdminRoleAssignment> $adminRoles
+ * @property-read Collection<int, BillingRun> $billingRuns
+ * @property-read Collection<int, Invoice> $invoices
+ * @property-read Collection<int, OrganizationUser> $memberships
+ * @property-read Collection<int, Organization> $organizations
+ * @property-read Collection<int, ReminderPreference> $reminderPreferences
  */
 class User extends Authenticatable
 {

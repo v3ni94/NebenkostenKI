@@ -12,12 +12,37 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Wiederanlaufbarer Teiljob der datenbankgestuetzten Queue.
  *
  * DATENSCHUTZ: In payload gehoeren ausschliesslich Referenz-IDs und technische
  * Parameter, niemals Dateiinhalte, OCR-Texte oder Prompts.
+ *
+ * @property string $id
+ * @property string|null $organization_id
+ * @property string|null $billing_run_id
+ * @property string|null $document_id
+ * @property string $job_type
+ * @property ProcessingJobStatus $status
+ * @property int $priority
+ * @property int $attempts
+ * @property int $max_attempts
+ * @property string|null $lease_owner
+ * @property Carbon|null $leased_until
+ * @property Carbon|null $heartbeat_at
+ * @property Carbon $available_at
+ * @property Carbon|null $started_at
+ * @property Carbon|null $finished_at
+ * @property array<string, mixed>|null $payload
+ * @property string|null $error_code
+ * @property string|null $last_error
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read BillingRun|null $billingRun
+ * @property-read Document|null $document
+ * @property-read Organization|null $organization
  */
 class ProcessingJob extends Model
 {

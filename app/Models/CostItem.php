@@ -12,11 +12,13 @@ use App\Enums\Paragraph35aType;
 use App\Models\Concerns\BelongsToOrganization;
 use Database\Factories\CostItemFactory;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 /**
  * Kostenposition eines Abrechnungslaufs. Betraege ausschliesslich in Cent.
@@ -24,6 +26,56 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * Nicht umlagefaehige und pruefpflichtige Positionen sind standardmaessig
  * ausgeschlossen. Eine Abweichung erfordert apportionment_override_reason, wird in
  * ManualOverride versioniert und ist keine juristische Freigabe.
+ *
+ * @property string $id
+ * @property string $organization_id
+ * @property string $billing_run_id
+ * @property string|null $cost_category_id
+ * @property string|null $document_id
+ * @property string $description
+ * @property string|null $supplier_name
+ * @property string|null $invoice_number
+ * @property int $amount_cent
+ * @property int|null $net_amount_cent
+ * @property int|null $vat_amount_cent
+ *
+ * Dezimalspalten sind bewusst String und werden mit brick/math gerechnet, nie als float (ADR-004).
+ * @property string|null $vat_rate_percent
+ * @property Carbon|null $document_date
+ * @property Carbon|null $service_period_start
+ * @property Carbon|null $service_period_end
+ * @property CostItemSource $source
+ * @property CostItemStatus $status
+ * @property ApportionmentStatus $apportionment_status
+ * @property bool $excluded_from_apportionment
+ * @property string|null $apportionment_override_reason
+ * @property AllocationKeyType|null $allocation_key_type
+ * @property string|null $direct_unit_id
+ * @property string|null $direct_tenancy_id
+ * @property int|null $labor_share_cent
+ * @property Paragraph35aType $paragraph_35a_type
+ * @property bool $is_heating_cost
+ * @property bool $is_warm_water_cost
+ * @property string|null $duplicate_of_cost_item_id
+ *
+ * Dezimalspalten sind bewusst String und werden mit brick/math gerechnet, nie als float (ADR-004).
+ * @property string|null $duplicate_confidence
+ * @property string|null $confidence
+ * @property int|null $source_page
+ * @property int|null $prior_year_amount_cent
+ * @property string|null $confirmed_by_user_id
+ * @property Carbon|null $confirmed_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read Collection<int, AllocationKey> $allocationKeys
+ * @property-read BillingRun $billingRun
+ * @property-read User|null $confirmedBy
+ * @property-read CostCategory|null $costCategory
+ * @property-read Tenancy|null $directTenancy
+ * @property-read Unit|null $directUnit
+ * @property-read Document|null $document
+ * @property-read CostItem|null $duplicateOf
+ * @property-read Organization $organization
  */
 class CostItem extends Model
 {

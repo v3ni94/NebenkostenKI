@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Strukturierte Extraktionsdaten, im UI ausgelesene Inhaltsdaten.
@@ -20,6 +21,32 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * enthalten, der fuer das konkrete Feld erforderlich ist. Ganze Absaetze, Seiten
  * oder Tabellen sind unzulaessig. Fehlende Werte bleiben null und erzeugen eine
  * Pruefaufgabe, sie werden niemals geschaetzt.
+ *
+ * @property string $id
+ * @property string $organization_id
+ * @property string $billing_run_id
+ * @property string $document_id
+ * @property string|null $document_page_id
+ * @property string $schema_key
+ * @property string $schema_version
+ * @property array<string, mixed>|null $value
+ * @property array<string, mixed>|null $corrected_value
+ * @property int|null $page_number
+ * @property string|null $source_excerpt
+ *
+ * Dezimalspalten sind bewusst String und werden mit brick/math gerechnet, nie als float (ADR-004).
+ * @property string|null $confidence
+ * @property ExtractedFieldStatus $status
+ * @property string|null $ai_call_id
+ * @property string|null $confirmed_by_user_id
+ * @property Carbon|null $confirmed_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read BillingRun $billingRun
+ * @property-read User|null $confirmedBy
+ * @property-read Document $document
+ * @property-read DocumentPage|null $documentPage
+ * @property-read Organization $organization
  */
 class ExtractedField extends Model
 {

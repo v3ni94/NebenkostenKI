@@ -10,12 +10,34 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Protokoll einer Transaktionsmail.
  *
  * DATENSCHUTZ: Keine Passwoerter, Tokens, Downloadlinks oder vertraulichen
  * Inhalte. Finale Mieterabrechnungen werden nicht unverschluesselt angehaengt.
+ *
+ * @property string $id
+ * @property string|null $organization_id
+ * @property string|null $user_id
+ * @property string|null $billing_run_id
+ * @property string $template
+ * @property string $recipient_email
+ * @property string $subject
+ * @property EmailStatus $status
+ * @property string|null $message_id
+ * @property int $attempts
+ * @property Carbon|null $queued_at
+ * @property Carbon|null $sent_at
+ * @property Carbon|null $failed_at
+ * @property string|null $error_code
+ * @property string|null $error_message
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read BillingRun|null $billingRun
+ * @property-read Organization|null $organization
+ * @property-read User|null $user
  */
 class EmailMessage extends Model
 {

@@ -10,12 +10,14 @@ use App\Enums\DocumentType;
 use App\Models\Concerns\BelongsToOrganization;
 use Database\Factories\DocumentFactory;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
 
 /**
  * Dokument eines Abrechnungslaufs.
@@ -26,6 +28,44 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * Auswertung geloescht. Dauerhaft bleiben nur die neutrale Quellenbezeichnung,
  * technische Metadaten, der HMAC-Fingerabdruck und die strukturierten
  * Extraktionsdaten.
+ *
+ * @property string $id
+ * @property string $organization_id
+ * @property string $billing_run_id
+ * @property int $sequence_number
+ * @property string $source_label
+ * @property DocumentType $document_type
+ *
+ * Dezimalspalten sind bewusst String und werden mit brick/math gerechnet, nie als float (ADR-004).
+ * @property string|null $document_type_confidence
+ * @property bool $type_assigned_manually
+ * @property string|null $mime_type
+ * @property int|null $original_byte_size
+ * @property int|null $page_count
+ * @property string|null $fingerprint_hmac
+ * @property DocumentProcessingStatus $processing_status
+ * @property Carbon|null $security_checked_at
+ * @property string|null $malware_scanner_driver
+ * @property bool|null $malware_scan_clean
+ * @property Carbon|null $classified_at
+ * @property Carbon|null $extracted_at
+ * @property Carbon|null $original_deleted_at
+ * @property DeletionStatus $deletion_status
+ * @property string|null $duplicate_of_document_id
+ * @property string|null $failure_code
+ * @property string|null $failure_message
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read Collection<int, AiCall> $aiCalls
+ * @property-read BillingRun $billingRun
+ * @property-read Collection<int, CostItem> $costItems
+ * @property-read Document|null $duplicateOf
+ * @property-read Collection<int, ExtractedField> $extractedFields
+ * @property-read Collection<int, DocumentRelation> $incomingRelations
+ * @property-read Organization $organization
+ * @property-read Collection<int, DocumentRelation> $outgoingRelations
+ * @property-read Collection<int, DocumentPage> $pages
+ * @property-read TemporaryUpload|null $temporaryUpload
  */
 class Document extends Model
 {

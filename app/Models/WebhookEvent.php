@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Eingehendes Webhook-Event. provider_event_id ist eindeutig und sichert die
@@ -20,6 +21,24 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * DATENSCHUTZ: Die Nutzlast wird anwendungsseitig verschluesselt und datensparsam
  * gekuerzt gespeichert. Roh-Payloads gehoeren nicht in Application Logs.
+ *
+ * @property string $id
+ * @property PaymentProvider $provider
+ * @property string $provider_event_id
+ * @property string $event_type
+ * @property WebhookSignatureStatus $signature_status
+ * @property WebhookProcessingStatus $processing_status
+ * @property string|null $payment_id
+ * @property string|null $payload_digest
+ * @property string|null $payload
+ * @property Carbon $received_at
+ * @property Carbon|null $processed_at
+ * @property int $attempts
+ * @property string|null $error_code
+ * @property string|null $error_message
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read Payment|null $payment
  */
 class WebhookEvent extends Model
 {

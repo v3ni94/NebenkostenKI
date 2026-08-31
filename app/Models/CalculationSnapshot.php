@@ -8,17 +8,44 @@ use App\Enums\CalculationSnapshotStatus;
 use App\Models\Concerns\BelongsToOrganization;
 use Database\Factories\CalculationSnapshotFactory;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 /**
  * Unveraenderlicher Berechnungsstand.
  *
  * Ein bezahlter Snapshot wird gesperrt und niemals ueberschrieben. Final-PDFs
  * werden vollstaendig aus diesem Stand neu erzeugt.
+ *
+ * @property string $id
+ * @property string $organization_id
+ * @property string $billing_run_id
+ * @property string|null $replaced_by_snapshot_id
+ * @property int $version_number
+ * @property array<string, mixed> $input
+ * @property array<string, mixed> $result
+ * @property string $domain_version
+ * @property string $ruleset_version
+ * @property string $hash
+ * @property CalculationSnapshotStatus $status
+ * @property int $statement_count
+ * @property int $total_apportionable_cent
+ * @property int $total_prepayment_actual_cent
+ * @property int $total_balance_cent
+ * @property Carbon|null $locked_at
+ * @property string|null $created_by_user_id
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read BillingRun $billingRun
+ * @property-read Collection<int, GeneratedDocument> $generatedDocuments
+ * @property-read Organization $organization
+ * @property-read CalculationSnapshot|null $replacedBy
+ * @property-read Collection<int, UnitStatement> $unitStatements
  */
 class CalculationSnapshot extends Model
 {

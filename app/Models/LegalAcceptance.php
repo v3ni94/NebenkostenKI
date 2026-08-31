@@ -10,12 +10,29 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Nachweis einer Zustimmung zu einer versionierten Textfassung.
  *
  * Gespeichert werden nur gekuerzte IP und gehashter User-Agent, niemals der
  * vollstaendige Fingerabdruck des Nutzers.
+ *
+ * @property string $id
+ * @property string|null $user_id
+ * @property string|null $organization_id
+ * @property string|null $billing_run_id
+ * @property LegalDocumentPurpose $purpose
+ * @property string $document_version
+ * @property string|null $document_hash
+ * @property Carbon $accepted_at
+ * @property string|null $ip_truncated
+ * @property string|null $user_agent_hash
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read BillingRun|null $billingRun
+ * @property-read Organization|null $organization
+ * @property-read User|null $user
  */
 class LegalAcceptance extends Model
 {

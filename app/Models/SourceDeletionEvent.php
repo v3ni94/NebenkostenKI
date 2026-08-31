@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
 /**
  * Datensparsamer Loeschnachweis fuer Originaldateien und Providerdateien.
@@ -18,6 +19,20 @@ use Illuminate\Database\Eloquent\Model;
  * DATENSCHUTZ: Der Nachweis enthaelt keinen Dateiinhalt und keinen Dateinamen.
  * document_id und organization_id sind bewusst ohne Fremdschluessel ausgefuehrt,
  * damit der Nachweis auch nach Loeschung des Dokuments erhalten bleibt.
+ *
+ * @property string $id
+ * @property string|null $organization_id
+ * @property string|null $document_id
+ * @property string|null $temporary_upload_id
+ * @property DeletionStatus $local_deletion_status
+ * @property DeletionStatus $provider_deletion_status
+ * @property AiProvider|null $provider
+ * @property Carbon $occurred_at
+ * @property int $attempt
+ * @property string|null $error_code
+ * @property string|null $error_message
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
  */
 class SourceDeletionEvent extends Model
 {

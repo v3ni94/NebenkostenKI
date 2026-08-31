@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Erinnerungseinstellung, global oder je Objekt.
@@ -19,6 +20,24 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * Eine Zeile mit property_id null gilt global fuer den Nutzer. Die
  * Anwendungsschicht stellt sicher, dass je Nutzer hoechstens eine globale Zeile
  * existiert, weil ein Teilindex nicht portabel waere.
+ *
+ * @property string $id
+ * @property string $organization_id
+ * @property string $user_id
+ * @property string|null $property_id
+ * @property bool $is_active
+ * @property bool $q1_enabled
+ * @property bool $q2_enabled
+ * @property bool $q3_enabled
+ * @property bool $december_enabled
+ * @property string $unsubscribe_token
+ * @property Carbon|null $deactivated_at
+ * @property Carbon|null $reactivated_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read Organization $organization
+ * @property-read Property|null $property
+ * @property-read User $user
  */
 class ReminderPreference extends Model
 {

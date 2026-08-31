@@ -11,9 +11,27 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Beziehung zwischen zwei Dokumenten, zum Beispiel Dublette oder Gutschrift.
+ *
+ * @property string $id
+ * @property string $organization_id
+ * @property string $billing_run_id
+ * @property string $from_document_id
+ * @property string $to_document_id
+ * @property DocumentRelationType $relation_type
+ *
+ * Dezimalspalten sind bewusst String und werden mit brick/math gerechnet, nie als float (ADR-004).
+ * @property string|null $confidence
+ * @property string|null $note
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read BillingRun $billingRun
+ * @property-read Document $fromDocument
+ * @property-read Organization $organization
+ * @property-read Document $toDocument
  */
 class DocumentRelation extends Model
 {
