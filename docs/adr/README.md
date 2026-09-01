@@ -20,6 +20,9 @@ mit Messwerten.
 | ADR-008 | Providerabstraktion mit REST-Client statt Provider-SDK | ARCHITECTURE.md |
 | ADR-009 | Modellwahl und Modellnamen | ARCHITECTURE.md |
 | ADR-010 | Preise werden brutto angezeigt und serverseitig neu berechnet | ARCHITECTURE.md |
+| ADR-011 | Eigene Zählertabelle für den Rechnungsnummernkreis | ARCHITECTURE.md |
+| ADR-012 | Statusfortschritt als eigener Dienst, nicht als Sitzungszustand | ARCHITECTURE.md |
+| ADR-013 | Final-PDFs entstehen auf demselben Renderweg wie die Vorschau | ARCHITECTURE.md |
 
 ## Vorlage für eine neue Entscheidung
 

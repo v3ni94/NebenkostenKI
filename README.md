@@ -14,6 +14,26 @@ Betriebskostenabrechnung. Die Plattform ist ein Software-Werkzeug und leistet
 keine Rechtsberatung im Einzelfall.
 
 **Architektur und Entscheidungen:** siehe [ARCHITECTURE.md](ARCHITECTURE.md).
+**Ergebnis der Abschlussprüfung:** siehe [docs/abnahme.md](docs/abnahme.md).
+**Betrieb:** [Backup und Restore](docs/betrieb/backup-und-restore.md),
+[Löschkonzept im Betrieb](docs/betrieb/loeschkonzept-betrieb.md).
+
+---
+
+## Funktionsumfang
+
+Alle Phasen des Entwicklungsauftrags sind umgesetzt. Der Livegang ist
+ausschließlich durch Betreiberangaben blockiert, nicht durch offene
+Entwicklungsarbeit.
+
+| Phase | Funktionsumfang |
+| --- | --- |
+| 0 | Architektur, Architekturentscheidungen, Datenfluss und Löschkonzept, Threat Model, ENV-Schema, HVM-Designsystem, IONOS-Betriebsprofile |
+| 1 | Registrierung mit E-Mail-Bestätigung, Mandanten und Policies, Objekte, Einheiten, Vermieter und Mietverhältnisse mit Zeitachse, Zustandsmaschine des Abrechnungslaufs, Chunk-Upload in den verschlüsselten Kurzzeitbereich, Lösch-Lifecycle mit TTL-Cleanup, datenbankgestützte Jobs mit Lease und Dead Letter |
+| 2 | Providerinterface mit OpenAI- und Anthropic-Anbindung, versionierte Systemprompts, JSON-Schemata mit Quellenbezug, Extraktion von Hausgeldabrechnung, Grundsteuerbescheid, Mietvertrag, Vorjahr und Heizkostenabrechnung, Dublettenerkennung und Abgleich, Kosten- und Konfidenzkontrolle, Prüfoberfläche ausschließlich auf strukturierten Daten |
+| 3 | Berechnungsengine ohne Framework-Abhängigkeit, Verteilerschlüssel nach Fläche, MEA, Einheiten, Personen, Personentagen und Verbrauch, taggenaue Zeitanteile, Heizkostenverordnung, Rundung nach größten Resten, versionierte Prüfregeln, geführter Ablauf über zehn Schritte, Vorschau-PDF mit serverseitigem Wasserzeichen auf jeder Seite, Eigentümerübersicht und Anlage nach § 35a EStG |
+| 4 | Serverseitige Preislogik, Stripe Checkout, signaturgeprüfte Webhooks mit Idempotenz, Finalisierung aus dem gesperrten Berechnungsstand, ZIP-Paket, HVM-Rechnung mit lückenlosem Nummernkreis und Storno, Transaktionsmails über IONOS-SMTP mit Zustellprotokoll, Folgejahresübernahme, Erinnerungen zu Q1, Q2, Q3 und zum 1. Dezember mit signiertem Abmeldelink |
+| 5 | Adminbereich mit Livegang-Blockern, Healthcheck, Kennzahlen, Datenschutzmonitor, Nutzerverwaltung, Supportzugriff mit Begründung und Audit, Zweitfaktorpflicht, DSGVO-Datenexport als ZIP, Kontolöschworkflow mit Frist, Backupmanifest und Restore-Prüfung, CI mit MariaDB 10.11 und 11.4, Releasepaket für die SFTP-Auslieferung, End-to-End-Tests für Happy Path sowie Abbruch- und Fehlerwege |
 
 ---
 
@@ -79,6 +99,31 @@ vendor/bin/pint  # Pint, formatieren
 composer stan    # PHPStan Level 6 mit Larastan
 composer test    # PHPUnit
 composer check   # alles zusammen
+```
+
+Ausführlich, so wie in der Abschlussprüfung ausgeführt:
+
+```bash
+php artisan test
+vendor/bin/phpstan analyse --no-progress --memory-limit=1G
+vendor/bin/pint --test
+```
+
+Stand 01.09.2026: **1.715 Tests mit 11.586 Assertions grün**, PHPStan Level 6
+projektweit fehlerfrei, Pint sauber. Einzelne Nachweise lassen sich gezielt
+laufen, zum Beispiel:
+
+```bash
+php artisan test --filter WatermarkTest        # Wasserzeichen auf jeder Seite
+php artisan test --filter NoOriginalLeakTest   # keine Originaldaten in Disk, DB, Queue, Log
+php artisan test --filter StripeWebhookTest    # nur ein geprüfter Webhook schaltet frei
+php artisan test --filter InvoiceNumberSequenceTest  # lückenloser Nummernkreis
+```
+
+Die aktuelle Blockerliste des Adminbereichs lässt sich ohne Browser abfragen:
+
+```bash
+php artisan tinker --execute="foreach (app(App\Application\Admin\LaunchBlockerCheck::class)->report()->blockers as \$b) { echo \$b->severity.' | '.\$b->area.' | '.\$b->missing.PHP_EOL; }"
 ```
 
 ---
@@ -182,6 +227,28 @@ mysqldump --single-transaction --quick --default-character-set=utf8mb4 \
 Fehlende Punkte werden im Adminbereich als Livegang-Blocker angezeigt. Keine
 dieser Angaben wird erfunden.
 
+### Tatsächlich erkannte Blocker, Stand 01.09.2026
+
+Das ist die Ausgabe von `LaunchBlockerCheck` gegen die aktuelle Konfiguration,
+nicht eine Abschrift der Vorgabe. Die Punkte darunter sind die vollständige
+Checkliste, auch für das, was technisch nicht selbst erkennbar ist.
+
+| Schwere | Bereich | Was fehlt | Verantwortlich |
+| --- | --- | --- | --- |
+| blockierend | Betreiber und Rechnung | bestätigte Steuernummer, Umsatzsteuer-Identifikationsnummer, IBAN und BIC; danach `HVM_MASTERDATA_CONFIRMED=true` | Geschäftsführung, in Abstimmung mit dem Steuerberater |
+| blockierend | Zahlung | `STRIPE_KEY`, `STRIPE_SECRET` und `STRIPE_WEBHOOK_SECRET` sind nicht gesetzt | Betreiber über das Stripe-Konto |
+| blockierend | KI-Provider | Datenschutzfreigabe fehlt für OpenAI und Anthropic; `AI_DATA_RETENTION_APPROVED` steht auf `false`, solange kein Nachweis über Zero Data Retention je Providerorganisation, Modell und Funktion vorliegt | Betreiber, mit Auftragsverarbeitungsvertrag und Retention-Dokumentation |
+| blockierend | Uploads | `MALWARE_SCANNER_DRIVER=disabled`; zu entscheiden ist `clamav`, `external` oder eine schriftliche Risikobewertung | Betreiber |
+| blockierend | Recht | Impressum, Datenschutzerklärung, AGB und Widerrufsbelehrung sind Platzhalterfassungen | Betreiber über die beauftragte Kanzlei |
+| blockierend | Gestaltung | in `public/ci` fehlt `Logo_HVM.svg` oder `Logo_HVM.jpg` | Betreiber; es wird kein Logo erzeugt oder nachgezeichnet |
+| Entscheidung | Preis | `PRICE_CORRECTION_FREE_DAYS` ist nicht gesetzt, es gilt der Standard von null Tagen kostenfreier Korrektur | Geschäftsführung, kaufmännische Entscheidung |
+
+Nicht als Blocker erkennbar, weil erst am Zielsystem prüfbar, dafür im
+Admin-Healthcheck sichtbar: MariaDB-Serverversion, Schreibbarkeit der
+Artefaktablage, SFTP-Erreichbarkeit und SMTP-Versand. Ebenfalls nicht technisch
+erkennbar sind die Aktivierung des Übertragungsschritts im SFTP-Deployment und
+die Abnahme anonymisierter Musterabrechnungen.
+
 ### Hosting und Infrastruktur
 
 - [ ] tatsächlicher IONOS-Tarif und verfügbare PHP-Version bestätigt
@@ -217,12 +284,19 @@ dieser Angaben wird erfunden.
       Ergebnis-PDFs; Kurzzeit-TTL für Originaluploads höchstens 120 Minuten
 - [ ] Entscheidung zum Malware-Scanner (`clamav`, `external` oder bewusst
       `disabled` mit dokumentierter Risikobewertung)
+- [ ] Entscheidung zur kostenfreien Korrekturfrist nach der Zahlung
+      (`PRICE_CORRECTION_FREE_DAYS`); ohne Entscheidung gilt null Tage
 
 ### Gestaltung und Abnahme
 
 - [ ] HVM-Logo und CI-Assets in `/public/ci/` eingespielt (siehe
       [public/ci/README.md](public/ci/README.md)); es wird kein Logo generiert
 - [ ] Abnahme realer, vollständig anonymisierter Musterabrechnungen
+- [ ] Übertragungsschritt in `.github/workflows/deploy.yml` aktiviert, nachdem
+      Zielpfad und Zugangsdaten bestätigt vorliegen, mit Smoke-Test gegen ein
+      neues Releaseverzeichnis vor dem Umschalten des Releasezeigers
+- [ ] erster Restore-Test nach [docs/betrieb/backup-und-restore.md](docs/betrieb/backup-und-restore.md)
+      durchgeführt und protokolliert
 
 ---
 

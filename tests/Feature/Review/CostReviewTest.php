@@ -17,6 +17,7 @@ use App\Models\CostCategory;
 use App\Models\CostItem;
 use App\Models\Organization;
 use App\Models\Unit;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * Pruefoberflaeche der Kostenpruefung (Schritt 6).
@@ -208,6 +209,71 @@ final class CostReviewTest extends ReviewTestCase
         self::assertSame($kategorie->getKey(), $position->getAttribute('cost_category_id'));
         self::assertSame(ApportionmentStatus::UMLAGEFAEHIG, $position->getAttribute('apportionment_status'));
         self::assertSame(CostItemStatus::VORGESCHLAGEN, $position->getAttribute('status'));
+    }
+
+    /**
+     * Grundsatz 8: Ein Eurobetrag wird ohne Zwischenschritt ueber float in Cent
+     * umgerechnet. Die Werte sind so gewaehlt, dass eine Multiplikation mit 100
+     * als binaerer Gleitkommawert nicht exakt ist.
+     */
+    #[DataProvider('betragsangaben')]
+    public function test_eurobetraege_werden_exakt_in_cent_umgerechnet(string $eingabe, int $erwartetCent): void
+    {
+        $mandant = $this->mandant();
+        $lauf = $this->lauf($mandant['organization'], $mandant['property']);
+
+        $position = $this->position($lauf, $mandant['organization'], 'Unklare Leistung', null, 25000);
+        $kategorie = $this->kategorie('GARTENPFLEGE');
+
+        $this->actingAs($mandant['user'])->put(route('portal.pruefung.kosten.update', [
+            'billingRun' => $lauf->getKey(),
+            'costItem' => $position->getKey(),
+        ]), [
+            'description' => 'Gartenpflege Sommer',
+            'betrag_euro' => $eingabe,
+            'cost_category_id' => $kategorie->getKey(),
+        ])->assertRedirect();
+
+        $position->refresh();
+
+        self::assertSame($erwartetCent, $position->getAttribute('amount_cent'));
+    }
+
+    /**
+     * @return array<string, array{string, int}>
+     */
+    public static function betragsangaben(): array
+    {
+        return [
+            'einfacher Betrag' => ['300,00', 30000],
+            'Tausendertrennzeichen' => ['8.235,70', 823570],
+            'nicht exakt als float darstellbar' => ['1.234,29', 123429],
+            'kleiner Restcent' => ['0,07', 7],
+            'grosser Betrag' => ['99.999,99', 9999999],
+            'negative Gutschrift' => ['-1.845,30', -184530],
+        ];
+    }
+
+    public function test_ein_unleserlicher_betrag_wird_nicht_geschaetzt(): void
+    {
+        $mandant = $this->mandant();
+        $lauf = $this->lauf($mandant['organization'], $mandant['property']);
+
+        $position = $this->position($lauf, $mandant['organization'], 'Unklare Leistung', null, 25000);
+
+        $this->actingAs($mandant['user'])->put(route('portal.pruefung.kosten.update', [
+            'billingRun' => $lauf->getKey(),
+            'costItem' => $position->getKey(),
+        ]), [
+            'description' => 'Unklare Leistung',
+            'betrag_euro' => 'etwa dreihundert',
+        ]);
+
+        $position->refresh();
+
+        // Grundsatz 5: ein nicht lesbarer Wert wird nicht uebernommen und nicht
+        // geschaetzt. Der bisherige Betrag bleibt unveraendert.
+        self::assertSame(25000, $position->getAttribute('amount_cent'));
     }
 
     public function test_aufnahme_einer_nicht_umlagefaehigen_position_erfordert_begruendung(): void

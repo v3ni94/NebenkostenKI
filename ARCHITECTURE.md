@@ -3,8 +3,12 @@
 **Projekt:** KI-gestütztes Nebenkostenabrechnungsportal
 **Kanonische Domain:** `https://smart-abrechnen.de`
 **Betreiber:** Hausverwaltung Müller GmbH
-**Stand dieses Dokuments:** 31.08.2026
-**Status:** Phase 0 abgeschlossen, Phase 1 in Arbeit
+**Stand dieses Dokuments:** 01.09.2026
+**Status:** Phasen 0 bis 5 umgesetzt. 1.715 Tests mit 11.586 Assertions grün,
+PHPStan Level 6 projektweit fehlerfrei, Pint sauber. Der Livegang ist
+ausschließlich durch Betreiberangaben blockiert, nicht durch offene
+Entwicklungsarbeit. Die unabhängige Abschlussprüfung ist in
+[docs/abnahme.md](docs/abnahme.md) protokolliert.
 
 Dieses Dokument hält die Architekturentscheidungen fest. Es ist die
 verbindliche technische Referenz und wird bei jeder wesentlichen Entscheidung
@@ -242,51 +246,154 @@ Mieterabrechnungen serverseitig neu berechnet. Der Browser-Redirect ist niemals
 Zahlungsnachweis, nur ein signaturgeprüfter Webhook schaltet die Finalisierung
 frei.
 
+### ADR-011: Eigene Zählertabelle für den Rechnungsnummernkreis
+
+**Entscheidung:** Der Nummernkreis der HVM-Rechnungen führt eine eigene Tabelle
+`invoice_number_sequences` mit genau einer Zählerzeile je Präfix und Jahr. Die
+Vergabe sperrt diese vorhandene Zeile mit `lockForUpdate()` und erhöht sie in
+derselben Transaktion.
+
+**Begründung:** Geprüft wurde zuerst die naheliegende Variante, den höchsten
+Wert direkt aus `invoices` zu lesen. Sie genügt nicht. Beim ersten Beleg eines
+Jahres existiert keine Zeile, die gesperrt werden könnte. Eine Sperre auf eine
+leere Ergebnismenge ist keine Zeilensperre, sondern hängt am Sperrverhalten der
+jeweiligen Datenbank: InnoDB setzt eine Next-Key-Sperre, SQLite kennt beides
+nicht. Ein Verhalten, das nur auf einer Engine zufällig richtig ist, ist für
+einen lückenlosen Nummernkreis zu wenig. Hinzu kommt, dass der höchste Wert aus
+einer Zeichenkette zurückgerechnet werden müsste; eine Änderung von Präfix oder
+Stellenzahl würde aus einem Sortierproblem eine Lücke oder eine Dublette machen.
+
+**Konsequenzen:** Der Zähler wird niemals verringert und niemals zurückgesetzt.
+Eine Korrektur läuft ausschließlich über eine Stornorechnung mit eigenem Beleg
+und eigener Nummer aus demselben Kreis. Der eindeutige Schlüssel auf
+`invoices.number` bleibt als zweite, unabhängige Sicherung bestehen, damit auch
+ein Programmierfehler keine Dublette festschreiben kann. Nachweis:
+`Feature/Payment/InvoiceNumberSequenceTest` mit zehn Testmethoden, darunter
+Parallelzugriff, Lückenlosigkeit und Jahreswechsel.
+
+### ADR-012: Statusfortschritt als eigener Dienst, nicht als Sitzungszustand
+
+**Entscheidung:** Der erreichte Schritt des geführten Ablaufs wird von
+`App\Application\Wizard\WizardProgress` in der Spalte `billing_runs.wizard_step`
+persistiert, nicht in der Session. Ein bereits weiter fortgeschrittener Stand
+wird beim Aufruf eines früheren Schritts nicht zurückgesetzt.
+
+**Begründung:** Der Ablauf muss nach Vorgabe vollständig fortsetzbar sein, auch
+nach Sitzungsende, Gerätewechsel oder einem Tag Pause. Ein Sitzungszustand
+verliert genau dann den Fortschritt, wenn er gebraucht wird. Die Ablage am
+Abrechnungslauf bindet den Fortschritt an den Vorgang statt an den Browser.
+Derselbe Dienst leitet zusätzlich die verbindliche Statussprache je Schritt ab,
+damit Fortschrittsleiste und Schrittseiten nicht auseinanderlaufen können.
+
+**Konsequenzen:** Die Zurück-Navigation ist immer erlaubt und folgenlos. Jeder
+Schritt speichert über eine gewöhnliche POST-Route mit anschließender
+Weiterleitung, ein Neuladen erzeugt also keine doppelte Speicherung. Ein Status
+wird nie allein über Farbe kommuniziert. Nachweis:
+`Feature/Wizard/WizardFrameTest::test_der_ablauf_ist_unterbrechbar_und_ohne_datenverlust_fortsetzbar`
+und `::test_der_erreichte_schritt_wird_gespeichert_und_nicht_zurueckgesetzt`.
+
+### ADR-013: Final-PDFs entstehen auf demselben Renderweg wie die Vorschau
+
+**Entscheidung:** Vorschau und Finalversion werden von derselben
+Renderermethode `html()` erzeugt und unterscheiden sich ausschließlich in den
+`PdfRenderOptions`, also in Artefakttyp, Dateiname und Wasserzeicheneinstellung.
+Es gibt keinen Weg, der ein bestehendes PDF entgegennimmt und nachbearbeitet.
+
+**Begründung:** Die naheliegende Alternative, die Finalversion durch Entfernen
+des Wasserzeichens aus der Vorschau zu gewinnen, ist doppelt untragbar. Sie
+setzt voraus, dass das Wasserzeichen eine trennbare Ebene ist, womit es auch im
+Browser entfernbar wäre und seinen Zweck verliert. Und sie würde den bezahlten
+Stand von einer Datei abhängig machen, die vor der Zahlung entstanden ist.
+Umgekehrt wäre ein zweiter, eigener Renderweg für die Finalversion ein
+Duplikat, das inhaltlich auseinanderdriften könnte, ohne dass es auffällt.
+
+**Konsequenzen:** Das Wasserzeichen wird von mPDF in jeden Seiteninhalt
+eingebrannt und ist keine optionale Ebene. Die Finalversion wird nach
+bestätigter Zahlung vollständig neu aus dem gesperrten Calculation Snapshot
+erzeugt und in ein eigenes Artefaktverzeichnis geschrieben. Eine gelöschte oder
+nie erzeugte Vorschau verhindert die Finalversion nicht. Nachweise:
+`Feature/Pdf/WatermarkTest` (Wasserzeichen je Seite, Finalversion frei davon,
+keine entfernbare Ebene) und `Feature/Pdf/FinalIsRegeneratedTest`, insbesondere
+`::test_kein_renderweg_nimmt_ein_bestehendes_pdf_entgegen` und
+`::test_geloeschte_vorschau_verhindert_die_finalversion_nicht`.
+
 ---
 
 ## 4. Ordnerstruktur
 
+Ist-Zustand nach Abschluss der Phasen 0 bis 5.
+
 ```
 app/
-  Application/        Use Cases (BillingRun, Documents, Payment, Reminder, Account)
-  Domain/             reine Berechnungslogik, ohne Framework-Abhängigkeit
+  Application/        Use Cases, je Fachgebiet ein Ordner
+    Account/          Mandantenkontext, Kontodaten, Revisionsprotokoll
+    Admin/            Livegang-Blocker, Healthcheck, Kennzahlen, Datenschutzmonitor,
+                      Nutzerverwaltung, Supportzugriff, Preise, Verarbeitung
+    BillingRun/       State Machine und Portalstatus
+    Calculation/      Eingabeaufbereitung, Lauf der Engine, Snapshot
+    Documents/        Upload zusammensetzen, Archive entpacken, Löschlauf
+    FollowUpYear/     Folgejahresübernahme
+    Payment/          Checkout, Stripe-Ereignisse, Finalisierung, Rechnung
+    Privacy/          DSGVO-Export, Kontolöschung, Aufbewahrung
+    Reconciliation/   Hausgeld, Grundsteuer, Heizkosten, Dubletten
+    Reminder/         Termine, Versand, Abmeldung
+    Review/           Prüfoberfläche auf strukturierten Daten
+    Wizard/           Schrittrahmen, Fortschritt, Vorschau, Bestätigung
+  Domain/             reine Berechnungslogik, ohne Framework und ohne Eloquent
     Allocation/       Verteilerschlüssel
-    Calculation/      Engine, DTOs, Ergebnisobjekte, Heizkostenmodul
+    Calculation/      Engine, DTOs, Ergebnisobjekte, Heizkosten, Rundung, WEG
     Money/            Geld als Integer-Cent-Value-Object
     Period/           taggenaue Zeiträume, Schaltjahr, Schnittmengen
+    Support/          Engineversion, deutsche Zahlformatierung
   Enums/              persistierte Statuswerte
   Http/
     Controllers/Site/     öffentliches Frontend
-    Controllers/Portal/   die Anwendung
+    Controllers/Portal/   die Anwendung, mit Upload, Review, Wizard, Checkout, Download
     Controllers/Admin/    interner Bereich
     Controllers/Webhook/  Stripe
-  Models/             Eloquent, mandantenbezogen
+    Middleware/           Mandantenkontext, Security Header, HTTPS, Admin-Zweitfaktor
+    Requests/             deutsche Formularvalidierung je Bereich
+  Jobs/               Teilschritte der Dokumentpipeline, datenbankgestützt
+  Listeners/ Mail/ Notifications/   Transaktionsmails und Zustellprotokoll
+  Models/             Eloquent, mandantenbezogen, alle mit fillable oder guarded
   Policies/           Object-Level-Autorisierung
-  Rules/              versionierte Prüfregeln (Definitions, Engine)
+  Rules/              versionierte Prüfregeln (Context, Definitions, Engine)
   Services/
-    Ai/               Providerabstraktion, JSON-Schemata, Prompts
-    Payment/          Stripe
-    Pdf/              Renderer und Wasserzeichen
-    Queue/            Lease, Heartbeat, Dead Letter
-    Storage/          Kurzzeitbereich, SFTP, Löschpfade
+    Ai/               Providerabstraktion, Schemata, Prompts, Kosten, Integration
+    Payment/          Stripe-Gateway, Signaturprüfung
+    Pdf/              Engine, Renderer, Templatesichten, Ablage, Wasserzeichen
+    Queue/            Lease, Heartbeat, Backoff, Dead Letter, Payload-Sperre
+    Storage/          Kurzzeitbereich, Artefaktablage, Malwarescanner, Löschpfade
+  Console/Commands/   Cron-Einstiege, darunter Privacy-Befehle
 config/
   ai.php              Provider, Schwellenwerte, Löschfristen, Kostenbasis
   smartabrechnen.php  Betreiber, Preise, Uploads, Aufbewahrung, Toleranzen
-database/migrations/  vorwärtskompatibel, rollbackfähig
-docs/adr/             ergänzende Entscheidungsdokumente
+database/
+  migrations/         vorwärtskompatibel, rollbackfähig
+  factories/          Testdaten, ausschließlich Platzhalterwerte
+docs/
+  abnahme.md          Ergebnis der unabhängigen Abschlussprüfung
+  adr/                ergänzende Entscheidungsdokumente
+  betrieb/            Backup und Restore, Löschkonzept im Betrieb
 resources/views/
   site/ legal/        öffentliches Frontend und Rechtstexte
   portal/ admin/      Anwendung und interner Bereich
   pdf/                Abrechnungs- und Rechnungstemplates
+  emails/             Transaktionsmails in HTML und Text
+  auth/               Registrierung, Anmeldung, Bestätigung, Passwort
   layouts/ components/
 routes/
   web.php             öffentliches Frontend, Rechtstexte, Bereichseinstieg
-  portal.php admin.php auth.php
+  portal.php admin.php auth.php console.php
 storage/app/temporary-uploads/   Kurzzeitbereich, aus Backups ausgeschlossen
 tests/
-  Unit/Domain/        Berechnungslogik
-  Feature/            HTTP, Autorisierung, Datenmodell, Webhooks
-  Fixtures/           handprüfbare Referenzbeispiele
+  Unit/Domain/        Berechnungslogik, Verteilerschlüssel, Zeiträume, Referenzen
+  Unit/               Ai, Rules, Storage, Queue, Pdf, Payment, Privacy, Admin
+  Feature/            HTTP, Autorisierung, Upload, Löschung, Zahlung, Admin, Mail
+  Feature/EndToEnd/   Happy Path, Abbruch- und Fehlerwege, blockierte Rechnung
+  Fixtures/           handprüfbare Referenzbeispiele und anonymisierte KI-Antworten
+.github/workflows/    ci.yml (Pint, PHPStan, Tests auf MariaDB 10.11 und 11.4),
+                      deploy.yml (Releasepaket, SFTP-Auslieferung)
 ```
 
 ---
@@ -392,20 +499,24 @@ Betrachtet werden die Angreifer: fremder Internetnutzer, angemeldeter Kunde
 eines anderen Mandanten, Inhalt eines hochgeladenen Dokuments,
 kompromittierter Provider-Kanal, interner Supportzugang.
 
+Die Spalte Nachweis nennt die Testklassen, die die Gegenmaßnahme belegen. Sie
+wurden am 01.09.2026 im Rahmen der Abschlussprüfung gegen den Code abgeglichen,
+siehe [docs/abnahme.md](docs/abnahme.md).
+
 | Nr. | Bedrohung | Gegenmaßnahme | Nachweis |
 | --- | --- | --- | --- |
-| T1 | Fremdzugriff auf Abrechnungen anderer Mandanten | jede Query nach User/Organization gescoped, Policy und Object-Level-Check in jeder Route und jedem Use Case, ULID statt fortlaufender ID | Feature-Test zwischen zwei Mandanten |
-| T2 | Erraten von Download-URLs | Auslieferung nur über authentifizierte Streaming-Routen oder kurzlebige signierte Links, Ownership-Check je Abruf | Feature-Test auf 403/404 |
-| T3 | Prompt Injection aus einem Dokument | Sicherheitsbaustein in jedem Systemprompt, Dokumentinhalt gilt als untrusted data, Ausgabe nur gegen strenges JSON-Schema, keine Toolausführung aus Dokumentinhalt | Contracttest mit präparierter Fixture |
-| T4 | Schadsoftware im Upload | MIME- und Magic-Byte-Prüfung, Größenlimits, Malware-Adapter, kein Ausführen von Uploads, Archive gegen Traversal und Zip-Bomben geschützt | Feature-Test je Angriffsklasse |
-| T5 | Originaldaten überleben die Verarbeitung | getrennte Disk ohne Backup, Löschung nach Extraktion und bei endgültigem Fehler, unabhängiger TTL-Cleanup, Löschprotokoll, Datenschutzmonitor im Adminbereich | Feature- und E2E-Test auf Nichtexistenz |
-| T6 | Personenbezogene Daten in Logs oder Monitoring | Request- und Response-Bodies nie dauerhaft, sensible Felder redigiert, Queue-Payloads ohne Dateiinhalt, gekürzte IP-Adressen | Test, dass Log- und Payloadfelder frei von Inhalten sind |
-| T7 | Freischaltung ohne Zahlung | Finalisierung nur nach signaturgeprüftem Webhook, Betrag, Währung und BillingRun werden verglichen, Event-ID unique, idempotente Verarbeitung | Webhook-Tests: falsche Signatur, falscher Betrag, Wiederholung |
-| T8 | Doppelte oder lückenhafte Rechnungsnummern | atomare Vergabe in Transaktion mit Zeilensperre, Unique-Constraint, Storno nur über Stornorechnung | Parallelzugriffstest |
-| T9 | Credential Stuffing und Brute Force | Argon2id, Rate Limits auf Login, Reset, Upload, KI und Download, sichere Sessions, 2FA für Admins verpflichtend | Feature-Test auf Sperrverhalten |
-| T10 | Missbrauch des Supportzugangs | getrennte Admin-Rollen und Sessions, Zugriff nur mit Begründung, jeder Einblick erzeugt einen Audit-Eintrag | Audit-Test |
-| T11 | Kostenexplosion durch KI-Aufrufe | Token- und Kostenprotokoll je Call, Nutzer-, Tages- und Lauflimits, kleines Modell für einfache Aufgaben, keine Wiederverarbeitung identischer Dateien, Adminwarnung | Test der Limitgrenzen |
-| T12 | Datenexport an einen Provider ohne Freigabe | `AI_REQUIRE_ZERO_DATA_RETENTION=true` produktiv verbindlich, Provider bleibt blockiert solange `AI_DATA_RETENTION_APPROVED=false`, Fallback darf die Sperre nicht umgehen | Test, dass ein nicht freigegebener Provider produktiv blockiert |
+| T1 | Fremdzugriff auf Abrechnungen anderer Mandanten | jede Query nach User/Organization gescoped, Middleware `EnsureOrganizationContext` prüft die Mitgliedschaft zusätzlich objektbezogen, Policy und Object-Level-Check in jeder Route und jedem Use Case, ULID statt fortlaufender ID | `Feature/AuthorizationScopeTest`, `Feature/Portal/TenantIsolationTest`, `Feature/Review/ReviewTenantIsolationTest`, `Feature/Payment/PaymentTenantIsolationTest` |
+| T2 | Erraten von Download-URLs | Auslieferung nur über authentifizierte Streaming-Routen oder kurzlebige signierte Links, Ownership-Check je Abruf, Antwort 404 statt 403 gegen Existenzverrat | `Feature/Upload/DownloadTest`, `Feature/Mail/SignierterDownloadlinkTest`, `Feature/Payment/PaymentTenantIsolationTest::test_ein_fremdes_finales_dokument_ist_nicht_abrufbar` |
+| T3 | Prompt Injection aus einem Dokument | Sicherheitsbaustein in jedem Systemprompt, zentral in `AbstractSystemPrompt::build()` erzwungen und mit Mindesttext gegen eine leere Konfiguration gesichert, Dokumentinhalt gilt als untrusted data, Ausgabe nur gegen strenges JSON-Schema, keine Toolausführung aus Dokumentinhalt | `Unit/Ai/PromptInjectionTest::test_sicherheitsbaustein_geht_mit_jedem_dokument_an_den_provider`, `Unit/Ai/PromptRegistryTest::test_jeder_systemprompt_enthaelt_den_sicherheitsbaustein` und `::test_leerer_sicherheitsbaustein_wird_durch_mindesttext_ersetzt` |
+| T4 | Schadsoftware im Upload | MIME- und Magic-Byte-Prüfung, Größenlimits, Malware-Adapter, kein Ausführen von Uploads, Archive gegen Traversal und Zip-Bomben geschützt | `Unit/Storage/MimeGuardTest`, `Unit/Storage/ArchiveGuardTest`, `Unit/Storage/MalwareScannerTest`, `Feature/Upload/UploadLimitsTest` |
+| T5 | Originaldaten überleben die Verarbeitung | getrennte Disk ohne Backup, `ArtifactType` kennt bewusst keinen Typ für Originale und `ArtifactStorage` prüft zusätzlich die Magic Bytes, Löschung nach Extraktion und bei endgültigem Fehler, unabhängiger TTL-Cleanup mit harter Grenze von 120 Minuten, Löschprotokoll, Datenschutzmonitor im Adminbereich | `Feature/Deletion/SourceDeletionTest`, `Feature/Deletion/TtlCleanupTest`, `Feature/Deletion/RetryFailedDeletionsTest`, `Unit/Storage/ArtifactStorageTest`, `Feature/EndToEnd/HappyPathTest` |
+| T6 | Personenbezogene Daten in Logs, Queue oder Monitoring | Request- und Response-Bodies nie dauerhaft, `RedactingLogger` redigiert sensible Felder, `JobPayloadGuard` weist jeden Payload ab, der mehr als Referenz-IDs und kurze technische Parameter enthält, gekürzte IP-Adressen | `Feature/Deletion/NoOriginalLeakTest` (Artefakt-Disk, Queue-Payload, Logs, gesamte Datenbank), `Unit/Queue/JobPayloadGuardTest`, `Unit/Ai/RedactingLoggerTest`, `Feature/Mail/MailVersandProtokollTest::test_protokoll_enthaelt_keinen_vertraulichen_inhalt` |
+| T7 | Freischaltung ohne Zahlung | Finalisierung nur nach signaturgeprüftem Webhook, Betrag, Währung und BillingRun werden verglichen, Event-ID unique, idempotente Verarbeitung, Browser-Redirect ohne Wirkung | `Feature/Payment/StripeWebhookTest`, darunter `::test_eine_falsche_signatur_wird_abgelehnt_und_schaltet_nichts_frei`, `::test_ein_abweichender_betrag_schaltet_nicht_frei`, `::test_eine_doppelt_zugestellte_meldung_wird_idempotent_verarbeitet`, `::test_der_browser_redirect_allein_schaltet_nicht_frei`; `Unit/Payment/StripeWebhookVerifierTest` |
+| T8 | Doppelte oder lückenhafte Rechnungsnummern | atomare Vergabe in Transaktion mit Zeilensperre auf einer eigenen Zählertabelle (ADR-011), Unique-Constraint auf `invoices.number`, Storno nur über Stornorechnung | `Feature/Payment/InvoiceNumberSequenceTest`, darunter `::test_die_vergabe_sperrt_die_zaehlerzeile`, `::test_mehrere_vergaben_in_einer_transaktion_bleiben_lueckenlos`, `::test_eine_dublette_wird_durch_den_eindeutigen_schluessel_ausgeschlossen` |
+| T9 | Credential Stuffing und Brute Force | Argon2id, Rate Limits auf Login, Reset, Upload, KI und Download, sichere Sessions, Zweitfaktor für Admins verpflichtend | `Feature/Auth/LoginTest`, `Feature/Auth/PasswordResetTest`, `Feature/Auth/SecurityConfigurationTest`, `Feature/Admin/ZweitfaktorSperreTest` |
+| T10 | Missbrauch des Supportzugangs | getrennte Admin-Rollen und Sessions, Zugriff nur mit Begründung, jeder Einblick erzeugt einen Audit-Eintrag | `Feature/Admin/SupportzugriffTest`, `Feature/Admin/AdminZugangTest`, `Feature/Admin/NutzerverwaltungTest` |
+| T11 | Kostenexplosion durch KI-Aufrufe | Token- und Kostenprotokoll je Call, Nutzer-, Tages- und Lauflimits, kleines Modell für einfache Aufgaben, keine Wiederverarbeitung identischer Dateien, Adminwarnung | `Feature/Ai/CostLimitAndReleaseGateTest`, `Unit/Ai/CostControlTest`, `Feature/Ai/AiCallRecordingTest` |
+| T12 | Datenexport an einen Provider ohne Freigabe | `AI_REQUIRE_ZERO_DATA_RETENTION=true` produktiv verbindlich, Provider bleibt blockiert solange `AI_DATA_RETENTION_APPROVED=false`, Fallback darf die Sperre nicht umgehen | `Unit/Ai/ProviderReleaseGateTest`, `Feature/Ai/CostLimitAndReleaseGateTest`, `Feature/Admin/LivegangBlockerTest`, `Feature/Ai/ProviderFileDeletionTest` |
 
 ---
 
@@ -481,17 +592,25 @@ mit einem MariaDB-Service. Ein grüner lokaler Lauf ist kein Ersatz dafür.
 
 ## 10. Umsetzungsphasen und Status
 
+Stand 01.09.2026, nachgeprüft in der Abschlussprüfung.
+
 | Phase | Inhalt | Status |
 | --- | --- | --- |
 | 0 | Architektur, ADRs, Datenfluss, Threat Model, Ordnerstruktur, ENV-Schema, Designsystem, IONOS-Annahmen | abgeschlossen |
-| 1 | Konto und Mandanten, Datenmodell, Objekte und Mietverhältnisse, BillingRun-State-Machine, Chunk-Upload, Lösch-Lifecycle, DB-Jobs | in Arbeit |
-| 2 | Providerinterface, OpenAI, Anthropic, Schemata mit Quellenbezug, Hausgeld-, Grundsteuer-, Mietvertrags-, Vorjahres- und Heizkostenextraktion, Dubletten und Reconciliation, Prüfoberfläche | offen |
-| 3 | Domain-Engine, Regeln und Warnungen, Wizard, Schnellweg, Vollobjektweg, PDF mit Wasserzeichen und Eigentümerübersicht | Engine vorgezogen, Rest offen |
-| 4 | Preislogik, Stripe Checkout und Webhooks, Finalisierung und ZIP, HVM-Rechnung, IONOS-SMTP und Templates, Folgejahresübernahme und Erinnerungen | offen |
-| 5 | Adminbereich und Blocker, DSGVO-Export und Löschung, Backups und Restore-Test, GitHub Actions und SFTP-Deployment, Last-, Sicherheits- und E2E-Tests, Abnahme | offen |
+| 1 | Konto und Mandanten, Datenmodell, Objekte und Mietverhältnisse, BillingRun-State-Machine, Chunk-Upload, Lösch-Lifecycle, DB-Jobs | abgeschlossen |
+| 2 | Providerinterface, OpenAI, Anthropic, Schemata mit Quellenbezug, Hausgeld-, Grundsteuer-, Mietvertrags-, Vorjahres- und Heizkostenextraktion, Dubletten und Reconciliation, Prüfoberfläche | abgeschlossen; produktiver Betrieb bleibt bis zur Datenschutzfreigabe des Providers technisch blockiert |
+| 3 | Domain-Engine, Regeln und Warnungen, Wizard, Schnellweg, Vollobjektweg, PDF mit Wasserzeichen und Eigentümerübersicht | abgeschlossen |
+| 4 | Preislogik, Stripe Checkout und Webhooks, Finalisierung und ZIP, HVM-Rechnung, IONOS-SMTP und Templates, Folgejahresübernahme und Erinnerungen | abgeschlossen; SMTP und Stripe sind gegen Fakes und mit Signaturprüfung getestet, der Nachweis am echten Postfach und am echten Stripe-Konto steht aus |
+| 5 | Adminbereich und Blocker, DSGVO-Export und Löschung, Backups und Restore-Test, GitHub Actions und SFTP-Deployment, Last-, Sicherheits- und E2E-Tests, Abnahme | abgeschlossen mit einer benannten Lücke: der Übertragungsschritt in `deploy.yml` ist bewusst noch nicht aktiviert und wartet auf Zielpfad und Zugangsdaten des IONOS-Kontos |
 
-Die Berechnungsengine aus Phase 3 wird bewusst früh gebaut, weil sie die
+Die Berechnungsengine aus Phase 3 wurde bewusst früh gebaut, weil sie die
 fachliche Grundlage ist und ohne Infrastruktur testbar bleibt.
+
+Der Abschluss einer Phase bedeutet: der Code ist vorhanden, durch Tests belegt
+und statisch geprüft. Er bedeutet nicht, dass die zugehörige externe
+Schnittstelle produktiv freigegeben ist. Was dafür noch fehlt, steht
+ausschließlich in der Blockerliste des Adminbereichs und in
+[docs/abnahme.md](docs/abnahme.md).
 
 ---
 
@@ -510,9 +629,13 @@ fachliche Grundlage ist und ohne Infrastruktur testbar bleibt.
 | mPDF-Layouttreue bei sehr langen Tabellen | niedrig | Seitenumbruchtests je Template, konservatives CSS |
 | mPDF verändert `mb_internal_encoding` global und lässt es auf Windows-1252 stehen | behoben | `PdfEngine` sichert und restauriert die mbstring-Einstellungen in einem `finally`; Regressionstest vorhanden. Ohne diese Sicherung wurden `.env`-Werte beim nächsten Bootvorgang doppelt kodiert. |
 | Tests sind bei gleichzeitig laufenden Testprozessen nicht isoliert | niedrig | Gemeinsam genutzt werden `storage/framework/testing` (`Storage::fake`), `storage/framework/views` (kompilierte Templates) und der Anwendungslog. Der Standardlauf ist sequenziell und stabil. Vor einer Parallelisierung in der CI ist je Prozess ein eigenes Verzeichnis für Testdisks und View-Cache zu setzen. |
-| CSP benötigt `unsafe-eval` für den Alpine-Standardbuild | mittel | offener Punkt: Wechsel auf `@alpinejs/csp` und Umschreiben der `x-data`-Ausdrücke, danach `unsafe-eval` entfernen |
-| Registrierung verrät über die Eindeutigkeitsprüfung, ob eine E-Mail bereits ein Konto hat | mittel | offener Punkt: einheitliche Bestätigungsmeldung unabhängig vom Ergebnis, bei vorhandenem Konto stattdessen eine Hinweismail an die Adresse |
-| Einwilligungen werden noch nicht in `legal_acceptances` protokolliert | mittel | offener Punkt: Textversion, Zweck, Zeitpunkt, gekürzte IP und gehashter User-Agent bei Registrierung und im Checkout schreiben |
+| CSP benötigt `unsafe-eval` für den Alpine-Standardbuild | mittel | **offen.** `SecurityHeaders` setzt `script-src` weiterhin mit `'unsafe-eval'` (Zeile 103). Umgang: Wechsel auf `@alpinejs/csp` und Umschreiben der `x-data`-Ausdrücke, danach `unsafe-eval` entfernen. Verantwortlich: technische Betreuung |
+| Registrierung verrät über die Eindeutigkeitsprüfung, ob eine E-Mail bereits ein Konto hat | mittel | **offen.** Die Meldung `email.unique` ist neutral formuliert, die Prüfung selbst bleibt aber unterscheidbar. Umgang: bei vorhandener Adresse dieselbe Bestätigungsseite ausliefern und stattdessen eine Hinweismail an die bestehende Adresse senden. Berührt den Mailversand. Verantwortlich: technische Betreuung |
+| Einwilligungen werden nicht in `legal_acceptances` protokolliert | **erledigt** | `StartCheckout` und `ReviewConfirmation` schreiben Textversion, Zweck und Zeitpunkt. Nachweis: `Feature/Payment/CheckoutTest::test_die_zustimmungen_landen_datensparsam_in_legal_acceptances` und `Feature/Wizard/PreviewStepTest::test_die_bestaetigung_wird_in_legal_acceptances_protokolliert` |
+| Eurobeträge aus der Kostenprüfung wurden über `float` in Cent umgerechnet | **erledigt** | Verstoß gegen Grundsatz 8, in der Abschlussprüfung am 01.09.2026 festgestellt und behoben. `UpdateCostItemRequest::cent()` rechnet jetzt wie `StorePrepaymentsRequest` ausschließlich über `BigDecimal`. Nachweis: `Feature/Review/CostReviewTest::test_eurobetraege_werden_exakt_in_cent_umgerechnet` mit sechs Betragsvarianten |
+| Der Übertragungsschritt des SFTP-Deployments ist nicht aktiviert | mittel, blockiert den Livegang | **offen.** `deploy.yml` baut und testet das Releasepaket vollständig, der Auslieferungsjob gibt bislang nur die Schrittfolge aus. Umgang: Aktivierung erst mit bestätigtem Zielpfad und Zugangsdaten, danach ein Smoke-Test gegen ein neues Releaseverzeichnis vor dem Umschalten des Releasezeigers. Verantwortlich: Betreiber stellt Zugang, technische Betreuung aktiviert |
+| Der Nachweis „kein Dateiinhalt in der Datenbank“ prüft eine feste Tabellenliste | niedrig | **offen.** `NoOriginalLeakTest::test_kein_dateiinhalt_in_der_gesamten_datenbank` prüft fünf namentlich genannte Tabellen. Eine künftig ergänzte Tabelle fällt nicht automatisch in die Prüfung. Umgang: Tabellenliste aus dem Schema ableiten, sobald der Testlauf verbindlich gegen MariaDB fährt. Verantwortlich: technische Betreuung |
+| Ausnahmemeldungen in Logeinträgen der Zahlungs- und Mailschicht | niedrig | akzeptiert. Protokolliert werden Referenz-IDs und `getMessage()` einer Ausnahme, nicht Dokumentinhalte. Die Dokumentpipeline schreibt keine Ausnahmetexte in den Log. `Feature/Deletion/NoOriginalLeakTest::test_kein_dateiinhalt_in_den_logs` belegt, dass der Verarbeitungsweg log-frei von Inhalten bleibt |
 
 ---
 

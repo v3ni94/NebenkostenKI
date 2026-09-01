@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Requests\Review;
 
 use App\Http\Requests\GermanFormRequest;
+use Brick\Math\BigDecimal;
+use Brick\Math\Exception\MathException;
+use Brick\Math\RoundingMode;
 
 /**
  * Bearbeitung einer Kostenposition in der Pruefung.
@@ -63,6 +66,14 @@ class UpdateCostItemRequest extends GermanFormRequest
         ];
     }
 
+    /**
+     * Deutscher Eurobetrag als Integer in Cent.
+     *
+     * Die Umrechnung laeuft ausschliesslich ueber BigDecimal. Ein Zwischenschritt
+     * ueber float ist nach Grundsatz 8 unzulaessig, weil ein binaerer
+     * Gleitkommawert einen Betrag wie 8.235,70 EUR nicht exakt darstellt und
+     * damit einen Rundungsfehler in die Abrechnung tragen koennte.
+     */
     protected function cent(string $feld): ?int
     {
         $wert = $this->input($feld);
@@ -74,11 +85,18 @@ class UpdateCostItemRequest extends GermanFormRequest
         $normalisiert = str_replace([' ', '.'], '', trim($wert));
         $normalisiert = str_replace(',', '.', $normalisiert);
 
-        if (! is_numeric($normalisiert)) {
+        if ($normalisiert === '') {
             return null;
         }
 
-        return (int) round(((float) $normalisiert) * 100);
+        try {
+            return BigDecimal::of($normalisiert)
+                ->withPointMovedRight(2)
+                ->toScale(0, RoundingMode::HALF_UP)
+                ->toInt();
+        } catch (MathException) {
+            return null;
+        }
     }
 
     /**
