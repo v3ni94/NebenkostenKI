@@ -98,7 +98,7 @@ final class PositionDuplicateScanner
             }
         }
 
-        return array_values($findings);
+        return $findings;
     }
 
     /**

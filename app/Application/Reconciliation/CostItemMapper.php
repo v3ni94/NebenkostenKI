@@ -157,7 +157,7 @@ final class CostItemMapper
             }
         }
 
-        return new MappingOutcome(array_values($proposals), array_values($missing));
+        return new MappingOutcome($proposals, $missing);
     }
 
     /**

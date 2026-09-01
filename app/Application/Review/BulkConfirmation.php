@@ -69,7 +69,7 @@ final class BulkConfirmation
         return [
             'confirmed' => $confirmed,
             'skipped' => count($skipped),
-            'skippedIds' => array_values($skipped),
+            'skippedIds' => $skipped,
         ];
     }
 }

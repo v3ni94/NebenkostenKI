@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Application\Review;
 
-use App\Application\Reconciliation\CategoryResolver;
 use App\Enums\ApportionmentStatus;
 use App\Enums\CostItemSource;
 use App\Enums\CostItemStatus;
@@ -34,8 +33,6 @@ use Illuminate\Support\Carbon;
  */
 final class CostItemDecisions
 {
-    public function __construct(private readonly CategoryResolver $categories) {}
-
     public function confirm(BillingRun $billingRun, CostItem $item, User $user): CostItem
     {
         $item->forceFill([

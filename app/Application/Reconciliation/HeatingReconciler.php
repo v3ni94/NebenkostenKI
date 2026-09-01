@@ -234,8 +234,8 @@ final class HeatingReconciler
         }
 
         return new HeatingMatrix(
-            array_values($rows),
-            array_values($missing),
+            $rows,
+            $missing,
             $externalPresent,
             $externalTotal,
             $lineSum,

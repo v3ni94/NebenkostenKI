@@ -215,7 +215,7 @@ final class ExtractedFieldBag
         $list = array_keys($indexes);
         sort($list);
 
-        return array_values($list);
+        return $list;
     }
 
     /**

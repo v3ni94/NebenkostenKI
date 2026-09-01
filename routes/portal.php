@@ -7,6 +7,10 @@ use App\Http\Controllers\Portal\BillingRunController;
 use App\Http\Controllers\Portal\DashboardController;
 use App\Http\Controllers\Portal\DownloadController;
 use App\Http\Controllers\Portal\PropertyController;
+use App\Http\Controllers\Portal\Review\AnalysisStatusController;
+use App\Http\Controllers\Portal\Review\BillingModeController;
+use App\Http\Controllers\Portal\Review\CostReviewController;
+use App\Http\Controllers\Portal\Review\HeatingMatrixController;
 use App\Http\Controllers\Portal\TenancyController;
 use App\Http\Controllers\Portal\UnitController;
 use App\Http\Controllers\Portal\Upload\ChunkUploadController;
@@ -109,6 +113,49 @@ Route::middleware('organisation')->group(function (): void {
         ->name('abrechnungen.abbrechen');
     Route::delete('/abrechnungen/{billingRun}', [BillingRunController::class, 'destroy'])
         ->name('abrechnungen.destroy');
+
+    // --- Analyse, Kostenpruefung und Abrechnungsweg --------------------------
+    //
+    // Schritt 3 bis 6 des gefuehrten Ablaufs. Die Oberflaeche arbeitet
+    // ausschliesslich auf den strukturierten Extraktionsdaten; die
+    // Originaldateien sind zu diesem Zeitpunkt bereits geloescht.
+    //
+    // Reihenfolge beachten: die festen Segmente stehen vor {costItem}, sonst
+    // faengt der Platzhalter "sammelbestaetigung" und "weiter" ab.
+
+    Route::get('/abrechnungen/{billingRun}/analyse', [AnalysisStatusController::class, 'show'])
+        ->name('pruefung.analyse');
+    Route::get('/abrechnungen/{billingRun}/analyse/status', [AnalysisStatusController::class, 'status'])
+        ->name('pruefung.analyse.status');
+    Route::post('/abrechnungen/{billingRun}/analyse/zuordnen', [AnalysisStatusController::class, 'reconcile'])
+        ->name('pruefung.zuordnen');
+
+    Route::get('/abrechnungen/{billingRun}/kostenpruefung', [CostReviewController::class, 'index'])
+        ->name('pruefung.kosten');
+    Route::post('/abrechnungen/{billingRun}/kostenpruefung/positionen', [CostReviewController::class, 'store'])
+        ->name('pruefung.kosten.store');
+    Route::post('/abrechnungen/{billingRun}/kostenpruefung/sammelbestaetigung', [CostReviewController::class, 'bulkConfirm'])
+        ->name('pruefung.sammelbestaetigung');
+    Route::post('/abrechnungen/{billingRun}/kostenpruefung/weiter', [CostReviewController::class, 'proceed'])
+        ->name('pruefung.weiter');
+    Route::post('/abrechnungen/{billingRun}/kostenpruefung/{costItem}/bestaetigen', [CostReviewController::class, 'confirm'])
+        ->name('pruefung.kosten.bestaetigen');
+    Route::post('/abrechnungen/{billingRun}/kostenpruefung/{costItem}/verwerfen', [CostReviewController::class, 'discard'])
+        ->name('pruefung.kosten.verwerfen');
+    Route::post('/abrechnungen/{billingRun}/kostenpruefung/{costItem}/ausschliessen', [CostReviewController::class, 'exclude'])
+        ->name('pruefung.kosten.ausschliessen');
+    Route::post('/abrechnungen/{billingRun}/kostenpruefung/{costItem}/einheit', [CostReviewController::class, 'assign'])
+        ->name('pruefung.kosten.einheit');
+    Route::put('/abrechnungen/{billingRun}/kostenpruefung/{costItem}', [CostReviewController::class, 'update'])
+        ->name('pruefung.kosten.update');
+
+    Route::get('/abrechnungen/{billingRun}/heizkosten', [HeatingMatrixController::class, 'show'])
+        ->name('pruefung.heizkosten');
+
+    Route::get('/abrechnungen/{billingRun}/abrechnungsweg', [BillingModeController::class, 'edit'])
+        ->name('pruefung.weg.edit');
+    Route::put('/abrechnungen/{billingRun}/abrechnungsweg', [BillingModeController::class, 'update'])
+        ->name('pruefung.weg.update');
 
     // --- Upload und Verarbeitungsstatus --------------------------------------
     //

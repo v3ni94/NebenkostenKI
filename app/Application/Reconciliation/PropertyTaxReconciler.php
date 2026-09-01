@@ -204,7 +204,7 @@ final class PropertyTaxReconciler
         }
 
         return new PropertyTaxOutcome(
-            new MappingOutcome(array_values($proposals), array_values($missing)),
+            new MappingOutcome($proposals, $missing),
             $result->added,
             $result->possibleDuplicate,
             $explanation,

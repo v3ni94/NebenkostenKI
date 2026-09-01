@@ -49,6 +49,14 @@ abstract class ReviewTestCase extends PortalTestCase
      */
     public static function registriereRouten(): void
     {
+        // Die Routen stehen inzwischen zentral in routes/portal.php. Diese
+        // Registrierung bleibt nur als Rueckfallebene bestehen, damit die
+        // Testklasse unabhaengig lauffaehig ist, und wird uebersprungen, wenn
+        // die zentrale Definition bereits geladen ist.
+        if (Route::has('portal.pruefung.kosten')) {
+            return;
+        }
+
         Route::prefix('app')
             ->name('portal.')
             ->middleware(['web', 'auth', 'organisation'])

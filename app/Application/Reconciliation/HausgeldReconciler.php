@@ -181,7 +181,7 @@ final class HausgeldReconciler
             );
         }
 
-        return new MappingOutcome(array_values($proposals), array_values($missing), array_values($excluded));
+        return new MappingOutcome($proposals, $missing, $excluded);
     }
 
     /**
@@ -236,7 +236,7 @@ final class HausgeldReconciler
         return new HausgeldStatementInput(
             $bag->text('einheitsbezeichnung', 120) ?? 'Einheit',
             $period,
-            array_values($positions),
+            $positions,
             $total !== null ? Money::fromCents($total) : null,
             null,
             null,

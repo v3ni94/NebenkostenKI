@@ -137,9 +137,9 @@ final class CostReviewPresenter
             : null;
 
         return new ReviewOverview(
-            array_values($groupViews),
+            $groupViews,
             $this->banners($notAllocableIds, $outsideIds, $duplicateIds, $lowConfidenceIds),
-            array_values($bulkConfirmable),
+            $bulkConfirmable,
             $positionCount,
             $open,
             $confirmed,
@@ -242,7 +242,7 @@ final class CostReviewPresenter
             $status !== CostItemStatus::VORGESCHLAGEN,
             $outside,
             $this->isBulkConfirmable($item, $apportionment, $confidence, $duplicate, $outside, $category),
-            array_values($conflicts),
+            $conflicts,
             is_string($unitLabel) && $unitLabel !== '' ? $unitLabel : null,
             $source === CostItemSource::MANUELL,
         );
