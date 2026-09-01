@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Admin;
 
 use App\Enums\AdminRole;
+use App\Enums\OrganizationRole;
 use App\Models\AdminRoleAssignment;
 use App\Models\Organization;
 use App\Models\OrganizationUser;
@@ -80,7 +81,7 @@ abstract class AdminTestCase extends TestCase
         OrganizationUser::query()->create([
             'organization_id' => $organisation->getKey(),
             'user_id' => $nutzer->getKey(),
-            'role' => \App\Enums\OrganizationRole::OWNER,
+            'role' => OrganizationRole::OWNER,
             'joined_at' => now(),
         ]);
 

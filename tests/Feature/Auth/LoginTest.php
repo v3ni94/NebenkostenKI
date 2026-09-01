@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Auth;
 
+use App\Enums\UserStatus;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Models\AuditLog;
 use App\Models\Organization;
@@ -45,6 +46,53 @@ final class LoginTest extends TestCase
         ]);
 
         return $nutzer;
+    }
+
+    public function test_gesperrtes_konto_wird_trotz_richtigem_passwort_nicht_angemeldet(): void
+    {
+        $nutzer = $this->nutzer(['status' => UserStatus::GESPERRT]);
+
+        $antwort = $this->from(route('login'))->post(route('login'), [
+            'email' => $nutzer->getAttribute('email'),
+            'password' => self::PASSWORT,
+        ]);
+
+        $antwort->assertSessionHasErrors('email');
+        $this->assertGuest();
+        $this->assertStringContainsString(
+            'gesperrt',
+            (string) session('errors')?->first('email'),
+        );
+    }
+
+    public function test_zur_loeschung_vorgemerktes_konto_wird_nicht_angemeldet(): void
+    {
+        $nutzer = $this->nutzer(['status' => UserStatus::GELOESCHT]);
+
+        $this->post(route('login'), [
+            'email' => $nutzer->getAttribute('email'),
+            'password' => self::PASSWORT,
+        ])->assertSessionHasErrors('email');
+
+        $this->assertGuest();
+    }
+
+    public function test_unbestaetigtes_konto_darf_sich_anmelden(): void
+    {
+        // Konto und Entwuerfe sind kostenlos und ohne Huerde nutzbar. Die
+        // E-Mail-Bestaetigung ist erst vor Zahlung und finalem Download
+        // verbindlich (Masterprompt 8.1).
+        $nutzer = $this->nutzer([
+            'status' => UserStatus::UNBESTAETIGT,
+            'email_verified_at' => null,
+        ]);
+
+        $this->post(route('login'), [
+            'email' => $nutzer->getAttribute('email'),
+            'password' => self::PASSWORT,
+        ]);
+
+        $this->assertAuthenticatedAs($nutzer);
     }
 
     public function test_anmeldeformular_ist_erreichbar(): void

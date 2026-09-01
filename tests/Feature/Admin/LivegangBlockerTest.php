@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Admin;
 
 use App\Application\Admin\LaunchBlockerCheck;
+use App\Application\Admin\LaunchBlockerReport;
 
 /**
  * Livegang-Blocker (Masterprompt 2.1, 6.3, 13.5, 26).
@@ -14,7 +15,7 @@ use App\Application\Admin\LaunchBlockerCheck;
  */
 final class LivegangBlockerTest extends AdminTestCase
 {
-    private function bericht(): \App\Application\Admin\LaunchBlockerReport
+    private function bericht(): LaunchBlockerReport
     {
         return app(LaunchBlockerCheck::class)->report();
     }

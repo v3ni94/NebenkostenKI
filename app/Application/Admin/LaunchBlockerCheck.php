@@ -9,6 +9,7 @@ use App\Services\Ai\AiConfig;
 use App\Services\Ai\AiProviderKey;
 use App\Services\Ai\ProviderReleaseGate;
 use App\Services\Storage\MalwareScannerFactory;
+use Illuminate\Support\Env;
 use Throwable;
 
 /**
@@ -340,14 +341,15 @@ final class LaunchBlockerCheck
     {
         // Der Konfigurationswert hat einen Standard. Entschieden ist die Frist
         // erst, wenn der Betreiber sie ausdruecklich gesetzt hat. Deshalb wird
-        // hier die Umgebungsvariable selbst geprueft und nicht ihr Standard.
-        $raw = env('PRICE_CORRECTION_FREE_DAYS');
+        // hier die Umgebungsvariable selbst gelesen und nicht ihr Standard.
+        //
+        // Bei zwischengespeicherter Konfiguration ist die Variable zur Laufzeit
+        // nicht lesbar. Der Punkt gilt dann als offen. Das ist die konservative
+        // Richtung: eine nicht nachweisbare Entscheidung wird nicht als
+        // getroffen behauptet.
+        $raw = Env::get('PRICE_CORRECTION_FREE_DAYS');
 
-        if (is_string($raw) && trim($raw) !== '') {
-            return null;
-        }
-
-        if (is_int($raw)) {
+        if (is_int($raw) || (is_string($raw) && trim($raw) !== '')) {
             return null;
         }
 

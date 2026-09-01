@@ -11,6 +11,7 @@ use App\Models\BillingRun;
 use App\Models\Organization;
 use App\Models\Property;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -28,7 +29,7 @@ final class SupportAccessController extends Controller
     /**
      * Zulaessige Entitaeten des Supportzugriffs.
      *
-     * @var array<string, class-string<\Illuminate\Database\Eloquent\Model>>
+     * @var array<string, class-string<Model>>
      */
     public const array ENTITAETEN = [
         'organisation' => Organization::class,

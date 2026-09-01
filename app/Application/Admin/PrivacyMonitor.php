@@ -9,6 +9,7 @@ use App\Enums\DeletionStatus;
 use App\Models\Document;
 use App\Models\SourceDeletionEvent;
 use App\Models\TemporaryUpload;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 
 /**
@@ -248,9 +249,9 @@ final class PrivacyMonitor
     // -----------------------------------------------------------------
 
     /**
-     * @return \Illuminate\Database\Eloquent\Builder<TemporaryUpload>
+     * @return Builder<TemporaryUpload>
      */
-    private function overdueQuery(): \Illuminate\Database\Eloquent\Builder
+    private function overdueQuery(): Builder
     {
         return TemporaryUpload::query()
             ->where('is_tombstone', false)

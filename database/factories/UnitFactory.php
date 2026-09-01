@@ -19,6 +19,18 @@ class UnitFactory extends Factory
     protected $model = Unit::class;
 
     /**
+     * Fortlaufender Zaehler fuer die Einheitenbezeichnung.
+     *
+     * Die Tabelle traegt einen Unique-Index auf property_id und label. Ein
+     * Zufallswert aus einem begrenzten Bereich kollidiert dabei zwangslaeufig,
+     * und fake()->unique() ist keine Loesung: dessen Zustand gilt fuer den
+     * gesamten Testprozess und ist nach dem Ausschoepfen des Wertebereichs
+     * erschoepft. Das erzeugte reihenfolgeabhaengige Fehlschlaege. Ein
+     * eigener Zaehler ist deterministisch und kollisionsfrei.
+     */
+    private static int $laufendeNummer = 0;
+
+    /**
      * @return array<string, mixed>
      */
     public function definition(): array
@@ -26,9 +38,9 @@ class UnitFactory extends Factory
         return [
             'property_id' => Property::factory(),
             'organization_id' => fn (array $attributes): string => $this->organizationFrom($attributes, Property::class, 'property_id'),
-            'label' => 'WE '.fake()->unique()->numberBetween(1, 400),
+            'label' => 'WE '.(++self::$laufendeNummer),
             'location' => fake()->randomElement(['EG links', 'EG rechts', '1. OG links', '1. OG rechts', '2. OG mitte', 'DG']),
-            'unit_number' => (string) fake()->numberBetween(1, 40),
+            'unit_number' => (string) self::$laufendeNummer,
             'living_area_sqm' => '72.5000',
             'heated_area_sqm' => '70.2500',
             'mea' => '87.500000',

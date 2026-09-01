@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Auth;
 
+use App\Enums\UserStatus;
 use App\Http\Requests\GermanFormRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
@@ -107,7 +108,47 @@ class LoginRequest extends GermanFormRequest
             ]);
         }
 
+        $this->ensureAccountIsUsable();
+
         RateLimiter::clear($this->throttleKey());
+    }
+
+    /**
+     * Prueft den Kontostatus NACH erfolgreicher Passwortpruefung.
+     *
+     * Auth::attempt prueft ausschliesslich E-Mail und Passwort. Ohne diese
+     * zusaetzliche Pruefung koennte sich ein gesperrtes oder zur Loeschung
+     * vorgemerktes Konto weiterhin anmelden, weil das Sperren im Adminbereich
+     * nur den Status setzt, das Merken-Token entzieht und laufende Sitzungen
+     * beendet. Ein neuer Anmeldeversuch mit gueltigem Passwort waere sonst
+     * erfolgreich.
+     *
+     * Die Pruefung erfolgt bewusst erst nach der Passwortpruefung: Vorher
+     * wuerde die Meldung verraten, ob zu einer Adresse ein Konto existiert.
+     *
+     * @throws ValidationException
+     */
+    private function ensureAccountIsUsable(): void
+    {
+        $nutzer = Auth::user();
+
+        $status = $nutzer?->getAttribute('status');
+
+        if ($status === UserStatus::AKTIV || $status === UserStatus::UNBESTAETIGT) {
+            return;
+        }
+
+        Auth::guard('web')->logout();
+        $this->session()->invalidate();
+        $this->session()->regenerateToken();
+
+        $meldung = $status === UserStatus::GESPERRT
+            ? 'Dieses Konto ist gesperrt. Bitte wenden Sie sich an kontakt@smart-abrechnen.de.'
+            : 'Dieses Konto steht nicht zur Verfügung. Bitte wenden Sie sich an kontakt@smart-abrechnen.de.';
+
+        throw ValidationException::withMessages([
+            'email' => $meldung,
+        ]);
     }
 
     /**
