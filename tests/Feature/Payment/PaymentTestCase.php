@@ -31,6 +31,7 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
+use Symfony\Component\HttpFoundation\Response;
 use Tests\Feature\Portal\PortalTestCase;
 
 /**
@@ -329,6 +330,8 @@ abstract class PaymentTestCase extends PortalTestCase
 
     /**
      * Sendet eine korrekt signierte Benachrichtigung an die Webhook-Route.
+     *
+     * @return TestResponse<Response>
      */
     protected function sendeWebhook(string $payload, ?string $signatur = null): TestResponse
     {

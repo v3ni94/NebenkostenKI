@@ -1,0 +1,60 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Providers;
+
+use App\Application\Calculation\FinalDocumentViewsFromSnapshot;
+use App\Application\Payment\Contracts\FinalDocumentViews;
+use App\Application\Payment\Events\BillingRunFinalized;
+use App\Listeners\SendFinalizationMails;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\ServiceProvider;
+
+/**
+ * Verdrahtung der fachlichen Nahtstellen zwischen den Anwendungspaketen.
+ *
+ * WARUM DIESER PROVIDER UND KEIN EIGENER EventServiceProvider
+ *
+ * Es geht hier um genau eine Sache: die beiden Nahtstellen, an denen das
+ * Zahlungspaket auf andere Pakete trifft. Das ist einmal die Aufbereitung des
+ * gesperrten Berechnungsstandes zu Darstellungsobjekten und einmal der Versand
+ * der Bestaetigungsmails nach der Finalisierung. Beides gehoert fachlich
+ * zusammen und ist in einer Datei in einem Blick pruefbar. Ein zusaetzlicher
+ * EventServiceProvider haette nur eine einzige Zeile getragen und die Frage
+ * "wo wird die Finalisierung angeschlossen" auf zwei Dateien verteilt.
+ *
+ * AppServiceProvider bleibt unberuehrt: dort stehen die HTTP-nahen
+ * Ratenbegrenzungen. AiServiceProvider bleibt ebenfalls unberuehrt, weil er
+ * ausschliesslich die KI-Schicht mit ihren eigenen Datenschutz-, Freigabe- und
+ * Kostenregeln traegt und im Test gezielt ersetzt wird. Registriert wird
+ * dieser Provider in bootstrap/providers.php, der dafuer vorgesehenen
+ * Providerliste von Laravel 12.
+ *
+ * BINDUNG DER FINALDOKUMENTE: Ohne diese Bindung bricht die Finalisierung mit
+ * einer klaren Meldung ab und erzeugt insbesondere keine ersatzweise
+ * berechneten Werte. Gebunden wird die Umsetzung des Berechnungspakets, die
+ * den Snapshot als einzige Quelle liest und dieselbe Fabrik verwendet wie die
+ * Vorschau (Abschnitt 14.3).
+ */
+final class ApplicationBindingsProvider extends ServiceProvider
+{
+    public function register(): void
+    {
+        $this->app->bind(FinalDocumentViews::class, FinalDocumentViewsFromSnapshot::class);
+    }
+
+    public function boot(): void
+    {
+        // Der Versand der Bestaetigungsmail haengt am Ereignis und nicht am
+        // Use Case. Damit bleibt die Finalisierung frei von Mailkenntnis.
+        // Genau eine Registrierung. Der Methodenname ist absichtlich nicht
+        // handle() oder __invoke(), damit die automatische Listener-Erkennung
+        // von Laravel 12 nicht zusaetzlich registriert und die
+        // Bestaetigungsmail nicht doppelt versendet wird.
+        Event::listen(
+            BillingRunFinalized::class,
+            [SendFinalizationMails::class, 'versendeBestaetigungen'],
+        );
+    }
+}
