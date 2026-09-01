@@ -47,6 +47,7 @@ enum UploadErrorCode: string
     case KLASSIFIKATION_FEHLGESCHLAGEN = 'KLASSIFIKATION_FEHLGESCHLAGEN';
     case EXTRAKTION_FEHLGESCHLAGEN = 'EXTRAKTION_FEHLGESCHLAGEN';
     case SCHEMA_UNGUELTIG = 'SCHEMA_UNGUELTIG';
+    case KI_TAGESLIMIT_ERREICHT = 'KI_TAGESLIMIT_ERREICHT';
     case LEASE_ABGELAUFEN = 'LEASE_ABGELAUFEN';
     case UNERWARTETER_FEHLER = 'UNERWARTETER_FEHLER';
 
@@ -77,6 +78,7 @@ enum UploadErrorCode: string
             self::CHUNK_ANZAHL_UNGUELTIG => 'Die Angaben zum Upload sind nicht plausibel. Bitte laden Sie die Datei erneut hoch.',
             self::UPLOAD_ABGELAUFEN => 'Die Verarbeitungsfrist für diese Datei ist abgelaufen und die Datei wurde gelöscht. Bitte laden Sie sie erneut hoch.',
             self::UPLOAD_BEREITS_ABGESCHLOSSEN => 'Dieser Upload ist bereits abgeschlossen.',
+            self::KI_TAGESLIMIT_ERREICHT => 'Das Tageslimit für die automatische Auswertung ist erreicht. Ihre Unterlagen bleiben erhalten. Bitte setzen Sie die Auswertung morgen fort oder erfassen Sie die Angaben vorerst von Hand.',
             self::DUBLETTE => 'Diese Unterlage wurde in diesem Abrechnungslauf bereits hochgeladen.',
             self::ARTEFAKT_UNZULAESSIG => 'Es wurde versucht, eine nicht freigegebene Datei im dauerhaften Speicher abzulegen. Der Vorgang wurde abgebrochen.',
             self::ARTEFAKT_DISK_UNZULAESSIG => 'Der Zielspeicher ist für Ergebnisartefakte nicht zugelassen.',

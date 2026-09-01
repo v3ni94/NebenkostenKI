@@ -52,6 +52,23 @@ return [
 
     'max_retries' => (int) env('AI_MAX_RETRIES', 2),
 
+    /*
+     * Verdrahtung der KI-Schicht mit der Dokumentpipeline.
+     *
+     * null bedeutet: ausserhalb der Testumgebung gebunden, in der
+     * Testumgebung nicht. Damit bleibt der Nachweis erhalten, dass die
+     * Pipeline OHNE KI-Anbindung sauber bis Dead Letter laeuft und die
+     * Quelldaten trotzdem sofort loescht. Tests, die mit Anbindung laufen
+     * sollen, schalten sie ausdruecklich ein.
+     *
+     * Ein ausdrueckliches false ist der Notschalter fuer den Betrieb: die
+     * automatische Auswertung ruht, Uploads und manuelle Erfassung laufen
+     * weiter, und es bleiben keine Originaldateien liegen.
+     */
+    'bind_document_pipeline' => env('AI_BIND_DOCUMENT_PIPELINE') !== null
+        ? filter_var(env('AI_BIND_DOCUMENT_PIPELINE'), FILTER_VALIDATE_BOOL)
+        : null,
+
     'max_daily_cost_cent_per_user' => env('AI_MAX_DAILY_COST_CENT_PER_USER') !== null
         ? (int) env('AI_MAX_DAILY_COST_CENT_PER_USER')
         : null,
