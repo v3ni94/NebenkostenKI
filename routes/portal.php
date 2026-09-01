@@ -6,6 +6,7 @@ use App\Http\Controllers\Portal\AccountController;
 use App\Http\Controllers\Portal\BillingRunController;
 use App\Http\Controllers\Portal\DashboardController;
 use App\Http\Controllers\Portal\DownloadController;
+use App\Http\Controllers\Portal\FollowUpYearController;
 use App\Http\Controllers\Portal\PropertyController;
 use App\Http\Controllers\Portal\Review\AnalysisStatusController;
 use App\Http\Controllers\Portal\Review\BillingModeController;
@@ -190,6 +191,16 @@ Route::middleware('organisation')->group(function (): void {
         Route::get('/downloads/{generatedDocument}', [DownloadController::class, 'stream'])
             ->name('downloads.stream');
     });
+
+    // --- Folgejahresuebernahme -----------------------------------------------
+    //
+    // Einstieg aus der Erinnerungsmail. Die signierte URL verhindert, dass ein
+    // weitergeleiteter Link dauerhaft nutzbar bleibt; die Autorisierung erfolgt
+    // zusaetzlich ueber Anmeldung, Mandantenkontext und Policy.
+
+    Route::get('/objekte/{property}/folgejahr/{jahr}', [FollowUpYearController::class, 'start'])
+        ->middleware('signed')
+        ->name('folgejahr.start');
 
     // --- Konto ---------------------------------------------------------------
 

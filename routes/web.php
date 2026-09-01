@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\ReminderUnsubscribeController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -42,6 +43,20 @@ Route::name('legal.')->group(function (): void {
     Route::view('/datenschutzerklaerung', 'legal.datenschutz')->name('datenschutz');
     Route::view('/agb', 'legal.agb')->name('agb');
     Route::view('/widerrufsbelehrung', 'legal.widerruf')->name('widerruf');
+});
+
+// --- Erinnerungen abmelden und wieder aktivieren -----------------------------
+//
+// Bewusst ohne Login erreichbar, damit eine Abmeldung nicht an einem
+// vergessenen Passwort scheitert. Die Echtheit stellt die signierte URL sicher,
+// der Token enthaelt keine Kundendaten. Kritische Konto- und Zahlungsmails sind
+// von der Abmeldung nicht betroffen.
+
+Route::middleware('signed')->name('erinnerungen.')->group(function (): void {
+    Route::get('/erinnerungen/abmelden/{token}', [ReminderUnsubscribeController::class, 'unsubscribe'])
+        ->name('abmelden');
+    Route::get('/erinnerungen/aktivieren/{token}', [ReminderUnsubscribeController::class, 'resubscribe'])
+        ->name('aktivieren');
 });
 
 // --- Anwendung ---------------------------------------------------------------

@@ -72,3 +72,23 @@ Schedule::command('smartabrechnen:retry-failed-deletions', ['--batch=50'])
     ->withoutOverlapping(10)
     ->runInBackground()
     ->description('Wiederholt fehlgeschlagene Löschungen von Quelldaten.');
+
+// --- Automatische Erinnerungen fuer Folgejahre -------------------------------
+//
+// Masterprompt 17: Erinnerungen am 15. Januar, 15. April, 15. Juli und am
+// 1. Dezember, Zeitzone Europe/Berlin, jeweils konfigurierbar.
+//
+// Der Eintrag laeuft taeglich. Der Befehl entscheidet selbst, ob heute ein
+// Erinnerungstermin ist, damit eine Aenderung der Konfiguration ohne
+// Anpassung des Zeitplans wirkt.
+//
+// IDEMPOTENZ: Der Lauf ist taggleich mehrfach ausfuehrbar. Die Dublettensperre
+// liegt im eindeutigen deduplication_key der Tabelle reminder_events. Ein
+// mehrfacher Cronlauf am selben Tag erzeugt deshalb keine zweite Mail.
+
+Schedule::command('smartabrechnen:send-reminders')
+    ->dailyAt('07:00')
+    ->timezone('Europe/Berlin')
+    ->withoutOverlapping(30)
+    ->runInBackground()
+    ->description('Versendet die automatischen Erinnerungen für Folgejahre.');
