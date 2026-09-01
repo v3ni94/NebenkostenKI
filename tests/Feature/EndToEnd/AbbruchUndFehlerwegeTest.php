@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Tests\Feature\EndToEnd;
 
 use App\Application\Payment\FinalizeBillingRun;
+use App\Application\Wizard\PreviewBuilder;
 use App\Enums\BillingRunStatus;
 use App\Enums\DeletionStatus;
 use App\Enums\DocumentProcessingStatus;
+use App\Enums\GeneratedDocumentStatus;
 use App\Enums\GeneratedDocumentVariant;
 use App\Enums\PaymentStatus;
 use App\Enums\ProcessingJobStatus;
@@ -183,6 +185,82 @@ final class AbbruchUndFehlerwegeTest extends EndToEndTestCase
             ->assertSessionHasErrors('weiter');
     }
 
+    /**
+     * Punkt 3 des Fortschrittskonzepts: eine abrechnungsrelevante Aenderung
+     * macht die Vorschau ungueltig. Der Status wird dafuer NICHT
+     * zurueckgeschaltet, es gibt keinen Rueckweg. Gesperrt wird der Checkout
+     * ueber das Gueltigkeitskennzeichen der Vorschau und die zurueckgenommene
+     * Pruefbestaetigung.
+     */
+    public function test_eine_abrechnungsrelevante_aenderung_macht_die_vorschau_ungueltig_ohne_rueckschritt(): void
+    {
+        $this->bindeKiSchicht();
+
+        $welt = $this->konto();
+        $this->ladeUnterlagenHochUndWerteAus($welt['user'], $welt['billingRun']);
+        $this->pruefeKosten($welt['user'], $welt['billingRun']);
+        $this->erfasseVerteilungUndPruefbericht(
+            $welt['user'],
+            $welt['billingRun'],
+            $welt['unit'],
+            $welt['tenancy'],
+        );
+        $this->erzeugeUndBestaetigeVorschau($welt['user'], $welt['billingRun']);
+
+        $lauf = $welt['billingRun']->refresh();
+
+        self::assertSame(BillingRunStatus::PREVIEW_READY, $lauf->getAttribute('status'));
+        self::assertNotNull($lauf->getAttribute('review_confirmed_at'));
+
+        // Abrechnungsrelevante Aenderung: der Verteilerschluessel wird neu
+        // gespeichert.
+        $kostenarten = [];
+
+        foreach (CostItem::query()->where('billing_run_id', $lauf->getKey())->get() as $position) {
+            $kategorie = $position->getAttribute('cost_category_id');
+
+            if (! is_string($kategorie) || $kategorie === '') {
+                continue;
+            }
+
+            $kostenarten[$kategorie] = [
+                'key_type' => 'WOHNFLAECHE',
+                'nenner' => '80,00',
+                'werte' => [(string) $welt['unit']->getKey() => '80,00'],
+            ];
+        }
+
+        $this->actingAs($welt['user'])->post(
+            route('portal.wizard.schluessel.speichern', ['billingRun' => $lauf->getKey()]),
+            ['kostenarten' => $kostenarten]
+        )->assertRedirect();
+
+        $lauf = $lauf->refresh();
+
+        // Der Status bleibt stehen, es gibt keinen Rueckschritt.
+        self::assertSame(BillingRunStatus::PREVIEW_READY, $lauf->getAttribute('status'));
+
+        // Die Vorschau ist ungueltig und die Bestaetigung zurueckgenommen.
+        self::assertFalse(app(PreviewBuilder::class)->isValid($lauf));
+        self::assertNull($lauf->getAttribute('review_confirmed_at'));
+        self::assertSame(
+            0,
+            GeneratedDocument::query()
+                ->where('billing_run_id', $lauf->getKey())
+                ->where('variant', GeneratedDocumentVariant::VORSCHAU->value)
+                ->where('status', GeneratedDocumentStatus::AKTIV->value)
+                ->count(),
+        );
+
+        // Und der Checkout ist damit gesperrt.
+        $this->actingAs($welt['user'])->post(
+            route('portal.checkout.store', ['billingRun' => $lauf->getKey()]),
+            ['sofortige_ausfuehrung' => '1', 'vertragsgrundlagen' => '1']
+        )->assertSessionHasErrors();
+
+        self::assertNull($lauf->refresh()->getAttribute('paid_at'));
+    }
+
     public function test_ein_abgebrochener_zahlungsvorgang_schaltet_nichts_frei(): void
     {
         $this->bindeKiSchicht();
@@ -197,7 +275,6 @@ final class AbbruchUndFehlerwegeTest extends EndToEndTestCase
             $welt['tenancy'],
         );
         $this->erzeugeUndBestaetigeVorschau($welt['user'], $welt['billingRun']);
-        $this->versetzeInVorschaubereit($welt['billingRun'], $welt['user']);
 
         $this->actingAs($welt['user'])->post(
             route('portal.checkout.store', ['billingRun' => $welt['billingRun']->getKey()]),
@@ -278,7 +355,6 @@ final class AbbruchUndFehlerwegeTest extends EndToEndTestCase
             $welt['tenancy'],
         );
         $this->erzeugeUndBestaetigeVorschau($welt['user'], $welt['billingRun']);
-        $this->versetzeInVorschaubereit($welt['billingRun'], $welt['user']);
 
         $this->actingAs($welt['user'])->post(
             route('portal.checkout.store', ['billingRun' => $welt['billingRun']->getKey()]),

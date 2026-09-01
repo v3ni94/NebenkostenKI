@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Application\Calculation;
 
+use App\Application\BillingRun\BillingRunProgress;
 use App\Application\Calculation\Dto\AssembledCalculationInput;
 use App\Application\Calculation\Dto\CalculationOutcome;
 use App\Domain\Calculation\Result\CalculationRunResult;
@@ -60,6 +61,7 @@ final class CalculateBillingRun
         private readonly RuleContextFactory $contexts,
         private readonly RuleEngine $rules,
         private readonly ValidationIssueWriter $issues,
+        private readonly BillingRunProgress $progress,
     ) {}
 
     public function handle(BillingRun $billingRun, ?User $actor = null): CalculationOutcome
@@ -71,7 +73,14 @@ final class CalculateBillingRun
 
         $result = $this->calculator->calculate($assembled->input);
 
-        return $this->persist($billingRun, $assembled, $result, $report, $actor);
+        $outcome = $this->persist($billingRun, $assembled, $result, $report, $actor);
+
+        // Ein gesicherter Berechnungsstand liegt vor, deshalb CALCULATED. Der
+        // Aufruf ist wirkungslos, wenn der Lauf bereits weiter oder bezahlt
+        // ist; eine erneute Berechnung schaltet niemals zurueck.
+        $this->progress->berechnet($billingRun, $actor);
+
+        return $outcome;
     }
 
     /**

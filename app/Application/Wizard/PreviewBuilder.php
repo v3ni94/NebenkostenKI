@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Application\Wizard;
 
+use App\Application\BillingRun\BillingRunProgress;
 use App\Application\Calculation\CalculateBillingRun;
 use App\Application\Wizard\Dto\PreviewDocumentView;
 use App\Enums\GeneratedDocumentKind;
@@ -41,6 +42,7 @@ final class PreviewBuilder
         private readonly StatementViewFactory $views,
         private readonly DocumentSetFactory $documents,
         private readonly GeneratedDocumentWriter $writer,
+        private readonly BillingRunProgress $progress,
     ) {}
 
     /**
@@ -65,6 +67,10 @@ final class PreviewBuilder
         foreach ($set->all() as $document) {
             $this->store($document, is_string($organizationId) ? $organizationId : '', $billingRun);
         }
+
+        // Die Vorschau mit Wasserzeichen liegt vor, deshalb PREVIEW_READY.
+        // Erst dieser Status macht den Checkout erreichbar.
+        $this->progress->vorschauBereit($billingRun, $actor);
 
         return $this->current($billingRun->refresh());
     }

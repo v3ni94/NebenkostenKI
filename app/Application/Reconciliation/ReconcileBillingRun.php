@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Application\Reconciliation;
 
+use App\Application\BillingRun\BillingRunProgress;
 use App\Application\Reconciliation\Dto\HeatingMatrix;
 use App\Application\Reconciliation\Dto\MappingOutcome;
 use App\Application\Reconciliation\Dto\PropertyTaxOutcome;
@@ -52,12 +53,22 @@ final class ReconcileBillingRun
         private readonly CostItemProposalWriter $writer,
         private readonly IssueRecorder $issues,
         private readonly BillingModeAdvisor $advisor,
+        private readonly BillingRunProgress $progress,
     ) {}
 
     public function run(BillingRun $billingRun): ReconciliationOutcome
     {
         /** @var ReconciliationOutcome $outcome */
         $outcome = DB::transaction(fn (): ReconciliationOutcome => $this->execute($billingRun));
+
+        // Die Zuordnung ist abgeschlossen. Entstehen dabei zu entscheidende
+        // Vorschlaege oder offene Pruefaufgaben, ist die Kostenpruefung
+        // erforderlich und der Lauf geht auf REVIEW_REQUIRED. Der
+        // Statuswechsel liegt bewusst hinter der Transaktion, damit ein
+        // Rollback der Zuordnung keinen Statuswechsel hinterlaesst.
+        if ($outcome->proposalsCreated > 0 || $outcome->openIssueCount > 0) {
+            $this->progress->pruefungErforderlich($billingRun);
+        }
 
         return $outcome;
     }

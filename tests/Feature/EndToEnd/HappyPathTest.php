@@ -91,6 +91,32 @@ final class HappyPathTest extends EndToEndTestCase
         self::assertContains(GeneratedDocumentKind::HVM_RECHNUNG->value, $arten);
     }
 
+    /**
+     * Nachweis, dass der Statusfortschritt aus dem echten Ablauf entsteht.
+     * Der Test setzt keinen Status selbst; es gibt keinen Testhelfer mehr, der
+     * Zustaende versetzt.
+     */
+    public function test_der_durchlauf_erzeugt_die_vollstaendige_statusfolge_ohne_testhelfer(): void
+    {
+        $welt = $this->fuehreHappyPathAus();
+
+        self::assertSame(
+            [
+                BillingRunStatus::UPLOADING->value,
+                BillingRunStatus::EXTRACTING->value,
+                BillingRunStatus::REVIEW_REQUIRED->value,
+                BillingRunStatus::READY_FOR_CALCULATION->value,
+                BillingRunStatus::CALCULATED->value,
+                BillingRunStatus::PREVIEW_READY->value,
+                BillingRunStatus::CHECKOUT_PENDING->value,
+                BillingRunStatus::PAID->value,
+                BillingRunStatus::FINALIZING->value,
+                BillingRunStatus::FINALIZED->value,
+            ],
+            $this->statusfolge($welt['billingRun']),
+        );
+    }
+
     public function test_die_vorschau_traegt_ein_wasserzeichen_und_die_finalversion_nicht(): void
     {
         $welt = $this->fuehreHappyPathAus();

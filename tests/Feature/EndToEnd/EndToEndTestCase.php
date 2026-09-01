@@ -6,9 +6,9 @@ namespace Tests\Feature\EndToEnd;
 
 use App\Application\Account\EmailVerification;
 use App\Application\BillingRun\BillingRunStateMachine;
-use App\Enums\BillingRunStatus;
 use App\Enums\DocumentType;
 use App\Jobs\DocumentJobRegistry;
+use App\Models\AuditLog;
 use App\Models\BillingRun;
 use App\Models\CostItem;
 use App\Models\Document;
@@ -326,32 +326,36 @@ abstract class EndToEndTestCase extends TestCase
     }
 
     /**
-     * Fuehrt den Lauf ueber die Statusmaschine bis PREVIEW_READY.
+     * Tatsaechlich durchlaufene Statusfolge des Laufs, aus den
+     * Revisionseintraegen der Statusmaschine gelesen.
      *
-     * OFFENER PUNKT, hier bewusst sichtbar gemacht: Die Schritte des
-     * gefuehrten Ablaufs schreiben derzeit den Fortschritt (wizard_step) und
-     * die Bestaetigungen, aber keinen Statuswechsel des Abrechnungslaufs. Die
-     * Policy des Checkouts verlangt jedoch PREVIEW_READY. Der Test setzt die
-     * Zustaende deshalb ueber dieselbe Statusmaschine, die auch die Anwendung
-     * verwendet, und ueberspringt dabei keinen Zustand. Sobald die
-     * Wizard-Schritte den Statuswechsel selbst vornehmen, entfaellt dieser
-     * Aufruf.
+     * Der Test setzt keinen Status selbst. Der Fortschritt entsteht
+     * ausschliesslich aus den Schritten des gefuehrten Ablaufs
+     * (BillingRunProgress an den Aufrufstellen).
+     *
+     * @return list<string>
      */
-    protected function versetzeInVorschaubereit(BillingRun $lauf, User $nutzer): BillingRun
+    protected function statusfolge(BillingRun $lauf): array
     {
-        $maschine = $this->app->make(BillingRunStateMachine::class);
+        $eintraege = AuditLog::query()
+            ->where('action', BillingRunStateMachine::AUDIT_ACTION)
+            ->where('subject_type', BillingRun::class)
+            ->where('subject_id', $lauf->getKey())
+            ->orderBy('occurred_at')
+            ->orderBy('id')
+            ->get();
 
-        foreach ([
-            BillingRunStatus::UPLOADING,
-            BillingRunStatus::EXTRACTING,
-            BillingRunStatus::READY_FOR_CALCULATION,
-            BillingRunStatus::CALCULATED,
-            BillingRunStatus::PREVIEW_READY,
-        ] as $status) {
-            $maschine->transitionTo($lauf, $status, $nutzer);
+        $folge = [];
+
+        foreach ($eintraege as $eintrag) {
+            $metadaten = $eintrag->getAttribute('metadata');
+
+            if (is_array($metadaten) && is_string($metadaten['nach'] ?? null)) {
+                $folge[] = $metadaten['nach'];
+            }
         }
 
-        return $lauf->refresh();
+        return $folge;
     }
 
     // --- Zusammengesetzter Durchlauf ----------------------------------------
@@ -507,8 +511,6 @@ abstract class EndToEndTestCase extends TestCase
      */
     protected function zahleUndFinalisiere(User $nutzer, BillingRun $lauf): array
     {
-        $this->versetzeInVorschaubereit($lauf, $nutzer);
-
         $this->actingAs($nutzer)->post(
             route('portal.checkout.store', ['billingRun' => $lauf->getKey()]),
             ['sofortige_ausfuehrung' => '1', 'vertragsgrundlagen' => '1']

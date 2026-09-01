@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Portal\Review;
 
+use App\Application\BillingRun\BillingRunProgress;
 use App\Application\Reconciliation\CategoryResolver;
 use App\Application\Review\BulkConfirmation;
 use App\Application\Review\CostItemDecisions;
@@ -43,6 +44,7 @@ class CostReviewController extends Controller
         private readonly BulkConfirmation $bulk,
         private readonly ReviewGate $gate,
         private readonly CategoryResolver $categories,
+        private readonly BillingRunProgress $progress,
     ) {}
 
     public function index(BillingRun $billingRun): View
@@ -178,6 +180,11 @@ class CostReviewController extends Controller
                 ->route('portal.pruefung.kosten', ['billingRun' => $billingRun->getKey()])
                 ->withErrors(['weiter' => $grund]);
         }
+
+        // Erst hier ist jede Position entschieden und es besteht kein
+        // Blocker mehr. Das ist der fachliche Abschluss der Kostenpruefung,
+        // deshalb schaltet der Lauf auf READY_FOR_CALCULATION.
+        $this->progress->bereitZurBerechnung($billingRun, $this->user());
 
         return redirect()
             ->route('portal.abrechnungen.show', ['billingRun' => $billingRun->getKey()])

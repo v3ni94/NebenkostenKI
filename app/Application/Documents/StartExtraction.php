@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Application\Documents;
 
+use App\Application\BillingRun\BillingRunProgress;
 use App\Application\Documents\Dto\DeletionReason;
 use App\Application\Documents\Dto\ExtractionOutcome;
 use App\Application\Documents\Support\AiPipelineResolver;
 use App\Enums\DocumentProcessingStatus;
+use App\Models\BillingRun;
 use App\Models\Document;
 use App\Models\TemporaryUpload;
 use App\Services\Storage\Exceptions\UploadRejectedException;
@@ -39,11 +41,18 @@ final class StartExtraction
         private readonly AiPipelineResolver $pipeline,
         private readonly DeleteOriginalSources $deleteSources,
         private readonly FailDocument $failDocument,
+        private readonly BillingRunProgress $progress,
     ) {}
 
     public function __invoke(Document $document): ExtractionOutcome
     {
         $upload = $this->requireUpload($document);
+
+        // Dies ist die Stelle, an der die Auswertung der Unterlagen
+        // tatsaechlich beginnt, unabhaengig davon, ob sie ueber den Teiljob
+        // oder direkt angestossen wird. Deshalb schaltet der Lauf hier auf
+        // EXTRACTING.
+        $this->progressForDocument($document);
 
         $extractor = $this->pipeline->extractor();
 
@@ -98,6 +107,26 @@ final class StartExtraction
         $document->forceFill($attributes)->save();
 
         ($this->deleteSources)($document, DeletionReason::EXTRAKTION_ABGESCHLOSSEN);
+    }
+
+    /**
+     * Der zugehoerige Abrechnungslauf, sofern auffindbar. Der Use Case
+     * arbeitet auf dem Dokument; der Lauf wird nur fuer den Fortschritt
+     * geladen und die Extraktion haengt nicht davon ab.
+     */
+    private function progressForDocument(Document $document): void
+    {
+        $billingRunId = $document->getAttribute('billing_run_id');
+
+        if (! is_string($billingRunId) || $billingRunId === '') {
+            return;
+        }
+
+        $billingRun = BillingRun::query()->whereKey($billingRunId)->first();
+
+        if ($billingRun instanceof BillingRun) {
+            $this->progress->extraktionBegonnen($billingRun);
+        }
     }
 
     /**

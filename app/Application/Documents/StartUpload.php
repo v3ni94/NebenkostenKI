@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Application\Documents;
 
+use App\Application\BillingRun\BillingRunProgress;
 use App\Application\Documents\Dto\StartUploadCommand;
 use App\Application\Documents\Dto\UploadSession;
 use App\Application\Documents\Support\SourceLabelFactory;
@@ -44,6 +45,7 @@ final class StartUpload
         private readonly TemporaryUploadStorage $storage,
         private readonly MimeGuard $mimeGuard,
         private readonly SourceLabelFactory $labels,
+        private readonly BillingRunProgress $progress,
     ) {}
 
     /**
@@ -86,6 +88,11 @@ final class StartUpload
 
             return [$document, $upload];
         });
+
+        // Hier wird der erste Upload eines Laufs angenommen. Das ist der
+        // fachliche Beginn des Uploads, deshalb schaltet der Lauf ab hier auf
+        // UPLOADING. Ein weiterer Upload im selben Lauf ist wirkungslos.
+        $this->progress->uploadBegonnen($billingRun);
 
         return new UploadSession($created[0], $created[1], $totalChunks, $limits->chunkBytes, $expiresAt);
     }
