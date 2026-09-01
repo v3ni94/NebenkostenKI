@@ -460,6 +460,14 @@ Der Scheduler startet daraus die Queue mit begrenzter Laufzeit
 | Contract | OpenAI und Anthropic gegen gespeicherte anonymisierte Antworten | keine kostenpflichtigen Calls im Standardlauf |
 | E2E | Registrierung bis Final-PDF, zusätzlich Nachweis der Originaldateilöschung | plus Abbruch- und Fehlerwege |
 
+**Zweite bekannte Einschränkung:** Die Testsuite ist auf einen sequenziellen
+Lauf ausgelegt. `Storage::fake` und der Anwendungslog liegen in gemeinsam
+genutzten Verzeichnissen, deshalb erzeugen zwei gleichzeitig laufende
+Testprozesse wechselnde Fehlbefunde in den Upload- und Löschtests. Das ist ein
+Isolationsthema der Testumgebung, kein Produktfehler. Vor einer
+Parallelisierung in der CI ist je Prozess ein eigenes Testverzeichnis zu
+setzen.
+
 **Bekannte Einschränkung der Entwicklungsumgebung:** In der Sandbox dieses
 Projekts steht kein MariaDB-Server zur Verfügung. Lokale Tests laufen daher auf
 SQLite in-memory. Migrationen sind deshalb treiberneutral zu schreiben;
@@ -498,6 +506,8 @@ fachliche Grundlage ist und ohne Infrastruktur testbar bleibt.
 | Externe Heizkostenabrechnungen sind formatvielfältig | mittel, Extraktionsqualität | Prüfsumme gegen Gesamtbetrag, Abweichung blockiert Finalisierung |
 | Gewerbemietverhältnisse | mittel | im Datenmodell vorbereitet, keine automatische Finalisierung, klarer Hinweis |
 | mPDF-Layouttreue bei sehr langen Tabellen | niedrig | Seitenumbruchtests je Template, konservatives CSS |
+| mPDF verändert `mb_internal_encoding` global und lässt es auf Windows-1252 stehen | behoben | `PdfEngine` sichert und restauriert die mbstring-Einstellungen in einem `finally`; Regressionstest vorhanden. Ohne diese Sicherung wurden `.env`-Werte beim nächsten Bootvorgang doppelt kodiert. |
+| Tests sind bei gleichzeitig laufenden Testprozessen nicht isoliert | niedrig | `Storage::fake` legt unter `storage/framework/testing` ein gemeinsames Verzeichnis an. Der Standardlauf ist sequenziell und stabil. Vor einer Parallelisierung in der CI ist je Prozess ein eigenes Testverzeichnis zu setzen. |
 | CSP benötigt `unsafe-eval` für den Alpine-Standardbuild | mittel | offener Punkt: Wechsel auf `@alpinejs/csp` und Umschreiben der `x-data`-Ausdrücke, danach `unsafe-eval` entfernen |
 | Registrierung verrät über die Eindeutigkeitsprüfung, ob eine E-Mail bereits ein Konto hat | mittel | offener Punkt: einheitliche Bestätigungsmeldung unabhängig vom Ergebnis, bei vorhandenem Konto stattdessen eine Hinweismail an die Adresse |
 | Einwilligungen werden noch nicht in `legal_acceptances` protokolliert | mittel | offener Punkt: Textversion, Zweck, Zeitpunkt, gekürzte IP und gehashter User-Agent bei Registrierung und im Checkout schreiben |
