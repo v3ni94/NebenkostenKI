@@ -179,6 +179,15 @@ return [
         'checksum_cent' => 100,
         'prior_year_deviation_percent' => 30,
         'billing_period_months_limit' => 12,
+
+        /*
+         * Aufmerksamkeitsschwelle fuer eine einzelne Kostenposition. Oberhalb
+         * dieses Betrages erzeugt die Regel-Engine einen Hinweis, damit ein
+         * ungewoehnlich hoher Einzelbetrag nicht unbemerkt in die Umlage laeuft.
+         * Es ist keine Ablehnung, sondern eine Bitte um Pruefung. Der Wert ist
+         * eine Erfahrungsannahme und im Betrieb nachzujustieren.
+         */
+        'single_amount_attention_cent' => (int) env('RULE_SINGLE_AMOUNT_ATTENTION_CENT', 200000),
     ],
 
 ];
