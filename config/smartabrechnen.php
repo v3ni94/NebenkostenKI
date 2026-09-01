@@ -142,6 +142,15 @@ return [
             ? (int) env('GENERATED_PDF_RETENTION_DAYS')
             : null,
         'signed_download_ttl_minutes' => (int) env('SIGNED_DOWNLOAD_TTL_MINUTES', 30),
+
+        /*
+         * Frist zwischen Loeschantrag und endgueltiger Loeschung eines Kontos.
+         * Innerhalb der Frist kann der Nutzer den Antrag zuruecknehmen. Der im
+         * Antrag protokollierte Termin hat Vorrang, damit eine spaetere
+         * Konfigurationsaenderung einen laufenden Antrag nicht verschiebt.
+         * Korridor 7 bis 90 Tage.
+         */
+        'account_deletion_grace_days' => min(90, max(7, (int) env('ACCOUNT_DELETION_GRACE_DAYS', 30))),
     ],
 
     /*

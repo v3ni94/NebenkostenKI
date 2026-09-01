@@ -92,3 +92,36 @@ Schedule::command('smartabrechnen:send-reminders')
     ->withoutOverlapping(30)
     ->runInBackground()
     ->description('Versendet die automatischen Erinnerungen für Folgejahre.');
+
+// --- Endgueltige Kontoloeschungen nach Ablauf der Frist ----------------------
+//
+// Masterprompt 19: Konto-Loeschworkflow mit dokumentierter Frist. Der Nutzer
+// beantragt die Loeschung, kann sie innerhalb der Frist zurueckziehen, und nach
+// Ablauf fuehrt dieser Lauf sie endgueltig aus.
+//
+// Der Lauf laeuft taeglich in der Nacht, weil er Daten unwiederbringlich
+// entfernt und deshalb nicht mit der Tagesnutzung konkurrieren soll. Er ist
+// idempotent und wiederaufnehmbar: Ausgewaehlt werden nur Konten mit offenem
+// Antrag und abgelaufener Frist. Ein Fehlschlag laesst den Antrag offen, sodass
+// der naechste Lauf ihn erneut aufnimmt.
+
+Schedule::command('smartabrechnen:execute-account-deletions', ['--batch=25'])
+    ->dailyAt('03:20')
+    ->timezone('Europe/Berlin')
+    ->withoutOverlapping(60)
+    ->runInBackground()
+    ->description('Führt beantragte Kontolöschungen nach Ablauf der Frist aus.');
+
+// --- Aufbewahrungsfristen ----------------------------------------------------
+//
+// Masterprompt 19: abgelaufene strukturierte Extraktionsdaten und abgelaufene
+// erzeugte PDFs werden entfernt. Sind EXTRACTED_DATA_RETENTION_DAYS und
+// GENERATED_PDF_RETENTION_DAYS nicht gesetzt, loescht der Lauf ausdruecklich
+// nichts und meldet den offenen Punkt. Der Lauf ist idempotent.
+
+Schedule::command('smartabrechnen:enforce-retention')
+    ->dailyAt('03:40')
+    ->timezone('Europe/Berlin')
+    ->withoutOverlapping(60)
+    ->runInBackground()
+    ->description('Setzt die Aufbewahrungsfristen für Extraktionsdaten und erzeugte PDFs durch.');

@@ -10,6 +10,7 @@ use App\Http\Controllers\Portal\DashboardController;
 use App\Http\Controllers\Portal\Download\CompletionController;
 use App\Http\Controllers\Portal\DownloadController;
 use App\Http\Controllers\Portal\FollowUpYearController;
+use App\Http\Controllers\Portal\PrivacyController;
 use App\Http\Controllers\Portal\PropertyController;
 use App\Http\Controllers\Portal\Review\AnalysisStatusController;
 use App\Http\Controllers\Portal\Review\BillingModeController;
@@ -268,6 +269,33 @@ Route::middleware('organisation')->group(function (): void {
     Route::get('/objekte/{property}/folgejahr/{jahr}', [FollowUpYearController::class, 'start'])
         ->middleware('signed')
         ->name('folgejahr.start');
+
+    // --- Datenschutz: Auskunft, Datenexport und Kontoloeschung ---------------
+    //
+    // Der Export enthaelt keine Originaldateien, weil diese nach der Auswertung
+    // geloescht sind, und niemals Daten anderer Mandanten. Ausgeliefert wird nur
+    // ueber eine autorisierte Route oder einen kurzlebigen signierten Link.
+    //
+    // Reihenfolge beachten: die feste Endung "signiert" steht hinter dem
+    // Platzhalter, deshalb wird sie ausdruecklich vor der allgemeinen
+    // Downloadroute definiert.
+
+    Route::get('/datenschutz', [PrivacyController::class, 'show'])
+        ->name('datenschutz.show');
+    Route::post('/datenschutz/datenexport', [PrivacyController::class, 'export'])
+        ->name('datenschutz.export');
+    Route::get('/datenschutz/datenexport/{export}/signiert', [PrivacyController::class, 'signedDownload'])
+        ->middleware(['signed', 'throttle:downloads'])
+        ->name('datenschutz.export.signiert');
+    Route::post('/datenschutz/datenexport/{export}/link', [PrivacyController::class, 'link'])
+        ->name('datenschutz.export.link');
+    Route::get('/datenschutz/datenexport/{export}', [PrivacyController::class, 'download'])
+        ->middleware('throttle:downloads')
+        ->name('datenschutz.export.download');
+    Route::post('/datenschutz/loeschung', [PrivacyController::class, 'requestDeletion'])
+        ->name('datenschutz.loeschung');
+    Route::delete('/datenschutz/loeschung', [PrivacyController::class, 'withdrawDeletion'])
+        ->name('datenschutz.loeschung.zuruecknehmen');
 
     // --- Konto ---------------------------------------------------------------
 
