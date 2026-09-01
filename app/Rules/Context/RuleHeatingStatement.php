@@ -12,13 +12,17 @@ use App\Enums\HeatingSupplyCase;
 /**
  * Heizkostenangaben eines Abrechnungslaufs.
  *
- * Fall A ist die externe Abrechnung, Fall B die Zentralheizung ohne externe
- * Abrechnung, Fall C die dezentrale Versorgung (Pflichtenheft Abschnitt 12.3).
+ * Fall A ist die externe Abrechnung, Fall B die Zentralheizung ohne externen
+ * Abrechner, Fall C die dezentrale Versorgung (Pflichtenheft Abschnitt 12.3).
+ *
+ * In Fall B rechnet die Plattform nicht selbst. Der Anwender erfasst die
+ * Betraege je Einheit manuell; sie werden unveraendert uebernommen.
  */
 final readonly class RuleHeatingStatement
 {
     /**
      * @param  array<string, Money>  $lineAmounts  Beteiligtenschluessel => Einzelbetrag
+     * @param  list<string>  $unitKeysWithAmounts  Einheiten, fuer die Betraege erfasst sind
      */
     public function __construct(
         public string $key,
@@ -35,6 +39,12 @@ final readonly class RuleHeatingStatement
         public ?Money $operatingCurrent = null,
         public ?Money $warmWaterShare = null,
         public ?Money $co2Cost = null,
+        /**
+         * Fall B: die Betraege wurden vom Anwender selbst ermittelt und
+         * manuell erfasst. Die Plattform rechnet sie nicht nach.
+         */
+        public bool $manualEntry = false,
+        public array $unitKeysWithAmounts = [],
     ) {}
 
     public function sumOfLines(): Money

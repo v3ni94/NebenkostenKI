@@ -8,6 +8,7 @@ use App\Application\Calculation\Dto\AssembledCalculationInput;
 use App\Domain\Calculation\Result\CalculationRunResult;
 use App\Domain\Calculation\Result\UnitStatementResult;
 use App\Models\BillingRun;
+use App\Models\HeatingStatement;
 use App\Models\Landlord;
 use App\Models\Tenancy;
 use App\Services\Pdf\View\BankAccount;
@@ -43,6 +44,7 @@ final class StatementViewFactory
         $sender = $this->sender($billingRun);
         $subjectBase = $this->propertyAddressLine($billingRun);
         $tenancies = $this->tenancies($billingRun);
+        $manualHeating = $this->manualHeatingStatement($billingRun);
         $views = [];
 
         foreach ($result->statements as $statement) {
@@ -64,6 +66,7 @@ final class StatementViewFactory
                 [],
                 false,
                 $billingRun->landlord->show_bank_details_on_statement ?? false,
+                $manualHeating instanceof HeatingStatement,
             );
         }
 
@@ -75,6 +78,8 @@ final class StatementViewFactory
         CalculationRunResult $result,
     ): OwnerOverviewView {
         $landlord = $billingRun->landlord;
+        $manualHeating = $this->manualHeatingStatement($billingRun);
+        $origin = $manualHeating?->getAttribute('calculation_origin');
 
         return new OwnerOverviewView(
             $result->ownerOverview,
@@ -85,7 +90,24 @@ final class StatementViewFactory
             [],
             [],
             (string) $billingRun->getKey(),
+            $manualHeating instanceof HeatingStatement,
+            is_string($origin) && $origin !== '' ? $origin : null,
         );
+    }
+
+    /**
+     * Manuell erfasste Heizkosten des Laufs (Fall B). Sie loesen die
+     * sachlichen Vermerke im Mieter-PDF und im internen Blatt aus.
+     */
+    private function manualHeatingStatement(BillingRun $billingRun): ?HeatingStatement
+    {
+        $statement = HeatingStatement::query()
+            ->where('billing_run_id', $billingRun->getKey())
+            ->where('manual_entry', true)
+            ->orderBy('created_at')
+            ->first();
+
+        return $statement instanceof HeatingStatement ? $statement : null;
     }
 
     private function sender(BillingRun $billingRun): LandlordSender

@@ -29,6 +29,13 @@ use Illuminate\View\View;
  *
  * Ein gesperrtes oder zur Loeschung vorgemerktes Konto wird nach der
  * Passwortpruefung wieder abgemeldet. Die Meldung bleibt bewusst allgemein.
+ *
+ * ZWEITER FAKTOR
+ *
+ * Ist fuer das Konto ein bestaetigter Zweitfaktor hinterlegt, endet die
+ * Passwortpruefung ohne Anmeldung, und der Nutzer wird zur Codeeingabe geleitet.
+ * Siehe App\Http\Requests\Auth\LoginRequest und
+ * App\Http\Controllers\Auth\TwoFactorChallengeController.
  */
 class AuthenticatedSessionController extends Controller
 {
@@ -43,8 +50,17 @@ class AuthenticatedSessionController extends Controller
     {
         $request->authenticate();
 
-        // Sitzungskennung nach der Anmeldung neu erzeugen.
+        // Sitzungskennung nach der Anmeldung neu erzeugen. Der Aufruf erhaelt
+        // die Sitzungsdaten und damit auch den Hinweis auf den offenen zweiten
+        // Faktor.
         $request->session()->regenerate();
+
+        if ($request->zweitfaktorErforderlich()) {
+            // Die Passwortpruefung war erfolgreich, der Nutzer ist aber bewusst
+            // nicht angemeldet. Erst der gueltige Code schliesst die Anmeldung
+            // ab (Masterprompt 8.1).
+            return redirect()->route('two-factor.challenge');
+        }
 
         $user = $request->user();
 

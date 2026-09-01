@@ -34,6 +34,12 @@ final readonly class TenantStatementView
         public array $vouchers = [],
         public bool $showVoucherIndex = false,
         public bool $showBankAccount = true,
+        /**
+         * Fall B: die Heizkosten je Einheit wurden vom Vermieter selbst
+         * ermittelt und unveraendert uebernommen. Loest den sachlichen Vermerk
+         * im Heizkostenblock aus.
+         */
+        public bool $manualHeatingEntry = false,
     ) {}
 
     /**

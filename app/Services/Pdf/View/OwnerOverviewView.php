@@ -30,6 +30,12 @@ final readonly class OwnerOverviewView
         public array $manualDecisions = [],
         public array $documents = [],
         public ?string $billingRunReference = null,
+        /**
+         * Fall B: manuell erfasste Heizkosten samt der vom Anwender erfassten
+         * Herkunft der Berechnung. Erscheint nur im internen Blatt.
+         */
+        public bool $manualHeatingEntry = false,
+        public ?string $manualHeatingOrigin = null,
     ) {}
 
     public function subjectLine(): string

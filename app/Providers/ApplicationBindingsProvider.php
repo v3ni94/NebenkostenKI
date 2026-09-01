@@ -8,6 +8,8 @@ use App\Application\Calculation\FinalDocumentViewsFromSnapshot;
 use App\Application\Payment\Contracts\FinalDocumentViews;
 use App\Application\Payment\Events\BillingRunFinalized;
 use App\Listeners\SendFinalizationMails;
+use App\Services\Payment\Contracts\CheckoutClient;
+use App\Services\Payment\StripeGateway;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
@@ -42,6 +44,24 @@ final class ApplicationBindingsProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(FinalDocumentViews::class, FinalDocumentViewsFromSnapshot::class);
+
+        /*
+         * Zahlungsanbieter.
+         *
+         * StartCheckout und CancelCheckout verlangen das Interface
+         * CheckoutClient. Ohne diese Bindung kann der Container es nicht
+         * aufloesen und die Zahlungsseite endet in einem Fehler. Die Tests des
+         * Zahlungspakets injizieren eine Testdopplung direkt und haben die
+         * fehlende Bindung deshalb nicht aufgedeckt; sichtbar wurde sie erst
+         * beim Aufruf im Browser.
+         *
+         * Die Bindung ist bewusst unabhaengig davon gesetzt, ob ein
+         * Stripe-Schluessel konfiguriert ist. Fehlt er, meldet der Gateway das
+         * beim Aufruf mit einer klaren Meldung, und der Adminbereich fuehrt es
+         * als Livegang-Blocker. Eine stillschweigend fehlende Bindung wuerde
+         * dagegen erst im Betrieb auffallen.
+         */
+        $this->app->bind(CheckoutClient::class, StripeGateway::class);
     }
 
     public function boot(): void

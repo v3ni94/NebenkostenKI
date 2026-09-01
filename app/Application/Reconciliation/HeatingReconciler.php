@@ -18,6 +18,7 @@ use App\Enums\BillingMode;
 use App\Enums\DocumentType;
 use App\Models\BillingRun;
 use App\Models\Document;
+use App\Models\HeatingStatement;
 use Illuminate\Support\Carbon;
 
 /**
@@ -29,6 +30,9 @@ use Illuminate\Support\Carbon;
  *    externe Abrechnung vorliegt, sonst Kostenquelle.
  *  - externe Einzelabrechnung: Mieteranteil beziehungsweise Direktzuordnung.
  *  - Brennstoffrechnung: nur im Vollobjektmodus, mit Dublettenpruefung.
+ *  - manuell erfasst (Fall B): Direktzuordnung je Einheit. Die Plattform
+ *    uebernimmt die vom Vermieter ermittelten Betraege unveraendert und
+ *    rechnet sie nicht nach.
  *
  * Liegt eine externe Abrechnung vor, duerfen ihre Einzelbetraege nicht
  * zusaetzlich aus einer WEG-Summenposition angesetzt werden.
@@ -233,6 +237,12 @@ final class HeatingReconciler
             );
         }
 
+        $manual = $this->manualRows($billingRun, $externalPresent);
+
+        foreach ($manual['rows'] as $row) {
+            $rows[] = $row;
+        }
+
         return new HeatingMatrix(
             $rows,
             $missing,
@@ -244,7 +254,105 @@ final class HeatingReconciler
             $withinTolerance,
             $blocks,
             $blockingExplanation,
+            $manual['present'],
+            $manual['origin'],
+            $manual['conflict'],
+            $manual['explanation'],
         );
+    }
+
+    /**
+     * Quelle "manuell erfasst" nach Abschnitt 7.4, Fall B.
+     *
+     * Behandlung ist die Direktzuordnung je Einheit. Die Plattform rechnet die
+     * erfassten Betraege nicht nach. Liegt zusaetzlich eine externe Abrechnung
+     * oder eine WEG-Summenposition vor, wird nicht addiert; angesetzt wird nur
+     * die Quelle, fuer die sich der Anwender entschieden hat.
+     *
+     * @return array{rows: list<HeatingMatrixRow>, present: bool, origin: string|null, conflict: bool, explanation: string|null}
+     */
+    private function manualRows(BillingRun $billingRun, bool $externalPresent): array
+    {
+        $statements = HeatingStatement::query()
+            ->where('billing_run_id', $billingRun->getKey())
+            ->where('manual_entry', true)
+            ->with('lines')
+            ->get();
+
+        $rows = [];
+        $origin = null;
+        $present = false;
+        $conflict = false;
+        $explanation = null;
+
+        foreach ($statements as $statement) {
+            $present = true;
+            $decision = $statement->getAttribute('manual_source_decision');
+            $decision = is_string($decision) ? $decision : null;
+            $applied = ! $externalPresent || $decision === 'MANUELL';
+
+            if ($externalPresent) {
+                $conflict = true;
+                $explanation = $decision === null
+                    ? 'Für den Zeitraum liegen manuell erfasste Heizkosten und eine weitere Heizkostenquelle vor. '
+                        .'Die Beträge werden nicht addiert. Bitte entscheiden Sie, welche Quelle gilt; solange keine '
+                        .'Entscheidung vorliegt, wird die manuelle Erfassung nicht angesetzt.'
+                    : sprintf(
+                        'Für den Zeitraum liegen mehrere Heizkostenquellen vor. Die Beträge werden nicht addiert. '
+                        .'Ihre Entscheidung: %s.',
+                        $decision === 'MANUELL'
+                            ? 'Es gelten die manuell erfassten Beträge'
+                            : 'Es gilt die externe Abrechnung beziehungsweise die WEG-Position'
+                    );
+            }
+
+            $originValue = $statement->getAttribute('calculation_origin');
+
+            if (is_string($originValue) && $originValue !== '') {
+                $origin = $originValue;
+            }
+
+            $start = $statement->getAttribute('period_start');
+            $end = $statement->getAttribute('period_end');
+
+            $periodLabel = $this->periodLabel(
+                $start instanceof Carbon ? $start : null,
+                $end instanceof Carbon ? $end : null,
+                $billingRun
+            );
+
+            $byUnit = [];
+
+            foreach ($statement->lines as $line) {
+                $label = $line->getAttribute('unit_label');
+                $label = is_string($label) && $label !== '' ? $label : 'Einheit';
+                $amount = $line->getAttribute('share_total_cent');
+                $byUnit[$label] = ($byUnit[$label] ?? 0) + (is_numeric($amount) ? (int) $amount : 0);
+            }
+
+            foreach ($byUnit as $label => $amount) {
+                $rows[] = new HeatingMatrixRow(
+                    HeatingSourceKind::MANUELL_ERFASST,
+                    'Vom Vermieter selbst ermittelt, ohne Nachrechnung durch die Plattform',
+                    $amount,
+                    (string) $label,
+                    $periodLabel,
+                    $applied
+                        ? 'Direktzuordnung'
+                        : 'Direktzuordnung, derzeit nicht angesetzt, weil eine weitere Quelle vorliegt',
+                    $applied,
+                    null,
+                );
+            }
+        }
+
+        return [
+            'rows' => $rows,
+            'present' => $present,
+            'origin' => $origin,
+            'conflict' => $conflict,
+            'explanation' => $explanation,
+        ];
     }
 
     /**

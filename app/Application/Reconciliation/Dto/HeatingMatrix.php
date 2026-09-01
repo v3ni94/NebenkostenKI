@@ -11,6 +11,11 @@ namespace App\Application\Reconciliation\Dto;
  * WEG-Abrechnung nur als Vergleichssumme gefuehrt und nicht zusaetzlich
  * angesetzt. Eine Abweichung ueber der Toleranz blockiert die automatische
  * Finalisierung, bis der Nutzer sie erklaert oder korrigiert.
+ *
+ * Fall B ohne externen Abrechner erscheint als Quelle "manuell erfasst" mit
+ * der Behandlung "Direktzuordnung". Liegen zusaetzlich eine externe Abrechnung
+ * oder eine WEG-Summenposition vor, wird nicht addiert; der Anwender
+ * entscheidet, welche Quelle gilt.
  */
 final readonly class HeatingMatrix
 {
@@ -29,6 +34,10 @@ final readonly class HeatingMatrix
         public bool $withinTolerance = true,
         public bool $blocksFinalization = false,
         public ?string $blockingExplanation = null,
+        public bool $manualEntryPresent = false,
+        public ?string $manualCalculationOrigin = null,
+        public bool $manualSourceConflict = false,
+        public ?string $manualConflictExplanation = null,
     ) {}
 
     public function hasRows(): bool

@@ -148,6 +148,21 @@
             </tr>
         </tbody>
     </table>
+
+    {{--
+        TEXTBAUSTEIN ANWALTLICH FREIZUGEBEN.
+
+        Sachlicher Vermerk fuer Fall B (Zentralheizung ohne externen
+        Abrechner): Die Heizkosten je Einheit hat der Vermieter ermittelt; sie
+        wurden unveraendert uebernommen. Keine Garantieaussage, keine
+        Paragrafenangabe, keine Rechtsberatung im Einzelfall.
+    --}}
+    @if ($view->manualHeatingEntry)
+        <p class="klein" data-vermerk="heizkosten-manuell">
+            Die Heizkosten je Einheit wurden vom Vermieter ermittelt und in dieser Abrechnung unverändert
+            übernommen.
+        </p>
+    @endif
 @endif
 
 <table class="ergebnis">

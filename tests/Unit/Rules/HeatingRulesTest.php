@@ -9,6 +9,7 @@ use App\Enums\Co2ShareStatus;
 use App\Enums\HeatingSupplyCase;
 use App\Enums\ValidationSeverity;
 use App\Rules\Context\RuleHeatingStatement;
+use App\Rules\Context\RuleUnit;
 use App\Rules\Definitions\HeatingCaseBIncompleteRule;
 use App\Rules\Definitions\HeatingCo2ShareStatusRule;
 use PHPUnit\Framework\Attributes\Test;
@@ -23,51 +24,101 @@ final class HeatingRulesTest extends TestCase
     use BuildsRuleContext;
 
     #[Test]
-    public function vollstaendige_daten_im_fall_b_ergeben_keinen_befund(): void
+    public function erfasste_betraege_fuer_alle_einheiten_ergeben_keinen_befund(): void
     {
-        $context = $this->context(heatingStatements: [
-            new RuleHeatingStatement(
-                'heiz-1',
-                HeatingSupplyCase::ZENTRAL_OHNE_EXTERN,
-                DatePeriodRange::calendarYear(2025),
-                null,
-                $this->euros('8000.00'),
-                [],
-                Co2ShareStatus::ENTHALTEN,
-                $this->euros('2400.00'),
-                $this->euros('5600.00'),
-                true,
-                $this->euros('900.00'),
-                $this->euros('300.00'),
-                $this->euros('1600.00'),
-                $this->euros('420.00'),
-            ),
-        ]);
+        $context = $this->context(
+            heatingStatements: [
+                new RuleHeatingStatement(
+                    'heiz-1',
+                    HeatingSupplyCase::ZENTRAL_OHNE_EXTERN,
+                    DatePeriodRange::calendarYear(2025),
+                    null,
+                    $this->euros('8000.00'),
+                    ['zeile-1' => $this->euros('5000.00'), 'zeile-2' => $this->euros('3000.00')],
+                    Co2ShareStatus::ENTHALTEN,
+                    manualEntry: true,
+                    unitKeysWithAmounts: ['einheit-1', 'einheit-2'],
+                ),
+            ],
+            units: [
+                new RuleUnit('einheit-1', 'Wohnung 1'),
+                new RuleUnit('einheit-2', 'Wohnung 2'),
+            ],
+        );
 
         $this->assertSame([], $this->evaluate(new HeatingCaseBIncompleteRule, $context));
     }
 
     #[Test]
-    public function unvollstaendige_daten_im_fall_b_blockieren_mit_deutlichem_hinweis(): void
+    public function eine_einheit_ohne_erfasste_betraege_blockiert_mit_deutlichem_hinweis(): void
+    {
+        $context = $this->context(
+            heatingStatements: [
+                new RuleHeatingStatement(
+                    'heiz-1',
+                    HeatingSupplyCase::ZENTRAL_OHNE_EXTERN,
+                    DatePeriodRange::calendarYear(2025),
+                    null,
+                    $this->euros('8000.00'),
+                    ['zeile-1' => $this->euros('5000.00')],
+                    Co2ShareStatus::ENTHALTEN,
+                    manualEntry: true,
+                    unitKeysWithAmounts: ['einheit-1'],
+                ),
+            ],
+            units: [
+                new RuleUnit('einheit-1', 'Wohnung 1'),
+                new RuleUnit('einheit-2', 'Wohnung 2'),
+            ],
+        );
+
+        $findings = $this->evaluate(new HeatingCaseBIncompleteRule, $context);
+
+        $this->assertCount(1, $findings);
+        $this->assertSame(ValidationSeverity::BLOCKER, $findings[0]->severity);
+        $this->assertStringContainsString('Wohnung 2', $findings[0]->description);
+        $this->assertStringNotContainsString('Wohnung 1', $findings[0]->description);
+        $this->assertStringContainsString('Heizkostenverordnung', $findings[0]->description);
+        $this->assertStringContainsString('Kürzungsrecht', $findings[0]->description);
+        $this->assertStringContainsString('Messdienstleister', $findings[0]->description);
+        $this->assertStringContainsString('nicht wegklickbar', $findings[0]->description);
+    }
+
+    #[Test]
+    public function ohne_jede_erfassung_blockiert_der_fall_b(): void
+    {
+        $context = $this->context(
+            heatingStatements: [
+                new RuleHeatingStatement(
+                    'heiz-1',
+                    HeatingSupplyCase::ZENTRAL_OHNE_EXTERN,
+                    DatePeriodRange::calendarYear(2025),
+                ),
+            ],
+            units: [new RuleUnit('einheit-1', 'Wohnung 1')],
+        );
+
+        $findings = $this->evaluate(new HeatingCaseBIncompleteRule, $context);
+
+        $this->assertCount(1, $findings);
+        $this->assertStringContainsString('Wohnung 1', $findings[0]->description);
+    }
+
+    #[Test]
+    public function ohne_bekannte_einheiten_blockiert_der_fall_b_ebenfalls(): void
     {
         $context = $this->context(heatingStatements: [
             new RuleHeatingStatement(
                 'heiz-1',
                 HeatingSupplyCase::ZENTRAL_OHNE_EXTERN,
                 DatePeriodRange::calendarYear(2025),
-                null,
-                $this->euros('8000.00'),
             ),
         ]);
 
         $findings = $this->evaluate(new HeatingCaseBIncompleteRule, $context);
 
         $this->assertCount(1, $findings);
-        $this->assertSame(ValidationSeverity::BLOCKER, $findings[0]->severity);
-        $this->assertStringContainsString('Heizkostenverordnung', $findings[0]->description);
-        $this->assertStringContainsString('Kürzungsrecht', $findings[0]->description);
-        $this->assertStringContainsString('Messdienstleister', $findings[0]->description);
-        $this->assertStringContainsString('Grundkosten', $findings[0]->description);
+        $this->assertStringContainsString('alle Einheiten', $findings[0]->description);
     }
 
     #[Test]

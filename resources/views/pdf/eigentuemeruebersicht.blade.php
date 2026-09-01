@@ -229,6 +229,28 @@
     </table>
 @endif
 
+{{--
+    TEXTBAUSTEIN ANWALTLICH FREIZUGEBEN.
+
+    Vermerk fuer Fall B (Zentralheizung ohne externen Abrechner): erfasste
+    Herkunft der Berechnung und der Hinweis, dass keine Pruefung durch die
+    Plattform erfolgt ist. Keine Garantieaussage, keine Paragrafenangabe.
+--}}
+@if ($view->manualHeatingEntry)
+    <h2>Manuell erfasste Heizkosten</h2>
+    <p data-vermerk="heizkosten-manuell">
+        Die Heizkosten je Einheit wurden vom Vermieter selbst ermittelt und unverändert übernommen. Eine Prüfung
+        der Verteilung nach Grund- und Verbrauchskosten sowie der CO2-Kostenaufteilung ist durch die Plattform
+        nicht erfolgt. Verantwortlich für die Richtigkeit der Werte ist der Vermieter.
+    </p>
+    <table class="infoblock">
+        <tr>
+            <td class="bezeichnung">Herkunft der Berechnung</td>
+            <td>{{ $view->manualHeatingOrigin ?? 'Keine Angabe erfasst.' }}</td>
+        </tr>
+    </table>
+@endif
+
 <h2>Manuelle Entscheidungen</h2>
 @if ($view->manualDecisions === [])
     <p>Es wurden keine manuellen Entscheidungen erfasst.</p>

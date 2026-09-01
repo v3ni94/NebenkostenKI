@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Auth;
 
+use App\Application\Account\TwoFactorAuthentication;
 use App\Enums\UserStatus;
 use App\Http\Requests\GermanFormRequest;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
@@ -33,6 +35,16 @@ use Illuminate\Validation\ValidationException;
  *     Laufzeitunterschied zwischen unbekannter Adresse und falschem Passwort.
  *     Wegen des Argon2id-Hashings ist dieser Unterschied ohnehin gering, die
  *     Verzoegerung schliesst ihn ab.
+ *
+ * ZWEITER FAKTOR (Masterprompt 8.1)
+ *
+ * Ist fuer das Konto ein bestaetigter Zweitfaktor hinterlegt, endet dieser
+ * Schritt bewusst OHNE Anmeldung. Die Sitzung merkt sich nur die Kennung des
+ * Kontos, der Nutzer bleibt bis zum gueltigen Code ein Gast und erreicht damit
+ * keinen geschuetzten Bereich. Den zweiten Schritt fuehrt
+ * App\Http\Controllers\Auth\TwoFactorChallengeController mit eigener
+ * Ratenbegrenzung. Die Statuspruefung des Kontos bleibt davon unberuehrt, sie
+ * laeuft weiterhin unmittelbar nach der Passwortpruefung.
  */
 class LoginRequest extends GermanFormRequest
 {
@@ -49,6 +61,11 @@ class LoginRequest extends GermanFormRequest
     public const SPERRE_SEKUNDEN = 60;
 
     public const SPERRE_IP_SEKUNDEN = 300;
+
+    /**
+     * Steht nach authenticate() der zweite Faktor noch aus?
+     */
+    private bool $zweitfaktorOffen = false;
 
     public function authorize(): bool
     {
@@ -111,6 +128,41 @@ class LoginRequest extends GermanFormRequest
         $this->ensureAccountIsUsable();
 
         RateLimiter::clear($this->throttleKey());
+
+        $this->ensureSecondFactor();
+    }
+
+    /**
+     * Verlangt bei aktivem Zweitfaktor den zweiten Schritt.
+     *
+     * Der Nutzer wird dafuer wieder abgemeldet. Die Sitzungsdaten bleiben
+     * erhalten, damit der zweite Schritt weiss, welches Konto gemeint ist.
+     */
+    private function ensureSecondFactor(): void
+    {
+        $nutzer = Auth::user();
+
+        if (! $nutzer instanceof User) {
+            return;
+        }
+
+        $zweiFaktor = app(TwoFactorAuthentication::class);
+
+        if (! $zweiFaktor->isConfirmed($nutzer)) {
+            return;
+        }
+
+        $this->session()->put(TwoFactorAuthentication::SESSION_OFFENER_NUTZER, $nutzer->getKey());
+        $this->session()->put(TwoFactorAuthentication::SESSION_MERKEN, $this->boolean('remember'));
+
+        Auth::guard('web')->logout();
+
+        $this->zweitfaktorOffen = true;
+    }
+
+    public function zweitfaktorErforderlich(): bool
+    {
+        return $this->zweitfaktorOffen;
     }
 
     /**

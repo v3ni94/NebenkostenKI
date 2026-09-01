@@ -232,8 +232,14 @@
         </dl>
 
         <p class="mt-3 text-sm text-hvm-anthrazit">
-            Die Anmeldung mit einem zweiten Faktor über eine Authenticator-App wird vorbereitet. Sobald sie
-            verfügbar ist, können Sie sie hier aktivieren.
+            Mit einem zweiten Faktor verlangen wir bei jeder Anmeldung zusätzlich einen sechsstelligen Code aus
+            Ihrer Authenticator-App. Für Kundenkonten ist das freiwillig, für interne Kennungen verpflichtend.
         </p>
+
+        <div class="mt-4">
+            <x-hvm.button href="{{ route('two-factor.setup') }}" variant="secondary">
+                Zwei-Faktor-Authentifizierung verwalten
+            </x-hvm.button>
+        </div>
     </x-hvm.card>
 @endsection

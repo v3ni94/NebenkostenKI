@@ -7,6 +7,8 @@ use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\Auth\TwoFactorChallengeController;
+use App\Http\Controllers\Auth\TwoFactorSetupController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -34,12 +36,13 @@ use Illuminate\Support\Facades\Route;
 | Die Bestaetigungsroute traegt die Middleware signed. Eine manipulierte oder
 | abgelaufene URL wird mit 403 abgewiesen, ohne Auskunft ueber das Konto.
 |
-| OPTIONALE TOTP-2FA (Masterprompt 8.1): Das Datenmodell ist vorbereitet
-| (users.two_factor_secret, users.two_factor_confirmed_at), der Ablauf ist in
-| App\Application\Account\TwoFactorPreparation dokumentiert. Es gibt bewusst
-| noch keine Routen dafuer, damit kein halbfertiger Zweitfaktor entsteht.
-| TODO Phase 5: Routen zur Einrichtung, Bestaetigung und Abschaltung ergaenzen,
-| fuer Adminrollen verpflichtend schalten.
+| TOTP-2FA (Masterprompt 8.1): fuer Kunden optional, fuer Adminrollen
+| verpflichtend. Die Codeeingabe liegt bewusst NICHT in der Gruppe auth: Nach
+| der Passwortpruefung ist eine Sitzung mit offenem zweiten Faktor kein
+| angemeldeter Nutzer, sondern merkt sich nur die Kennung des Kontos. Damit
+| erreicht sie keinen geschuetzten Bereich. Die Ratenbegrenzung des zweiten
+| Schritts ist eigenstaendig, siehe
+| App\Http\Controllers\Auth\TwoFactorChallengeController.
 |
 */
 
@@ -65,6 +68,33 @@ Route::middleware('guest')->group(function (): void {
     Route::post('/passwort-neu', [NewPasswordController::class, 'store'])
         ->middleware('throttle:5,1')
         ->name('password.update');
+});
+
+// --- Zweiter Faktor, Codeeingabe ---------------------------------------------
+//
+// Ohne Middleware auth, weil die Sitzung zwischen Passwort und Code bewusst
+// nicht angemeldet ist. Der Zugang ist allein ueber den Sitzungsschluessel
+// moeglich, den der erste Schritt gesetzt hat.
+
+Route::prefix('/zwei-faktor')->name('two-factor.')->group(function (): void {
+    Route::get('/code', [TwoFactorChallengeController::class, 'create'])->name('challenge');
+    Route::post('/code', [TwoFactorChallengeController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('challenge.store');
+    Route::post('/abbrechen', [TwoFactorChallengeController::class, 'abort'])->name('abort');
+});
+
+Route::middleware('auth')->prefix('/zwei-faktor')->name('two-factor.')->group(function (): void {
+    Route::get('/einrichten', [TwoFactorSetupController::class, 'show'])->name('setup');
+    Route::post('/einrichten', [TwoFactorSetupController::class, 'start'])
+        ->middleware('throttle:10,1')
+        ->name('setup.start');
+    Route::post('/bestaetigen', [TwoFactorSetupController::class, 'confirm'])
+        ->middleware('throttle:10,1')
+        ->name('confirm');
+    Route::post('/abschalten', [TwoFactorSetupController::class, 'disable'])
+        ->middleware('throttle:10,1')
+        ->name('disable');
 });
 
 Route::middleware('auth')->group(function (): void {

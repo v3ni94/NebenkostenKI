@@ -32,7 +32,8 @@ final class AccountTest extends PortalTestCase
         $antwort->assertSee('Rechnungsanschrift');
         $antwort->assertSee('Erinnerungen');
         $antwort->assertSee('Zwei-Faktor-Authentifizierung');
-        $antwort->assertSee('In Vorbereitung');
+        $antwort->assertSee('Nicht aktiv');
+        $antwort->assertSee(route('two-factor.setup'), false);
     }
 
     public function test_stammdaten_und_rechnungsanschrift_werden_gespeichert(): void

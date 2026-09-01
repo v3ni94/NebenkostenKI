@@ -5,69 +5,31 @@ declare(strict_types=1);
 namespace App\Domain\Calculation\Heating;
 
 /**
- * Fall B: Zentralheizung ohne externe Heizkostenabrechnung.
+ * Fall B: Zentralheizung ohne externen Abrechner.
  *
- * Klar abgegrenztes, VORBEREITETES Modul für die Eigenberechnung nach
- * HeizkostenV. Der Rechenweg ist bewusst NICHT freigeschaltet:
+ * EINE EIGENBERECHNUNG NACH HEIZKOSTENVERORDNUNG IST BEWUSST NICHT TEIL DES
+ * LEISTUNGSUMFANGS. Sie ist nicht geplant und wird nicht freigeschaltet. Die
+ * Verantwortung fuer die verbrauchsabhaengige Verteilung liegt beim Vermieter
+ * beziehungsweise seinem Messdienstleister.
  *
- * - Sind Daten unvollständig, wird IncompleteHeatingDataException geworfen
- *   und die fehlenden Angaben werden konkret benannt.
- * - Sind die Daten vollständig, wird HeatingCalculationNotReleasedException
- *   geworfen, solange das Modul fachlich nicht freigegeben ist.
+ * Fall B wird ausschliesslich ueber die manuelle Erfassung abgedeckt: Der
+ * Anwender ermittelt die Verteilung nach Grund- und Verbrauchskosten sowie die
+ * CO2-Kostenaufteilung ausserhalb der Plattform und traegt die
+ * Ergebnisbetraege je Einheit ein. Die Plattform uebernimmt diese Betraege
+ * unveraendert als Direktzuordnung, rechnet sie nicht nach und verteilt sie
+ * nicht selbst (siehe ManualHeatingReconciler und
+ * App\Application\Heating\StoreManualHeatingEntries).
  *
- * Damit ist ausgeschlossen, dass eine unfertige Automatik ein scheinbar
- * korrektes Ergebnis liefert (Pflichtenheft Abschnitt 12.3, Fall B).
- *
- * Geplanter Rechenweg nach Freischaltung (Reihenfolge verbindlich):
- * 1. Gesamtkosten der Wärmeversorgung bilden: Brennstoffkosten unter
- *    Berücksichtigung des Brennstoffbestands zu Beginn und zum Ende des
- *    Zeitraums, Betriebsstrom, Wartung, Messdienstkosten.
- * 2. Warmwasseranteil nach dem erfassten Verfahren von den Heizkosten
- *    trennen.
- * 3. Aufteilung in Grundkosten und Verbrauchskosten anhand des zulässigen
- *    Grundkostenanteils (Rahmen 30 bis 50 Prozent).
- * 4. Grundkosten nach beheizter Wohnfläche, Verbrauchskosten nach erfassten
- *    Verbrauchswerten verteilen.
- * 5. CO2-Kosten nach dem Stufenmodell anhand der Gebäudeemission je
- *    Quadratmeter aufteilen.
- * 6. Rundung ausschließlich am Ende jeder Kostenzeile mit dem
- *    Largest-Remainder-Verfahren, damit die Prüfsumme exakt bleibt.
+ * Diese Klasse bleibt als Vollstaendigkeitspruefung bestehen. Sie benennt,
+ * welche Angaben einer Eigenberechnung fehlen wuerden, und wird fuer
+ * Hinweistexte und Pruefaufgaben verwendet. Sie rechnet nichts und wirft keine
+ * Ausnahme, die eine kuenftige Freischaltung suggeriert.
  */
 final class HeizkostenVCalculator
 {
     /**
-     * Freischaltungsschalter des Moduls. Erst nach vollständiger Umsetzung
-     * und fachlicher Prüfung auf true setzen.
-     */
-    public const bool RELEASED = false;
-
-    public function isReleased(): bool
-    {
-        return self::RELEASED;
-    }
-
-    /**
-     * Eigenberechnung nach HeizkostenV.
-     *
-     * @throws IncompleteHeatingDataException bei unvollständigen Daten
-     * @throws HeatingCalculationNotReleasedException solange das Modul nicht freigeschaltet ist
-     */
-    public function calculate(HeizkostenVInput $input): HeizkostenVResult
-    {
-        $missing = $this->missingFields($input);
-
-        if ($missing !== []) {
-            throw IncompleteHeatingDataException::missingFields($missing);
-        }
-
-        // Auch bei vollständigen Daten liefert das Modul bewusst kein Ergebnis,
-        // solange der oben dokumentierte Rechenweg nicht umgesetzt und fachlich
-        // freigegeben ist. Eine scheinbar korrekte Automatik ist ausgeschlossen.
-        throw HeatingCalculationNotReleasedException::create();
-    }
-
-    /**
-     * Benennt alle für eine vollständige Eigenberechnung fehlenden Angaben.
+     * Benennt alle Angaben, die einer Eigenberechnung nach
+     * Heizkostenverordnung fehlen wuerden.
      *
      * @return list<string>
      */
@@ -119,7 +81,8 @@ final class HeizkostenVCalculator
     }
 
     /**
-     * Ist die Datenlage für eine Eigenberechnung vollständig?
+     * Waere die Datenlage fuer eine Eigenberechnung vollstaendig? Auch dann
+     * rechnet die Plattform nicht selbst.
      */
     public function hasCompleteData(HeizkostenVInput $input): bool
     {
@@ -127,7 +90,8 @@ final class HeizkostenVCalculator
     }
 
     /**
-     * Zulässiger Rahmen des Grundkostenanteils in Prozent.
+     * Zulaessiger Rahmen des Grundkostenanteils in Prozent. Reine
+     * Hinweisangabe fuer die Oberflaeche.
      *
      * @return array{0: int, 1: int}
      */

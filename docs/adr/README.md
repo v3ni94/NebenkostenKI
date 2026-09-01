@@ -23,6 +23,8 @@ mit Messwerten.
 | ADR-011 | Eigene Zählertabelle für den Rechnungsnummernkreis | ARCHITECTURE.md |
 | ADR-012 | Statusfortschritt als eigener Dienst, nicht als Sitzungszustand | ARCHITECTURE.md |
 | ADR-013 | Final-PDFs entstehen auf demselben Renderweg wie die Vorschau | ARCHITECTURE.md |
+| ADR-014 | Heizkostenfall B wird manuell erfasst, nicht selbst gerechnet | ARCHITECTURE.md |
+| ADR-015 | Zweitfaktor selbst implementiert, ohne neue Abhängigkeit | ARCHITECTURE.md |
 
 ## Vorlage für eine neue Entscheidung
 

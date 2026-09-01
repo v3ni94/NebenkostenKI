@@ -16,6 +16,7 @@ use App\Http\Controllers\Portal\Review\AnalysisStatusController;
 use App\Http\Controllers\Portal\Review\BillingModeController;
 use App\Http\Controllers\Portal\Review\CostReviewController;
 use App\Http\Controllers\Portal\Review\HeatingMatrixController;
+use App\Http\Controllers\Portal\Review\ManualHeatingController;
 use App\Http\Controllers\Portal\TenancyController;
 use App\Http\Controllers\Portal\UnitController;
 use App\Http\Controllers\Portal\Upload\ChunkUploadController;
@@ -160,6 +161,16 @@ Route::middleware('organisation')->group(function (): void {
 
     Route::get('/abrechnungen/{billingRun}/heizkosten', [HeatingMatrixController::class, 'show'])
         ->name('pruefung.heizkosten');
+
+    // Fall B, Zentralheizung ohne externen Abrechner: der Vermieter ermittelt
+    // die Betraege je Einheit selbst und traegt sie hier ein. Die Plattform
+    // uebernimmt sie unveraendert als Direktzuordnung und rechnet die
+    // Verteilung nach Grund- und Verbrauchskosten sowie die CO2-Aufteilung
+    // ausdruecklich NICHT nach (ADR-014).
+    Route::get('/abrechnungen/{billingRun}/heizkosten/erfassung', [ManualHeatingController::class, 'edit'])
+        ->name('pruefung.heizkosten.erfassung');
+    Route::post('/abrechnungen/{billingRun}/heizkosten/erfassung', [ManualHeatingController::class, 'store'])
+        ->name('pruefung.heizkosten.speichern');
 
     Route::get('/abrechnungen/{billingRun}/abrechnungsweg', [BillingModeController::class, 'edit'])
         ->name('pruefung.weg.edit');

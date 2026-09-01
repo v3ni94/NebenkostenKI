@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Requests\Auth;
 
 use App\Http\Requests\GermanFormRequest;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
 /**
@@ -20,6 +19,19 @@ use Illuminate\Validation\Rules\Password;
  * die ersten fuenf Zeichen eines SHA-1-Praefix uebertragen werden. Sie ist vor
  * Livegang zu entscheiden und in der Datenschutzerklaerung zu erwaehnen.
  * Bis dahin ist sie bewusst nicht aktiviert.
+ *
+ * KEINE KONTOERKENNUNG
+ *
+ * Die Regel unique auf users.email ist bewusst ENTFERNT. Sie hat verraten, ob zu
+ * einer Adresse ein Konto besteht. Die Entscheidung faellt jetzt im Controller
+ * App\Http\Controllers\Auth\RegisteredUserController: Bei einer bereits
+ * registrierten Adresse antwortet die Anwendung mit derselben Bestaetigung,
+ * legt kein zweites Konto an und sendet stattdessen eine sachliche Hinweismail
+ * an die bestehende Adresse.
+ *
+ * Alle uebrigen Regeln bleiben unveraendert scharf: Format und Laenge der
+ * Adresse, Passwortlaenge, Buchstaben und Ziffern, Wiederholung und die
+ * Einwilligung.
  */
 class RegisterRequest extends GermanFormRequest
 {
@@ -40,7 +52,6 @@ class RegisterRequest extends GermanFormRequest
                 'string',
                 'email:rfc',
                 'max:190',
-                Rule::unique('users', 'email'),
             ],
             'password' => [
                 'required',
@@ -71,15 +82,6 @@ class RegisterRequest extends GermanFormRequest
     protected function eigeneMeldungen(): array
     {
         return [
-            // Bewusst neutral formuliert. Die Meldung bestaetigt nicht, dass ein
-            // Konto besteht. OFFENER PUNKT: Vollstaendig frei von
-            // Kontoerkennung wird die Registrierung erst, wenn sie auch bei
-            // vorhandener Adresse mit derselben Bestaetigungsseite antwortet und
-            // stattdessen eine Hinweismail an die bestehende Adresse geht. Das
-            // beruehrt den E-Mail-Versand und ist mit dem Kommunikationspaket
-            // abzustimmen.
-            'email.unique' => 'Mit dieser E-Mail-Adresse ist keine Registrierung möglich. '
-                .'Falls Sie bereits ein Konto besitzen, melden Sie sich bitte an oder setzen Sie Ihr Passwort zurück.',
             'password.min' => 'Das Passwort muss mindestens 12 Zeichen lang sein.',
             'password.letters' => 'Das Passwort muss mindestens einen Buchstaben enthalten.',
             'password.numbers' => 'Das Passwort muss mindestens eine Ziffer enthalten.',

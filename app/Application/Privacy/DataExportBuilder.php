@@ -243,6 +243,24 @@ final class DataExportBuilder
     }
 
     /**
+     * Spalten, die niemals in einen Datenexport gelangen.
+     *
+     * Die Hashes der Wiederherstellungscodes gehoeren ausdruecklich dazu. Sie
+     * sind zwar gehasht, aber ein Zweitfaktor-Geheimnis bleibt ein Geheimnis
+     * und hat in einer Datei, die das Konto nach draussen weitergibt, nichts
+     * zu suchen.
+     *
+     * @var list<string>
+     */
+    private const GEHEIME_SPALTEN = [
+        'password',
+        'password_hash',
+        'remember_token',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
+    ];
+
+    /**
      * @return array<string, mixed>
      */
     private function row(Model $model): array
@@ -251,7 +269,22 @@ final class DataExportBuilder
         $zeile = $model->attributesToArray();
 
         // Zugangsdaten und Geheimnisse gehören in keinen Export.
-        unset($zeile['password'], $zeile['remember_token'], $zeile['two_factor_secret']);
+        foreach (self::GEHEIME_SPALTEN as $spalte) {
+            unset($zeile[$spalte]);
+        }
+
+        // Zusaetzliche Absicherung gegen spaeter ergaenzte Spalten: alles, was
+        // ein Passwort oder ein Geheimnis benennt, wird entfernt, auch wenn es
+        // in der Liste oben noch fehlt. Ein Export ist ein Auslieferungsweg
+        // nach draussen, deshalb ist hier eine Positivliste zu starr und eine
+        // reine Namensliste zu leicht zu vergessen.
+        foreach (array_keys($zeile) as $spalte) {
+            if (str_contains($spalte, 'password')
+                || str_ends_with($spalte, '_secret')
+                || str_ends_with($spalte, '_recovery_codes')) {
+                unset($zeile[$spalte]);
+            }
+        }
 
         return $zeile;
     }

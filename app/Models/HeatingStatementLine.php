@@ -27,6 +27,12 @@ use Illuminate\Support\Carbon;
  * @property int|null $share_heating_cent
  * @property int|null $share_warm_water_cent
  * @property int|null $share_co2_cent
+ * @property int|null $share_co2_landlord_cent
+ * @property int|null $share_co2_tenant_cent
+ * @property int|null $share_other_cent
+ * @property int|null $usage_days
+ * @property string|null $usage_period_label
+ * @property bool $manual_heating_entry
  *
  * Dezimalspalten sind bewusst String und werden mit brick/math gerechnet, nie als float (ADR-004).
  * @property string|null $consumption
@@ -68,6 +74,12 @@ class HeatingStatementLine extends Model
             'share_heating_cent' => 'integer',
             'share_warm_water_cent' => 'integer',
             'share_co2_cent' => 'integer',
+            // Manuelle Erfassung fuer Heizkostenfall B, siehe ADR-014.
+            'share_co2_landlord_cent' => 'integer',
+            'share_co2_tenant_cent' => 'integer',
+            'share_other_cent' => 'integer',
+            'usage_days' => 'integer',
+            'manual_heating_entry' => 'boolean',
             'consumption' => 'decimal:4',
             'usage_period_start' => 'date',
             'usage_period_end' => 'date',

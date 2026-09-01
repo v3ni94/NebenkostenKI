@@ -4,19 +4,20 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Domain\Heating;
 
-use App\Domain\Calculation\Heating\HeatingCalculationNotReleasedException;
 use App\Domain\Calculation\Heating\HeizkostenVCalculator;
 use App\Domain\Calculation\Heating\HeizkostenVInput;
-use App\Domain\Calculation\Heating\IncompleteHeatingDataException;
 use App\Domain\Money\Money;
 use App\Domain\Period\DatePeriodRange;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
+use ReflectionClass;
+use ReflectionMethod;
 
 /**
- * Fall B: Zentralheizung ohne externe Abrechnung. Das Modul ist vorbereitet,
- * aber bewusst nicht freigeschaltet; bei unvollständigen Daten gibt es keine
- * scheinbar korrekte Automatik (Pflichtenheft Abschnitt 12.3).
+ * Fall B: Eine Eigenberechnung nach Heizkostenverordnung ist bewusst nicht
+ * Teil des Leistungsumfangs. Die Klasse prueft nur noch die Vollstaendigkeit
+ * der Angaben und wirft keine Ausnahme mehr, die eine Freischaltung
+ * suggeriert.
  */
 final class HeizkostenVCalculatorTest extends TestCase
 {
@@ -25,15 +26,6 @@ final class HeizkostenVCalculatorTest extends TestCase
     protected function setUp(): void
     {
         $this->calculator = new HeizkostenVCalculator;
-    }
-
-    #[Test]
-    public function unvollstaendige_daten_loesen_die_incomplete_heating_data_exception_aus(): void
-    {
-        $this->expectException(IncompleteHeatingDataException::class);
-        $this->expectExceptionMessage('keine Schätzung');
-
-        $this->calculator->calculate(new HeizkostenVInput(DatePeriodRange::calendarYear(2025)));
     }
 
     #[Test]
@@ -59,35 +51,45 @@ final class HeizkostenVCalculatorTest extends TestCase
     }
 
     #[Test]
-    public function vollstaendige_daten_liefern_kein_ergebnis_solange_das_modul_nicht_freigeschaltet_ist(): void
+    public function ohne_angaben_fehlen_alle_zehn_felder(): void
     {
-        $input = $this->completeInput();
+        $this->assertCount(10, $this->calculator->missingFields(new HeizkostenVInput(DatePeriodRange::calendarYear(2025))));
+    }
 
-        $this->assertTrue($this->calculator->hasCompleteData($input));
-        $this->assertFalse($this->calculator->isReleased());
+    #[Test]
+    public function vollstaendige_daten_werden_erkannt_ohne_eigene_berechnung(): void
+    {
+        $this->assertTrue($this->calculator->hasCompleteData($this->completeInput()));
+    }
 
-        $this->expectException(HeatingCalculationNotReleasedException::class);
-        $this->expectExceptionMessage('noch nicht freigeschaltet');
+    #[Test]
+    public function die_klasse_bietet_keine_eigenberechnung_an(): void
+    {
+        $methoden = array_map(
+            static fn (ReflectionMethod $methode): string => $methode->getName(),
+            (new ReflectionClass(HeizkostenVCalculator::class))->getMethods()
+        );
 
-        $this->calculator->calculate($input);
+        $this->assertNotContains('calculate', $methoden, 'Eine Eigenberechnung ist bewusst nicht vorgesehen.');
+        $this->assertNotContains('isReleased', $methoden, 'Es darf keine Freischaltung suggeriert werden.');
+        $this->assertSame(['missingFields', 'hasCompleteData', 'allowedBasicCostRange'], $methoden);
+    }
+
+    #[Test]
+    public function der_klassenkommentar_kennzeichnet_die_eigenberechnung_als_nicht_vorgesehen(): void
+    {
+        $kommentar = (new ReflectionClass(HeizkostenVCalculator::class))->getDocComment();
+
+        $this->assertIsString($kommentar);
+        $this->assertStringContainsString('BEWUSST NICHT TEIL DES', $kommentar);
+        $this->assertStringNotContainsString('noch nicht freigeschaltet', $kommentar);
+        $this->assertStringContainsString('manuelle Erfassung', $kommentar);
     }
 
     #[Test]
     public function der_zulaessige_grundkostenanteil_ist_dokumentiert(): void
     {
         $this->assertSame([30, 50], $this->calculator->allowedBasicCostRange());
-    }
-
-    #[Test]
-    public function die_liste_der_fehlenden_felder_bleibt_in_der_exception_verfuegbar(): void
-    {
-        try {
-            $this->calculator->calculate(new HeizkostenVInput(DatePeriodRange::calendarYear(2025)));
-            $this->fail('Es wurde keine IncompleteHeatingDataException geworfen.');
-        } catch (IncompleteHeatingDataException $exception) {
-            $this->assertContains('Brennstoffkosten', $exception->missingFields);
-            $this->assertCount(10, $exception->missingFields);
-        }
     }
 
     private function completeInput(): HeizkostenVInput

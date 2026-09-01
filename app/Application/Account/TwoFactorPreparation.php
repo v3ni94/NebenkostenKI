@@ -4,62 +4,44 @@ declare(strict_types=1);
 
 namespace App\Application\Account;
 
+use App\Domain\Security\TimeBasedOneTimePassword;
 use App\Models\User;
 
 /**
- * Vorbereitung der optionalen TOTP-Zwei-Faktor-Authentifizierung.
+ * Feste Parameter und Statusanzeige der TOTP-Zwei-Faktor-Authentifizierung.
  *
  * Vorgabe des Masterprompts, Abschnitt 8.1: optional TOTP-2FA, fuer Admins
- * verpflichtend. Die Freischaltung erfolgt in Phase 5.
+ * verpflichtend.
  *
- * ABSICHTLICH OHNE KRYPTOGRAFIE
+ * ZUSTAENDIGKEIT
  *
- * Diese Klasse enthaelt bewusst keinen Schluesselgenerator, keine
- * Base32-Kodierung und keine Codepruefung. Ein halbfertiger Zweitfaktor ist
- * gefaehrlicher als kein Zweitfaktor, weil er ein Sicherheitsversprechen
- * abgibt, das er nicht haelt. Enthalten sind nur die bereits im Datenmodell
- * vorhandenen Anknuepfungspunkte und die verbindlichen Parameter, damit die
- * Umsetzung spaeter nicht neu entschieden werden muss.
+ * Diese Klasse haelt ausschliesslich die verbindlichen Parameter und liefert
+ * den Anzeigetext fuer den Kontobereich. Die Kryptografie liegt in
+ * App\Domain\Security\TimeBasedOneTimePassword, der fachliche Ablauf in
+ * App\Application\Account\TwoFactorAuthentication.
  *
- * DATENMODELL, bereits vorhanden
+ * DATENMODELL
  *
- *   users.two_factor_secret        Text, anwendungsseitig verschluesselt
- *                                  (Cast "encrypted" am Modell User)
- *   users.two_factor_confirmed_at  DATETIME, gesetzt nach der ersten
- *                                  erfolgreichen Codepruefung
- *
- * ABLAUF, verbindlich fuer die spaetere Umsetzung
- *
- *   1. Einrichtung starten: Geheimnis erzeugen, verschluesselt speichern,
- *      two_factor_confirmed_at bleibt leer.
- *   2. QR-Code und Klartextgeheimnis genau einmal anzeigen.
- *   3. Der Nutzer bestaetigt mit einem gueltigen Code. Erst dann wird
- *      two_factor_confirmed_at gesetzt und der Faktor ist aktiv.
- *   4. Wiederherstellungscodes einmalig anzeigen, nur als Hash speichern.
- *   5. Deaktivierung nur nach erneuter Passworteingabe.
- *   6. Fuer Adminrollen ist der bestaetigte Faktor Pflicht. Das Gate
- *      access-admin in bootstrap/app.php ist dann um die Pruefung von
- *      two_factor_confirmed_at zu erweitern.
- *
- * TODO Phase 5: Umsetzung mit einer geprueften TOTP-Bibliothek. Vorgaben:
- * RFC 6238, HMAC-SHA1, 6 Stellen, 30 Sekunden Zeitfenster, Toleranz von einem
- * Schritt in beide Richtungen, Ratenbegrenzung der Codepruefung, Ausgabe der
- * Wiederherstellungscodes genau einmal.
+ *   users.two_factor_secret          Base32-Geheimnis, anwendungsseitig
+ *                                    verschluesselt (Cast "encrypted")
+ *   users.two_factor_confirmed_at    gesetzt nach der ersten erfolgreichen
+ *                                    Codepruefung
+ *   users.two_factor_recovery_codes  einzeln gehashte Wiederherstellungscodes
  */
 class TwoFactorPreparation
 {
-    public const ALGORITHMUS = 'SHA1';
+    public const string ALGORITHMUS = 'SHA1';
 
-    public const STELLEN = 6;
+    public const int STELLEN = TimeBasedOneTimePassword::STELLEN;
 
-    public const ZEITFENSTER_SEKUNDEN = 30;
+    public const int ZEITFENSTER_SEKUNDEN = TimeBasedOneTimePassword::ZEITFENSTER_SEKUNDEN;
 
     /**
      * Toleranz in Zeitfenstern, um Uhrabweichungen auszugleichen.
      */
-    public const TOLERANZ_SCHRITTE = 1;
+    public const int TOLERANZ_SCHRITTE = TimeBasedOneTimePassword::TOLERANZ_SCHRITTE;
 
-    public const AUSSTELLER = 'Smart Abrechnen';
+    public const string AUSSTELLER = 'Smart Abrechnen';
 
     /**
      * Ist der Zweitfaktor fuer diesen Nutzer bereits bestaetigt?
@@ -91,6 +73,6 @@ class TwoFactorPreparation
             return 'Einrichtung begonnen';
         }
 
-        return 'In Vorbereitung';
+        return 'Nicht aktiv';
     }
 }

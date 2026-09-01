@@ -171,6 +171,33 @@ final class DataExportTest extends PrivacyTestCase
         self::assertStringContainsString((string) $a['user']->getAttribute('email'), $konto);
     }
 
+    public function test_export_enthaelt_keine_wiederherstellungscodes_des_zweitfaktors(): void
+    {
+        // Die Codes sind gehasht, bleiben aber ein Zweitfaktor-Geheimnis und
+        // haben in einer Datei, die das Konto nach draussen weitergibt, nichts
+        // zu suchen.
+        $a = $this->mandant('A');
+
+        $a['user']->forceFill([
+            'two_factor_secret' => 'JBSWY3DPEHPK3PXP',
+            'two_factor_confirmed_at' => now(),
+            'two_factor_recovery_codes' => ['hash-eins', 'hash-zwei'],
+        ])->save();
+
+        $ergebnis = $this->exportiere($a['user'], $a['organization']);
+        $eintraege = $this->zipEintraege((string) $ergebnis->document->getAttribute('storage_path'));
+
+        $konto = $eintraege['daten/konto.json'];
+
+        self::assertStringNotContainsString('two_factor_recovery_codes', $konto);
+        self::assertStringNotContainsString('hash-eins', $konto);
+        self::assertStringNotContainsString('hash-zwei', $konto);
+
+        // Die Tatsache, dass ein Zweitfaktor aktiv ist, darf der Nutzer
+        // erfahren; nur das Geheimnis selbst nicht.
+        self::assertStringContainsString('two_factor_confirmed_at', $konto);
+    }
+
     public function test_export_wird_als_artefakt_gefuehrt_und_protokolliert(): void
     {
         $a = $this->mandant('A');

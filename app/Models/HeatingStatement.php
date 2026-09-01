@@ -28,6 +28,12 @@ use Illuminate\Support\Carbon;
  * @property string $billing_run_id
  * @property string|null $document_id
  * @property string|null $provider_name
+ * @property bool $manual_entry
+ * @property string|null $calculation_origin
+ * @property int|null $co2_landlord_cent
+ * @property int|null $co2_tenant_cent
+ * @property int|null $other_cost_cent
+ * @property string|null $manual_source_decision
  * @property Carbon $period_start
  * @property Carbon $period_end
  * @property HeatingSupplyCase $supply_case
@@ -70,6 +76,11 @@ class HeatingStatement extends Model
     protected function casts(): array
     {
         return [
+            // Manuelle Erfassung fuer Heizkostenfall B, siehe ADR-014.
+            'manual_entry' => 'boolean',
+            'co2_landlord_cent' => 'integer',
+            'co2_tenant_cent' => 'integer',
+            'other_cost_cent' => 'integer',
             'period_start' => 'date',
             'period_end' => 'date',
             'supply_case' => HeatingSupplyCase::class,

@@ -8,11 +8,13 @@ use App\Domain\Money\Money;
 use App\Domain\Period\DatePeriodRange;
 
 /**
- * Eingabedaten der Eigenberechnung nach HeizkostenV (Fall B).
+ * Angaben, die eine Eigenberechnung nach Heizkostenverordnung erfordern würde.
  *
- * Alle Felder sind bewusst optional, damit die Vollständigkeitsprüfung des
- * HeizkostenVCalculator die fehlenden Angaben konkret benennen kann. Fehlende
- * Werte bleiben null und werden niemals geschätzt (Grundsatz 5).
+ * Eine solche Eigenberechnung ist bewusst nicht Teil des Leistungsumfangs
+ * (siehe HeizkostenVCalculator). Die Struktur dient ausschließlich der
+ * Vollständigkeitsprüfung für Hinweistexte und Prüfaufgaben. Alle Felder sind
+ * optional, damit die fehlenden Angaben konkret benannt werden können.
+ * Fehlende Werte bleiben null und werden niemals geschätzt (Grundsatz 5).
  */
 final readonly class HeizkostenVInput
 {

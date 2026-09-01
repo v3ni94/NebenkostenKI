@@ -13,6 +13,22 @@
         </x-hvm.alert>
     @endif
 
+    @if ($matrix->manualSourceConflict && $matrix->manualConflictExplanation !== null)
+        <x-hvm.alert variant="warning" class="mt-6" data-heizkosten="quellenkonflikt">
+            <p>{{ $matrix->manualConflictExplanation }}</p>
+        </x-hvm.alert>
+    @endif
+
+    @if ($matrix->manualEntryPresent)
+        <x-hvm.alert variant="info" class="mt-6" data-heizkosten="manuell-erfasst">
+            <p>
+                Für diesen Zeitraum sind Heizkosten manuell erfasst. Die Plattform übernimmt die eingetragenen
+                Beträge unverändert als Direktzuordnung je Einheit. Sie prüft und berechnet die Verteilung nach
+                Grund- und Verbrauchskosten sowie die CO2-Kostenaufteilung nicht.
+            </p>
+        </x-hvm.alert>
+    @endif
+
     @if ($matrix->externalStatementPresent)
         <x-hvm.alert variant="info" class="mt-6">
             <p>
@@ -86,8 +102,17 @@
         </x-hvm.alert>
     @endforeach
 
-    <div class="mt-8">
+    <div class="mt-8 flex flex-wrap gap-3">
         <x-hvm.button href="{{ route('portal.pruefung.kosten', ['billingRun' => $billingRun->getKey()]) }}"
                       variant="secondary" size="sm">Zurück zur Kostenprüfung</x-hvm.button>
+        {{--
+            Die Route der manuellen Erfassung wird zentral in routes/portal.php
+            eingetragen. Bis dahin bleibt die Schaltflaeche ausgeblendet, damit
+            die Seite in jeder Umgebung fehlerfrei rendert.
+        --}}
+        @if (Route::has('portal.pruefung.heizkosten.erfassung'))
+            <x-hvm.button href="{{ route('portal.pruefung.heizkosten.erfassung', ['billingRun' => $billingRun->getKey()]) }}"
+                          variant="secondary" size="sm">Heizkosten selbst erfassen</x-hvm.button>
+        @endif
     </div>
 @endsection

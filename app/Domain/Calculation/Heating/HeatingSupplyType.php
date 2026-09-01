@@ -10,10 +10,13 @@ namespace App\Domain\Calculation\Heating;
  * EXTERNAL_STATEMENT          Fall A: externe Heizkostenabrechnung liegt vor.
  *                             Einzelbeträge je Einheit werden direkt
  *                             zugeordnet und gegen die Gesamtsumme geprüft.
- * CENTRAL_WITHOUT_STATEMENT   Fall B: Zentralheizung ohne externe Abrechnung.
- *                             Eigenberechnung nach HeizkostenV nur bei
- *                             vollständigen Daten; bis zur Freischaltung
- *                             keine scheinbar korrekte Automatik.
+ * CENTRAL_WITHOUT_STATEMENT   Fall B: Zentralheizung ohne externen
+ *                             Abrechner. Eine Eigenberechnung nach
+ *                             Heizkostenverordnung ist bewusst nicht Teil des
+ *                             Leistungsumfangs. Der Anwender erfasst die
+ *                             selbst ermittelten Beträge je Einheit; sie
+ *                             werden unverändert als Direktzuordnung
+ *                             übernommen.
  * DECENTRALIZED               Fall C: dezentrale Versorgung. Der Mieter
  *                             bezieht Energie direkt; es werden keine
  *                             Heizkosten als Vermieterkosten angesetzt.

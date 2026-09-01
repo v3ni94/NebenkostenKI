@@ -4,7 +4,8 @@
 **Kanonische Domain:** `https://smart-abrechnen.de`
 **Betreiber:** Hausverwaltung Müller GmbH
 **Stand dieses Dokuments:** 01.09.2026
-**Status:** Phasen 0 bis 5 umgesetzt. 1.715 Tests mit 11.586 Assertions grün,
+**Status:** Phasen 0 bis 5 umgesetzt, dazu die manuelle Heizkostenerfassung für
+Fall B (ADR-014) und der Zweitfaktor (ADR-015). 1.860 Tests mit 12.158 Assertions grün,
 PHPStan Level 6 projektweit fehlerfrei, Pint sauber. Der Livegang ist
 ausschließlich durch Betreiberangaben blockiert, nicht durch offene
 Entwicklungsarbeit. Die unabhängige Abschlussprüfung ist in
@@ -318,6 +319,63 @@ keine entfernbare Ebene) und `Feature/Pdf/FinalIsRegeneratedTest`, insbesondere
 `::test_geloeschte_vorschau_verhindert_die_finalversion_nicht`.
 
 ---
+
+### ADR-014: Heizkostenfall B wird manuell erfasst, nicht selbst gerechnet
+
+**Entscheidung:** Für eine Zentralheizung ohne externen Abrechner setzt die
+Plattform **keine** eigene Berechnung nach Heizkostenverordnung um. Der
+Vermieter ermittelt die Beträge je Einheit selbst, außerhalb der Plattform, und
+trägt nur die Ergebnisbeträge ein: Heizung, Warmwasser, CO2-Anteil des
+Vermieters, CO2-Anteil des Mieters und sonstige Kosten des Heizbetriebs, dazu
+die Herkunft der Berechnung als Freitext.
+
+**Begründung:** Eine selbst gerechnete Verteilung nach Grund- und
+Verbrauchskosten samt CO2-Stufenmodell wäre eine fachliche Aussage über die
+Angemessenheit der Umlage. Sie träfe eine Bewertung, für die die Plattform
+weder die Messdaten noch die Verantwortung hat, und sie stünde im Widerspruch
+zum Grundsatz, dass fehlende oder unsichere Werte nicht geschätzt werden. Der
+Auftraggeber hat diesen Leistungsumfang deshalb ausdrücklich begrenzt.
+
+**Konsequenzen:**
+
+- Die Beträge werden unverändert als Direktzuordnung je Einheit übernommen und
+  bei einem Mieterwechsel innerhalb der Einheit zeitanteilig nach Nutzungstagen
+  verteilt. Die Plattform rechnet die Verteilung selbst nicht nach.
+- An drei Stellen steht ein sachlicher Hinweis: in der Eingabemaske, als
+  Vermerk in der Mieter-PDF und im internen Blatt der Eigentümerübersicht
+  zusammen mit der erfassten Herkunft. Alle drei Textbausteine sind als
+  anwaltlich freizugeben gekennzeichnet und nennen keine Paragrafen.
+- Liegt zusätzlich eine externe Abrechnung oder eine WEG-Summenposition für
+  dieselbe Einheit und denselben Zeitraum vor, wird **nicht** addiert. Es
+  entsteht eine Prüfaufgabe, und der Nutzer entscheidet über die Quelle.
+- Eine Prüfsumme gegen einen optional erfassten Gesamtbetrag blockiert die
+  Finalisierung bei einer Abweichung über der Toleranz. Ohne Gesamtbetrag
+  entfällt die Gegenprobe, und darauf wird hingewiesen.
+- `HeizkostenVCalculator` bleibt als Vollständigkeitsprüfung bestehen, ist aber
+  ausdrücklich als **nicht vorgesehen** gekennzeichnet, nicht als „noch nicht
+  freigeschaltet“. Der irreführende Ausnahmepfad, der eine spätere Freischaltung
+  suggerierte, ist entfernt.
+- Die Beträge werden bewusst **nicht** in das Folgejahr übernommen. Abschnitt
+  8.3 verlangt, dass Heizkosten für das neue Jahr erneut erfasst und bestätigt
+  werden.
+
+### ADR-015: Zweitfaktor selbst implementiert, ohne neue Abhängigkeit
+
+**Entscheidung:** TOTP nach RFC 6238 ist als eigene, framework-freie Klasse in
+`app/Domain/Security/` umgesetzt, samt eigener Base32-Kodierung.
+
+**Begründung:** Der Zweitfaktor ist für Adminrollen verpflichtend, und ohne ihn
+war der Adminbereich in der Produktionsumgebung dauerhaft gesperrt, also ein
+Betriebsblocker. Der Umfang ist klein und vollständig durch die offiziellen
+Testvektoren des Standards prüfbar, weshalb eine zusätzliche Abhängigkeit
+keinen Gewinn gebracht hätte.
+
+**Konsequenz:** Die Implementierung wird gegen alle sechs SHA1-Testvektoren aus
+RFC 6238, Anhang B, geprüft, nicht nur gegen sich selbst. Das Geheimnis liegt
+anwendungsseitig verschlüsselt, die acht Wiederherstellungscodes einzeln
+gehasht; ein verbrauchter Code ist entwertet. Ein QR-Bild wird bewusst nicht
+erzeugt, weil es eine weitere Abhängigkeit erfordern würde; die otpauth-URI und
+der abtippbare Schlüssel genügen.
 
 ## 4. Ordnerstruktur
 

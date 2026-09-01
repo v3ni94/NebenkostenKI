@@ -7,10 +7,12 @@ namespace Tests\Feature\Auth;
 use App\Enums\OrganizationRole;
 use App\Enums\OrganizationType;
 use App\Enums\UserStatus;
+use App\Models\AuditLog;
 use App\Models\Organization;
 use App\Models\OrganizationUser;
 use App\Models\ReminderPreference;
 use App\Models\User;
+use App\Notifications\KontoBereitsVorhanden;
 use App\Notifications\VerifyEmailAddress;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -145,22 +147,123 @@ final class RegistrationTest extends TestCase
         self::assertSame(0, User::query()->count());
     }
 
-    public function test_registrierung_mit_bereits_vergebener_adresse_verraet_kein_konto(): void
+    public function test_registrierung_mit_bereits_vergebener_adresse_legt_kein_zweites_konto_an(): void
     {
-        User::factory()->create(['email' => 'schon.da@beispiel.invalid']);
+        Notification::fake();
+
+        /** @var User $vorhanden */
+        $vorhanden = User::factory()->create(['email' => 'schon.da@beispiel.invalid']);
 
         $antwort = $this->post(route('register'), $this->gueltigeAngaben([
             'email' => 'schon.da@beispiel.invalid',
         ]));
 
-        $antwort->assertSessionHasErrors('email');
+        // Dieselbe Antwort wie bei einer erfolgreichen Registrierung.
+        $antwort->assertRedirect(route('verification.notice'));
+        $antwort->assertSessionHasNoErrors();
+        $antwort->assertSessionHas('status');
 
-        $fehler = session('errors')?->get('email') ?? [];
-        $text = implode(' ', $fehler);
+        // Kein zweites Konto, keine zweite Organisation, keine Anmeldung.
+        self::assertSame(1, User::query()->where('email', 'schon.da@beispiel.invalid')->count());
+        self::assertSame(1, User::query()->count());
+        self::assertGuest();
 
-        // Die Meldung darf nicht bestaetigen, dass ein Konto existiert.
-        self::assertStringNotContainsString('besteht bereits ein Konto', $text);
-        self::assertStringContainsString('keine Registrierung möglich', $text);
+        // Hinweismail an die bestehende Adresse.
+        Notification::assertSentTo($vorhanden, KontoBereitsVorhanden::class);
+        Notification::assertNotSentTo($vorhanden, VerifyEmailAddress::class);
+
+        // Der Versand ist protokolliert.
+        self::assertSame(
+            1,
+            AuditLog::query()->where('action', 'account.register_existing_email')->count(),
+        );
+    }
+
+    public function test_die_antwort_ist_bei_vorhandener_und_bei_neuer_adresse_identisch(): void
+    {
+        Notification::fake();
+
+        User::factory()->create(['email' => 'schon.da@beispiel.invalid']);
+
+        $vorhanden = $this->post(route('register'), $this->gueltigeAngaben([
+            'email' => 'schon.da@beispiel.invalid',
+        ]));
+
+        $this->flushSession();
+
+        $neu = $this->post(route('register'), $this->gueltigeAngaben([
+            'email' => 'ganz.neu@beispiel.invalid',
+        ]));
+
+        self::assertSame($neu->getStatusCode(), $vorhanden->getStatusCode());
+        self::assertSame($neu->headers->get('Location'), $vorhanden->headers->get('Location'));
+    }
+
+    public function test_die_hinweismail_nennt_anmeldung_und_passwort_reset(): void
+    {
+        /** @var User $vorhanden */
+        $vorhanden = User::factory()->create(['email' => 'schon.da@beispiel.invalid']);
+
+        $nachricht = (new KontoBereitsVorhanden)->toMail($vorhanden);
+
+        self::assertSame('Zu Ihrer E-Mail-Adresse besteht bereits ein Konto', $nachricht->subject);
+
+        $inhalt = (string) $nachricht->render();
+
+        self::assertStringContainsString(route('login'), $inhalt);
+        self::assertStringContainsString(route('password.request'), $inhalt);
+        // Die Nachricht enthaelt kein Passwort und keinen Namen aus dem Versuch.
+        self::assertStringNotContainsString('sicheres-passwort-2026', $inhalt);
+        self::assertStringNotContainsString('Maria Beispiel', $inhalt);
+    }
+
+    public function test_eine_zur_loeschung_vorgemerkte_kennung_erhaelt_keine_hinweismail(): void
+    {
+        Notification::fake();
+
+        /** @var User $vorhanden */
+        $vorhanden = User::factory()->create(['email' => 'schon.da@beispiel.invalid']);
+        $vorhanden->delete();
+
+        $antwort = $this->post(route('register'), $this->gueltigeAngaben([
+            'email' => 'schon.da@beispiel.invalid',
+        ]));
+
+        $antwort->assertRedirect(route('verification.notice'));
+        Notification::assertNothingSent();
+        self::assertSame(0, User::query()->count());
+    }
+
+    public function test_die_uebrigen_regeln_bleiben_scharf(): void
+    {
+        Notification::fake();
+
+        // Formatpruefung der Adresse
+        $this->post(route('register'), $this->gueltigeAngaben(['email' => 'keine-adresse']))
+            ->assertSessionHasErrors('email');
+
+        // Laengenbegrenzung der Adresse
+        $this->post(route('register'), $this->gueltigeAngaben([
+            'email' => str_repeat('a', 190).'@beispiel.invalid',
+        ]))->assertSessionHasErrors('email');
+
+        // Passwort ohne Ziffer
+        $this->post(route('register'), $this->gueltigeAngaben([
+            'password' => 'nurbuchstabenohnezahl',
+            'password_confirmation' => 'nurbuchstabenohnezahl',
+        ]))->assertSessionHasErrors('password');
+
+        // Passwort ohne Buchstaben
+        $this->post(route('register'), $this->gueltigeAngaben([
+            'password' => '1234567890123',
+            'password_confirmation' => '1234567890123',
+        ]))->assertSessionHasErrors('password');
+
+        // Name ist Pflicht
+        $this->post(route('register'), $this->gueltigeAngaben(['name' => '']))
+            ->assertSessionHasErrors('name');
+
+        self::assertSame(0, User::query()->count());
     }
 
     public function test_registrierung_ist_ohne_csrf_token_nicht_moeglich(): void

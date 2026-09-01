@@ -210,6 +210,8 @@ final class RuleContextFactory
                 $this->optionalMoney($statement->operating_current_cent),
                 $this->optionalMoney($statement->warm_water_cost_cent),
                 $this->optionalMoney($statement->co2_cost_cent),
+                $statement->getAttribute('manual_entry') === true,
+                $this->unitKeysWithAmounts($statement),
             );
         }
 
@@ -232,6 +234,30 @@ final class RuleContextFactory
         }
 
         return $amounts;
+    }
+
+    /**
+     * Einheiten, fuer die Betraege erfasst sind. Grundlage der Pruefung in
+     * Fall B, ob fuer jede Einheit Betraege vorliegen.
+     *
+     * @return list<string>
+     */
+    private function unitKeysWithAmounts(HeatingStatement $statement): array
+    {
+        $keys = [];
+
+        foreach ($statement->lines as $line) {
+            $unitId = $line->getAttribute('unit_id');
+            $amount = $line->share_total_cent;
+
+            if (! is_string($unitId) || $unitId === '' || $amount === null || $amount === 0) {
+                continue;
+            }
+
+            $keys[$unitId] = true;
+        }
+
+        return array_keys($keys);
     }
 
     private function hasConsumptionValues(HeatingStatement $statement): bool

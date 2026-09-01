@@ -91,6 +91,9 @@ Ohne MariaDB kann für Tests SQLite genutzt werden. Die Migrationen sind
 treiberneutral geschrieben. Der verbindliche Nachweis gegen MariaDB 10.11 und
 11.x erfolgt in der CI.
 
+Für einen manuellen Browsertest mit Demodaten, SQLite und ohne echte
+Zugangsdaten: siehe [docs/testanleitung.md](docs/testanleitung.md).
+
 ### Qualitätsprüfungen
 
 ```bash

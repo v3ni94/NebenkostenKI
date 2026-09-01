@@ -6,6 +6,7 @@ namespace Tests\Unit\Payment;
 
 use App\Application\Payment\CalculatePrice;
 use App\Application\Payment\Dto\VatDecomposition;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -31,9 +32,7 @@ final class PriceCalculationTest extends TestCase
         ];
     }
 
-    /**
-     * @dataProvider mengen
-     */
+    #[DataProvider('mengen')]
     public function test_preis_wird_je_erzeugter_abrechnung_gebildet(
         int $anzahl,
         int $brutto,
@@ -51,9 +50,7 @@ final class PriceCalculationTest extends TestCase
         self::assertSame('eur', $preis->currency);
     }
 
-    /**
-     * @dataProvider mengen
-     */
+    #[DataProvider('mengen')]
     public function test_netto_plus_steuer_ergibt_exakt_brutto(
         int $anzahl,
         int $brutto,

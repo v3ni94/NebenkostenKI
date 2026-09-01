@@ -36,6 +36,7 @@ use Illuminate\Support\Carbon;
  * @property string $timezone
  * @property string|null $two_factor_secret
  * @property Carbon|null $two_factor_confirmed_at
+ * @property list<string>|null $two_factor_recovery_codes
  * @property Carbon|null $last_login_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -66,6 +67,7 @@ class User extends Authenticatable
         'password',
         'remember_token',
         'two_factor_secret',
+        'two_factor_recovery_codes',
     ];
 
     /**
@@ -79,6 +81,9 @@ class User extends Authenticatable
             'status' => UserStatus::class,
             'two_factor_secret' => 'encrypted',
             'two_factor_confirmed_at' => 'datetime',
+            // Die Codes liegen einzeln gehasht in der Liste. Der Cast
+            // serialisiert nur, er verschluesselt bewusst nicht.
+            'two_factor_recovery_codes' => 'array',
             'last_login_at' => 'datetime',
         ];
     }
