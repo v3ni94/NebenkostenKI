@@ -37,4 +37,26 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Stripe
+    |--------------------------------------------------------------------------
+    |
+    | Einmalzahlung ueber Stripe Checkout, keine Subscription. Der oeffentliche
+    | Schluessel wird derzeit nicht benoetigt, weil die gehostete Zahlungsseite
+    | von Stripe verwendet wird und die Anwendung keine Kartendaten beruehrt.
+    |
+    | Ohne Secret und Webhook Secret ist kein Checkout moeglich; das ist ein
+    | Livegang-Blocker und wird im Adminbereich angezeigt. Nur ein
+    | signaturgeprueftes Webhook-Ereignis schaltet die Finalisierung frei, der
+    | Browser-Redirect niemals (ARCHITECTURE.md ADR-010).
+    |
+    */
+    'stripe' => [
+        'key' => env('STRIPE_KEY'),
+        'secret' => env('STRIPE_SECRET'),
+        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+        'currency' => env('STRIPE_CURRENCY', 'eur'),
+    ],
+
 ];

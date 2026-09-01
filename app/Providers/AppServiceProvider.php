@@ -47,6 +47,16 @@ class AppServiceProvider extends ServiceProvider
                 : Limit::perMinute(20)->by('uploads:ip:'.$request->ip());
         });
 
+        /*
+         * Webhooks des Zahlungsanbieters. Die Grenze schuetzt vor einer Flut
+         * gefaelschter Anfragen, ist aber bewusst hoch genug, damit die
+         * Wiederholungsversuche von Stripe nach einem Ausfall nicht verworfen
+         * werden. Die eigentliche Echtheitspruefung leistet die Signatur.
+         */
+        RateLimiter::for('webhooks', function (Request $request): Limit {
+            return Limit::perMinute(120)->by('webhooks:'.$request->ip());
+        });
+
         RateLimiter::for('downloads', function (Request $request): Limit {
             $user = $request->user();
 

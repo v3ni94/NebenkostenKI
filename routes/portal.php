@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Portal\AccountController;
 use App\Http\Controllers\Portal\BillingRunController;
+use App\Http\Controllers\Portal\Checkout\CheckoutController;
+use App\Http\Controllers\Portal\Checkout\CheckoutReturnController;
 use App\Http\Controllers\Portal\DashboardController;
+use App\Http\Controllers\Portal\Download\CompletionController;
 use App\Http\Controllers\Portal\DownloadController;
 use App\Http\Controllers\Portal\FollowUpYearController;
 use App\Http\Controllers\Portal\PropertyController;
@@ -230,6 +233,31 @@ Route::middleware('organisation')->group(function (): void {
         ->name('wizard.vorschau.erzeugen');
     Route::post('/abrechnungen/{billingRun}/vorschau/bestaetigen', [PreviewController::class, 'confirm'])
         ->name('wizard.vorschau.bestaetigen');
+
+    // --- Schritt 11 und 12: Zahlung und Abschluss ----------------------------
+    //
+    // Der Preis wird unmittelbar vor dem Checkout serverseitig aus der
+    // tatsaechlichen Anzahl erzeugter Mieterabrechnungen neu berechnet. Die
+    // Rueckkehrrouten sind reine Statusanzeigen: der Browser-Redirect ist
+    // niemals Zahlungsnachweis, freigeschaltet wird ausschliesslich durch das
+    // signaturgepruefte Webhook-Ereignis (ARCHITECTURE.md ADR-010).
+
+    Route::get('/abrechnungen/{billingRun}/zahlung', [CheckoutController::class, 'show'])
+        ->name('checkout.show');
+    Route::post('/abrechnungen/{billingRun}/zahlung', [CheckoutController::class, 'store'])
+        ->middleware('can:email-verified')
+        ->name('checkout.store');
+    Route::delete('/abrechnungen/{billingRun}/zahlung', [CheckoutController::class, 'destroy'])
+        ->name('checkout.destroy');
+
+    Route::get('/abrechnungen/{billingRun}/zahlung/erfolg', [CheckoutReturnController::class, 'success'])
+        ->name('checkout.erfolg');
+    Route::get('/abrechnungen/{billingRun}/zahlung/abbruch', [CheckoutReturnController::class, 'cancel'])
+        ->name('checkout.abbruch');
+
+    Route::get('/abrechnungen/{billingRun}/abschluss', [CompletionController::class, 'show'])
+        ->middleware('can:email-verified')
+        ->name('abschluss.show');
 
     // --- Folgejahresuebernahme -----------------------------------------------
     //

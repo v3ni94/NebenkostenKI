@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\ReminderUnsubscribeController;
+use App\Http\Controllers\Webhook\StripeWebhookController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -78,5 +79,16 @@ Route::prefix('admin')
     ->name('admin.')
     ->middleware(['auth', 'verified', 'can:access-admin'])
     ->group(base_path('routes/admin.php'));
+
+// --- Webhooks ----------------------------------------------------------------
+//
+// Ohne Session und ohne CSRF-Token; die Ausnahme ist in bootstrap/app.php
+// gesetzt. Die Echtheit wird ausschliesslich ueber die Signaturpruefung des
+// Anbieters festgestellt. Nur ein verifiziertes Ereignis schaltet die
+// Finalisierung frei, der Browser-Redirect niemals.
+
+Route::post('/webhooks/stripe', StripeWebhookController::class)
+    ->middleware('throttle:webhooks')
+    ->name('webhooks.stripe');
 
 require __DIR__.'/auth.php';

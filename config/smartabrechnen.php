@@ -66,6 +66,15 @@ return [
             'min' => 2000,
             'max' => 3000,
         ],
+
+        /*
+         * Frist in Tagen, innerhalb der eine Korrektur nach der Zahlung
+         * kostenfrei ist. 0 bedeutet: keine kostenfreie Korrektur. Der Wert ist
+         * eine kaufmaennische Entscheidung des Betreibers und vor Livegang
+         * festzulegen. Ein erneuter Betrag wird niemals ohne transparente
+         * Anzeige und Bestaetigung erhoben.
+         */
+        'correction_free_days' => (int) env('PRICE_CORRECTION_FREE_DAYS', 0),
     ],
 
     /*
