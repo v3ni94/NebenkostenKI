@@ -1,0 +1,260 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Application\Review;
+
+use App\Application\Reconciliation\CategoryResolver;
+use App\Enums\ApportionmentStatus;
+use App\Enums\CostItemSource;
+use App\Enums\CostItemStatus;
+use App\Enums\Paragraph35aType;
+use App\Models\BillingRun;
+use App\Models\CostCategory;
+use App\Models\CostItem;
+use App\Models\Unit;
+use App\Models\User;
+use Illuminate\Support\Carbon;
+
+/**
+ * Nutzerentscheidungen der Kostenpruefung (Schritt 6).
+ *
+ * Zulaessige Aktionen: bestaetigen, bearbeiten, ausschliessen, einer Einheit
+ * direkt zuordnen, verwerfen und manuell eine neue Position anlegen.
+ *
+ * VERBINDLICH
+ *
+ *  1. Eine Bestaetigung ist immer eine ausdrueckliche Nutzerhandlung und wird
+ *     mit Nutzer und Zeitpunkt festgehalten.
+ *  2. Die Aufnahme einer nicht umlagefaehigen oder pruefpflichtigen Position
+ *     in die Umlage erfordert eine Begruendung. Die Begruendung wird
+ *     gespeichert und ist keine juristische Freigabe.
+ *  3. Ein Betrag wird nie automatisch veraendert. Eine Korrektur ist immer
+ *     eine bewusste Eingabe des Nutzers.
+ */
+final class CostItemDecisions
+{
+    public function __construct(private readonly CategoryResolver $categories) {}
+
+    public function confirm(BillingRun $billingRun, CostItem $item, User $user): CostItem
+    {
+        $item->forceFill([
+            'status' => CostItemStatus::BESTAETIGT,
+            'confirmed_by_user_id' => $user->getKey(),
+            'confirmed_at' => Carbon::now(),
+        ])->save();
+
+        return $item;
+    }
+
+    public function discard(BillingRun $billingRun, CostItem $item, User $user): CostItem
+    {
+        $item->forceFill([
+            'status' => CostItemStatus::VERWORFEN,
+            'excluded_from_apportionment' => true,
+            'confirmed_by_user_id' => $user->getKey(),
+            'confirmed_at' => Carbon::now(),
+        ])->save();
+
+        return $item;
+    }
+
+    /**
+     * Von der Umlage ausschliessen, die Position aber in der Aufstellung
+     * behalten. Sie gilt damit als entschieden.
+     */
+    public function exclude(BillingRun $billingRun, CostItem $item, User $user, ?string $reason = null): CostItem
+    {
+        $item->forceFill([
+            'status' => CostItemStatus::BESTAETIGT,
+            'excluded_from_apportionment' => true,
+            'apportionment_status' => ApportionmentStatus::NICHT_UMLAGEFAEHIG,
+            'apportionment_override_reason' => $reason,
+            'confirmed_by_user_id' => $user->getKey(),
+            'confirmed_at' => Carbon::now(),
+        ])->save();
+
+        return $item;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    public function update(BillingRun $billingRun, CostItem $item, User $user, array $data): CostItem
+    {
+        $attributes = [];
+
+        if (isset($data['description']) && is_string($data['description'])) {
+            $attributes['description'] = mb_substr($data['description'], 0, 190);
+        }
+
+        if (isset($data['supplier_name'])) {
+            $attributes['supplier_name'] = is_string($data['supplier_name']) && $data['supplier_name'] !== ''
+                ? mb_substr($data['supplier_name'], 0, 190)
+                : null;
+        }
+
+        if (isset($data['amount_cent']) && is_numeric($data['amount_cent'])) {
+            $attributes['amount_cent'] = (int) $data['amount_cent'];
+        }
+
+        foreach (['document_date', 'service_period_start', 'service_period_end'] as $field) {
+            if (array_key_exists($field, $data)) {
+                $value = $data[$field];
+                $attributes[$field] = is_string($value) && $value !== '' ? $value : null;
+            }
+        }
+
+        if (array_key_exists('labor_share_cent', $data)) {
+            $value = $data['labor_share_cent'];
+            $attributes['labor_share_cent'] = is_numeric($value) ? (int) $value : null;
+        }
+
+        if (array_key_exists('cost_category_id', $data)) {
+            $category = $this->categoryFor($billingRun, $data['cost_category_id']);
+
+            $attributes['cost_category_id'] = $category?->getKey();
+
+            if ($category instanceof CostCategory) {
+                $status = $category->getAttribute('apportionment_status');
+                $attributes['apportionment_status'] = $status instanceof ApportionmentStatus
+                    ? $status
+                    : ApportionmentStatus::PRUEFPFLICHTIG;
+                $attributes['excluded_from_apportionment'] =
+                    $category->getAttribute('excluded_from_apportionment_by_default') === true
+                    || $status === ApportionmentStatus::NICHT_UMLAGEFAEHIG;
+                $attributes['is_heating_cost'] = $category->getAttribute('is_heating_related') === true;
+                $attributes['is_warm_water_cost'] = $category->getAttribute('is_warm_water_related') === true;
+
+                $type = $category->getAttribute('paragraph_35a_type');
+                $attributes['paragraph_35a_type'] = $type instanceof Paragraph35aType
+                    ? $type
+                    : Paragraph35aType::NONE;
+            }
+        }
+
+        // Die bewusste Aufnahme einer nicht umlagefaehigen Position erfordert
+        // eine Begruendung. Ohne Begruendung bleibt der Ausschluss bestehen.
+        if (isset($data['include_despite_status']) && $data['include_despite_status'] === true) {
+            $reason = $data['apportionment_override_reason'] ?? null;
+
+            if (is_string($reason) && trim($reason) !== '') {
+                $attributes['excluded_from_apportionment'] = false;
+                $attributes['apportionment_override_reason'] = mb_substr(trim($reason), 0, 1000);
+            }
+        }
+
+        if (array_key_exists('direct_unit_id', $data)) {
+            $attributes['direct_unit_id'] = $this->unitFor($billingRun, $data['direct_unit_id'])?->getKey();
+        }
+
+        $item->forceFill($attributes)->save();
+
+        return $item;
+    }
+
+    /**
+     * Direkte Zuordnung zu einer Einheit.
+     */
+    public function assignToUnit(BillingRun $billingRun, CostItem $item, User $user, ?string $unitId): CostItem
+    {
+        $unit = $this->unitFor($billingRun, $unitId);
+
+        $item->forceFill([
+            'direct_unit_id' => $unit?->getKey(),
+        ])->save();
+
+        return $item;
+    }
+
+    /**
+     * Manuell erfasste Position. Sie ist damit vom Nutzer erfasst, aber noch
+     * nicht bestaetigt; die Bestaetigung bleibt eine eigene Handlung.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public function createManual(BillingRun $billingRun, User $user, array $data): CostItem
+    {
+        $category = $this->categoryFor($billingRun, $data['cost_category_id'] ?? null);
+
+        $status = $category?->getAttribute('apportionment_status');
+        $status = $status instanceof ApportionmentStatus ? $status : ApportionmentStatus::PRUEFPFLICHTIG;
+
+        $type = $category?->getAttribute('paragraph_35a_type');
+
+        $item = new CostItem;
+
+        $item->fill([
+            'organization_id' => $billingRun->getAttribute('organization_id'),
+            'billing_run_id' => $billingRun->getKey(),
+            'cost_category_id' => $category?->getKey(),
+            'document_id' => null,
+            'description' => mb_substr(is_string($data['description'] ?? null) ? $data['description'] : 'Manuelle Position', 0, 190),
+            'supplier_name' => is_string($data['supplier_name'] ?? null) && $data['supplier_name'] !== ''
+                ? mb_substr($data['supplier_name'], 0, 190)
+                : null,
+            'invoice_number' => is_string($data['invoice_number'] ?? null) && $data['invoice_number'] !== ''
+                ? mb_substr($data['invoice_number'], 0, 80)
+                : null,
+            'amount_cent' => is_numeric($data['amount_cent'] ?? null) ? (int) $data['amount_cent'] : 0,
+            'document_date' => is_string($data['document_date'] ?? null) && $data['document_date'] !== ''
+                ? $data['document_date']
+                : null,
+            'service_period_start' => is_string($data['service_period_start'] ?? null) && $data['service_period_start'] !== ''
+                ? $data['service_period_start']
+                : null,
+            'service_period_end' => is_string($data['service_period_end'] ?? null) && $data['service_period_end'] !== ''
+                ? $data['service_period_end']
+                : null,
+            'source' => CostItemSource::MANUELL,
+            'status' => CostItemStatus::VORGESCHLAGEN,
+            'apportionment_status' => $status,
+            'excluded_from_apportionment' => $category?->getAttribute('excluded_from_apportionment_by_default') === true
+                || $status === ApportionmentStatus::NICHT_UMLAGEFAEHIG,
+            'labor_share_cent' => is_numeric($data['labor_share_cent'] ?? null) ? (int) $data['labor_share_cent'] : null,
+            'paragraph_35a_type' => $type instanceof Paragraph35aType ? $type : Paragraph35aType::NONE,
+            'is_heating_cost' => $category?->getAttribute('is_heating_related') === true,
+            'is_warm_water_cost' => $category?->getAttribute('is_warm_water_related') === true,
+            'direct_unit_id' => $this->unitFor($billingRun, $data['direct_unit_id'] ?? null)?->getKey(),
+            // Eine manuelle Eingabe hat keine maschinelle Konfidenz.
+            'confidence' => null,
+            'source_page' => null,
+        ]);
+
+        $item->save();
+
+        return $item;
+    }
+
+    private function categoryFor(BillingRun $billingRun, mixed $categoryId): ?CostCategory
+    {
+        if (! is_string($categoryId) || $categoryId === '') {
+            return null;
+        }
+
+        $category = CostCategory::query()
+            ->whereKey($categoryId)
+            ->where(function ($query) use ($billingRun): void {
+                $query->whereNull('organization_id')
+                    ->orWhere('organization_id', $billingRun->getAttribute('organization_id'));
+            })
+            ->first();
+
+        return $category instanceof CostCategory ? $category : null;
+    }
+
+    private function unitFor(BillingRun $billingRun, mixed $unitId): ?Unit
+    {
+        if (! is_string($unitId) || $unitId === '') {
+            return null;
+        }
+
+        $unit = Unit::query()
+            ->whereKey($unitId)
+            ->where('organization_id', $billingRun->getAttribute('organization_id'))
+            ->where('property_id', $billingRun->getAttribute('property_id'))
+            ->first();
+
+        return $unit instanceof Unit ? $unit : null;
+    }
+}
