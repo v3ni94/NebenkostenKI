@@ -180,6 +180,10 @@ class FinalIsRegeneratedTest extends TestCase
         $normalized = is_string($normalized) ? $normalized : $pdf;
 
         $normalized = preg_replace('/<xmp:(CreateDate|ModifyDate|MetadataDate)>[^<]*</', '<xmp:$1>X<', $normalized);
+        $normalized = is_string($normalized) ? $normalized : $pdf;
+
+        // Die Dokumentkennung /ID leitet mPDF aus dem Erzeugungszeitpunkt ab.
+        $normalized = preg_replace('/\/ID \[<[0-9a-f]+> <[0-9a-f]+>\]/', '/ID [<X> <X>]', $normalized);
 
         return is_string($normalized) ? $normalized : $pdf;
     }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Pdf;
 
 use App\Services\Pdf\PdfEngine;
+use App\Services\Pdf\PdfException;
 use App\Services\Pdf\PdfRenderOptions;
 use App\Services\Storage\ArtifactType;
 use Tests\TestCase;
@@ -88,7 +89,7 @@ class PdfEngineTest extends TestCase
 
     public function test_ungueltige_vorlage_fuehrt_zu_einem_fehler_und_nicht_zu_einer_datei(): void
     {
-        $this->expectException(\App\Services\Pdf\PdfException::class);
+        $this->expectException(PdfException::class);
 
         $this->engine->render('pdf.gibt-es-nicht', [], $this->renderOptions());
     }

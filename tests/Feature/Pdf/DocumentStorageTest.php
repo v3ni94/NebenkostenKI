@@ -150,7 +150,7 @@ class DocumentStorageTest extends TestCase
         $this->assertIsString($pfad);
         file_put_contents($pfad, $paket['contents']);
 
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         $this->assertTrue($zip->open($pfad) === true);
         $this->assertSame($satz->count(), $zip->numFiles);
 

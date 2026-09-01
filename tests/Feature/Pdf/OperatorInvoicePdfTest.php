@@ -6,6 +6,7 @@ namespace Tests\Feature\Pdf;
 
 use App\Services\Pdf\Renderer\OperatorInvoiceRenderer;
 use App\Services\Pdf\Support\HvmCorporateIdentity;
+use App\Services\Pdf\View\InvoiceView;
 use App\Services\Storage\ArtifactType;
 use Tests\TestCase;
 
@@ -143,7 +144,7 @@ class OperatorInvoicePdfTest extends TestCase
     public function test_stornorechnung_verweist_auf_die_urspruengliche_rechnung(): void
     {
         $original = PdfFixtures::invoiceView();
-        $storno = new \App\Services\Pdf\View\InvoiceView(
+        $storno = new InvoiceView(
             'NK-2026-000002',
             $original->issuedOn,
             $original->serviceDate,

@@ -26,7 +26,7 @@ use Illuminate\Support\Carbon;
  */
 final class GeneratedDocumentWriter
 {
-    public function __construct(private readonly ArtifactStorage $storage = new ArtifactStorage()) {}
+    public function __construct(private readonly ArtifactStorage $storage = new ArtifactStorage) {}
 
     public function store(PdfDocument $document, DocumentOwnership $ownership): StoredDocument
     {

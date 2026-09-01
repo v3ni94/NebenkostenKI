@@ -32,7 +32,7 @@ final class PdfEngine
 {
     public function __construct(
         private readonly ViewFactory $views,
-        private readonly WatermarkStamp $watermark = new WatermarkStamp(),
+        private readonly WatermarkStamp $watermark = new WatermarkStamp,
     ) {}
 
     /**
@@ -97,7 +97,7 @@ final class PdfEngine
             $contents,
             max(1, $pageCount),
             $this->templateVersion(),
-            new DateTimeImmutable(),
+            new DateTimeImmutable,
             $options->calculationSnapshotId,
             $options->downloadName,
         );

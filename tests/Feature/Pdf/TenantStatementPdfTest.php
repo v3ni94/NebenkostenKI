@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Pdf;
 
+use App\Domain\Calculation\Result\CheckCode;
+use App\Domain\Calculation\Result\CheckFinding;
 use App\Domain\Money\Money;
 use App\Services\Pdf\Renderer\TenantStatementRenderer;
 use App\Services\Pdf\Support\HvmCorporateIdentity;
@@ -225,8 +227,8 @@ class TenantStatementPdfTest extends TestCase
     public function test_pruefhinweise_aus_dem_ergebnisobjekt_werden_gedruckt(): void
     {
         $result = PdfFixtures::statementResult(null, [], [
-            \App\Domain\Calculation\Result\CheckFinding::warning(
-                \App\Domain\Calculation\Result\CheckCode::PREPAYMENT_DEVIATION,
+            CheckFinding::warning(
+                CheckCode::PREPAYMENT_DEVIATION,
                 'Die geleisteten Vorauszahlungen weichen von den vereinbarten Sollwerten ab.'
             ),
         ]);

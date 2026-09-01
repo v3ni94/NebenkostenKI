@@ -41,7 +41,7 @@ final class DocumentPackageBuilder
             throw new RuntimeException('Für das ZIP-Paket konnte keine temporäre Datei angelegt werden.');
         }
 
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
 
         if ($zip->open($tempFile, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
             @unlink($tempFile);

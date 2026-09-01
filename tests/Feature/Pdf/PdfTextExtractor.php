@@ -100,24 +100,19 @@ final class PdfTextExtractor
 
     private static function decode(string $literal): string
     {
-        $decoded = preg_replace_callback(
-            '/\\\\([0-7]{1,3})|\\\\(.)/',
-            static function (array $match): string {
-                if (($match[1] ?? '') !== '') {
-                    return chr((int) octdec($match[1]));
-                }
-
-                return match ($match[2] ?? '') {
-                    'n' => "\n",
-                    'r' => "\r",
-                    't' => "\t",
-                    default => $match[2] ?? '',
-                };
-            },
+        $withoutOctal = preg_replace_callback(
+            '/\\\\([0-7]{1,3})/',
+            static fn (array $match): string => chr((int) octdec($match[1])),
             $literal
         );
 
-        $decoded = is_string($decoded) ? $decoded : $literal;
+        $decoded = is_string($withoutOctal) ? $withoutOctal : $literal;
+
+        $decoded = str_replace(
+            ['\\n', '\\r', '\\t', '\\(', '\\)', '\\\\'],
+            ["\n", "\r", "\t", '(', ')', '\\'],
+            $decoded
+        );
 
         $utf8 = mb_convert_encoding($decoded, 'UTF-8', 'Windows-1252');
 
