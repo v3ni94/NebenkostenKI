@@ -16,6 +16,10 @@ use App\Http\Controllers\Portal\TenancyController;
 use App\Http\Controllers\Portal\UnitController;
 use App\Http\Controllers\Portal\Upload\ChunkUploadController;
 use App\Http\Controllers\Portal\Upload\UploadStatusController;
+use App\Http\Controllers\Portal\Wizard\AllocationKeyController;
+use App\Http\Controllers\Portal\Wizard\AuditReportController;
+use App\Http\Controllers\Portal\Wizard\PrepaymentController;
+use App\Http\Controllers\Portal\Wizard\PreviewController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -191,6 +195,41 @@ Route::middleware('organisation')->group(function (): void {
         Route::get('/downloads/{generatedDocument}', [DownloadController::class, 'stream'])
             ->name('downloads.stream');
     });
+
+    // --- Schritt 7 bis 10: Vorauszahlungen, Schluessel, Pruefbericht, Vorschau
+    //
+    // Reihenfolge beachten: die festen Segmente "weiter" stehen jeweils vor
+    // einem Platzhalter, sonst fangen die Platzhalter sie ab.
+
+    Route::get('/abrechnungen/{billingRun}/vorauszahlungen', [PrepaymentController::class, 'show'])
+        ->name('wizard.vorauszahlungen');
+    Route::post('/abrechnungen/{billingRun}/vorauszahlungen', [PrepaymentController::class, 'store'])
+        ->name('wizard.vorauszahlungen.speichern');
+    Route::post('/abrechnungen/{billingRun}/vorauszahlungen/weiter', [PrepaymentController::class, 'proceed'])
+        ->name('wizard.vorauszahlungen.weiter');
+
+    Route::get('/abrechnungen/{billingRun}/verteilerschluessel', [AllocationKeyController::class, 'show'])
+        ->name('wizard.schluessel');
+    Route::post('/abrechnungen/{billingRun}/verteilerschluessel', [AllocationKeyController::class, 'store'])
+        ->name('wizard.schluessel.speichern');
+    Route::post('/abrechnungen/{billingRun}/verteilerschluessel/weiter', [AllocationKeyController::class, 'proceed'])
+        ->name('wizard.schluessel.weiter');
+    Route::post('/abrechnungen/{billingRun}/verteilerschluessel/ersatzverteilung/{unit}', [AllocationKeyController::class, 'confirmSubstitute'])
+        ->name('wizard.schluessel.ersatzverteilung');
+
+    Route::get('/abrechnungen/{billingRun}/pruefbericht', [AuditReportController::class, 'show'])
+        ->name('wizard.pruefbericht');
+    Route::post('/abrechnungen/{billingRun}/pruefbericht/weiter', [AuditReportController::class, 'proceed'])
+        ->name('wizard.pruefbericht.weiter');
+    Route::post('/abrechnungen/{billingRun}/pruefbericht/{issue}/entscheiden', [AuditReportController::class, 'decide'])
+        ->name('wizard.pruefbericht.entscheiden');
+
+    Route::get('/abrechnungen/{billingRun}/vorschau', [PreviewController::class, 'show'])
+        ->name('wizard.vorschau');
+    Route::post('/abrechnungen/{billingRun}/vorschau/erzeugen', [PreviewController::class, 'rebuild'])
+        ->name('wizard.vorschau.erzeugen');
+    Route::post('/abrechnungen/{billingRun}/vorschau/bestaetigen', [PreviewController::class, 'confirm'])
+        ->name('wizard.vorschau.bestaetigen');
 
     // --- Folgejahresuebernahme -----------------------------------------------
     //

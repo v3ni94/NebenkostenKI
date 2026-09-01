@@ -461,9 +461,11 @@ Der Scheduler startet daraus die Queue mit begrenzter Laufzeit
 | E2E | Registrierung bis Final-PDF, zusätzlich Nachweis der Originaldateilöschung | plus Abbruch- und Fehlerwege |
 
 **Zweite bekannte Einschränkung:** Die Testsuite ist auf einen sequenziellen
-Lauf ausgelegt. `Storage::fake` und der Anwendungslog liegen in gemeinsam
-genutzten Verzeichnissen, deshalb erzeugen zwei gleichzeitig laufende
-Testprozesse wechselnde Fehlbefunde in den Upload- und Löschtests. Das ist ein
+Lauf ausgelegt. `Storage::fake`, die kompilierten Blade-Templates unter
+`storage/framework/views` und der Anwendungslog liegen in gemeinsam genutzten
+Verzeichnissen, deshalb erzeugen zwei gleichzeitig laufende Testprozesse
+wechselnde Fehlbefunde, unter anderem in den Upload- und Löschtests und in
+Zusicherungen auf gerenderten HTML-Inhalt. Das ist ein
 Isolationsthema der Testumgebung, kein Produktfehler. Vor einer
 Parallelisierung in der CI ist je Prozess ein eigenes Testverzeichnis zu
 setzen.
@@ -507,7 +509,7 @@ fachliche Grundlage ist und ohne Infrastruktur testbar bleibt.
 | Gewerbemietverhältnisse | mittel | im Datenmodell vorbereitet, keine automatische Finalisierung, klarer Hinweis |
 | mPDF-Layouttreue bei sehr langen Tabellen | niedrig | Seitenumbruchtests je Template, konservatives CSS |
 | mPDF verändert `mb_internal_encoding` global und lässt es auf Windows-1252 stehen | behoben | `PdfEngine` sichert und restauriert die mbstring-Einstellungen in einem `finally`; Regressionstest vorhanden. Ohne diese Sicherung wurden `.env`-Werte beim nächsten Bootvorgang doppelt kodiert. |
-| Tests sind bei gleichzeitig laufenden Testprozessen nicht isoliert | niedrig | `Storage::fake` legt unter `storage/framework/testing` ein gemeinsames Verzeichnis an. Der Standardlauf ist sequenziell und stabil. Vor einer Parallelisierung in der CI ist je Prozess ein eigenes Testverzeichnis zu setzen. |
+| Tests sind bei gleichzeitig laufenden Testprozessen nicht isoliert | niedrig | Gemeinsam genutzt werden `storage/framework/testing` (`Storage::fake`), `storage/framework/views` (kompilierte Templates) und der Anwendungslog. Der Standardlauf ist sequenziell und stabil. Vor einer Parallelisierung in der CI ist je Prozess ein eigenes Verzeichnis für Testdisks und View-Cache zu setzen. |
 | CSP benötigt `unsafe-eval` für den Alpine-Standardbuild | mittel | offener Punkt: Wechsel auf `@alpinejs/csp` und Umschreiben der `x-data`-Ausdrücke, danach `unsafe-eval` entfernen |
 | Registrierung verrät über die Eindeutigkeitsprüfung, ob eine E-Mail bereits ein Konto hat | mittel | offener Punkt: einheitliche Bestätigungsmeldung unabhängig vom Ergebnis, bei vorhandenem Konto stattdessen eine Hinweismail an die Adresse |
 | Einwilligungen werden noch nicht in `legal_acceptances` protokolliert | mittel | offener Punkt: Textversion, Zweck, Zeitpunkt, gekürzte IP und gehashter User-Agent bei Registrierung und im Checkout schreiben |
