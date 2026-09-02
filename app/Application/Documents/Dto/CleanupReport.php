@@ -17,17 +17,19 @@ final class CleanupReport
         public readonly int $failed = 0,
         public readonly int $alreadyDeleted = 0,
         public readonly int $cancelledJobs = 0,
+        public readonly int $orphanedPrefixes = 0,
     ) {}
 
     public function summary(): string
     {
         return sprintf(
-            'Geprüft: %d, gelöscht: %d, fehlgeschlagen: %d, bereits gelöscht: %d, abgebrochene Teiljobs: %d.',
+            'Geprüft: %d, gelöscht: %d, fehlgeschlagen: %d, bereits gelöscht: %d, abgebrochene Teiljobs: %d, verwaiste Verzeichnisse entfernt: %d.',
             $this->inspected,
             $this->deleted,
             $this->failed,
             $this->alreadyDeleted,
             $this->cancelledJobs,
+            $this->orphanedPrefixes,
         );
     }
 }

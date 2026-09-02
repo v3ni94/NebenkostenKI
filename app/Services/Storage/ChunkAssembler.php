@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services\Storage;
 
+use App\Services\Storage\Crypto\CipherIntegrityException;
 use App\Services\Storage\Exceptions\UploadRejectedException;
-use RuntimeException;
+use Throwable;
 
 /**
  * Serverseitige Wiederzusammensetzung eines Chunk-Uploads (Abschnitt 6.1).
@@ -17,7 +18,9 @@ use RuntimeException;
  * dazu, dass die fehlenden Abschnitte erneut uebertragen werden.
  *
  * DATENSCHUTZ: Die Zusammensetzung laeuft ausschliesslich auf der Disk
- * "temporary_uploads" und blockweise ueber Dateiströme. Der Inhalt wird nicht
+ * "temporary_uploads" und blockweise ueber Stroeme. Jeder Abschnitt wird beim
+ * Lesen entschluesselt und die Zieldatei beim Schreiben wieder verschluesselt;
+ * Klartext existiert nur blockweise im Arbeitsspeicher. Der Inhalt wird nicht
  * als Ganzes in eine Variable geladen und niemals protokolliert.
  */
 final class ChunkAssembler
@@ -29,6 +32,8 @@ final class ChunkAssembler
     /**
      * @throws UploadRejectedException wenn ein Abschnitt fehlt oder das
      *                                 Ergebnis das Dateilimit ueberschreitet
+     * @throws CipherIntegrityException wenn ein Abschnitt auf der Platte
+     *                                  manipuliert oder nicht entschluesselbar ist
      */
     public function assemble(string $prefix, int $totalChunks, int $expectedByteSize, UploadLimits $limits): ChunkAssemblyResult
     {
@@ -61,7 +66,7 @@ final class ChunkAssembler
             ]);
         }
 
-        $target = $this->openTarget($targetKey);
+        $target = $this->storage->openWriter($targetKey);
         $written = 0;
 
         try {
@@ -75,14 +80,13 @@ final class ChunkAssembler
                     ]);
                 }
             }
-        } catch (UploadRejectedException $exception) {
-            fclose($target);
-            $this->storage->disk()->delete($targetKey);
+
+            $written = $target->finish();
+        } catch (Throwable $exception) {
+            $target->abort();
 
             throw $exception;
         }
-
-        fclose($target);
 
         if ($expectedByteSize > 0 && $written !== $expectedByteSize) {
             $this->storage->disk()->delete($targetKey);
@@ -100,32 +104,11 @@ final class ChunkAssembler
         return new ChunkAssemblyResult($targetKey, $written, false);
     }
 
-    /**
-     * @return resource
-     */
-    private function openTarget(string $targetKey)
+    private function appendChunk(QuarantineFileWriter $target, string $prefix, int $index): int
     {
-        // Die Datei wird zuerst leer angelegt, damit das Verzeichnis der Disk
-        // existiert und der Schreibzugriff ueber den absoluten Pfad moeglich ist.
-        $this->storage->disk()->put($targetKey, '');
-
-        $handle = fopen($this->storage->absolutePath($targetKey), 'wb');
-
-        if ($handle === false) {
-            throw new RuntimeException('Die Zieldatei im Kurzzeitbereich konnte nicht geoeffnet werden.');
-        }
-
-        return $handle;
-    }
-
-    /**
-     * @param  resource  $target
-     */
-    private function appendChunk($target, string $prefix, int $index): int
-    {
-        $source = fopen($this->storage->absolutePath($this->storage->chunkKey($prefix, $index)), 'rb');
-
-        if ($source === false) {
+        try {
+            $source = $this->storage->readStream($this->storage->chunkKey($prefix, $index));
+        } catch (UploadRejectedException) {
             throw UploadRejectedException::withContext(UploadErrorCode::CHUNK_FEHLT, ['abschnitt' => $index]);
         }
 
@@ -143,13 +126,9 @@ final class ChunkAssembler
                     continue;
                 }
 
-                $result = fwrite($target, $block);
+                $target->write($block);
 
-                if ($result === false) {
-                    throw new RuntimeException('Der Dateiabschnitt konnte nicht geschrieben werden.');
-                }
-
-                $written += $result;
+                $written += strlen($block);
             }
         } finally {
             fclose($source);

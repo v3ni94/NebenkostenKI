@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Storage;
 
 use App\Services\Storage\ChunkAssembler;
+use App\Services\Storage\Crypto\CipherIntegrityException;
 use App\Services\Storage\Exceptions\UploadRejectedException;
 use App\Services\Storage\TemporaryUploadStorage;
 use App\Services\Storage\UploadErrorCode;
@@ -49,7 +50,47 @@ class ChunkAssemblerTest extends TestCase
 
         $this->assertFalse($result->alreadyAssembled);
         $this->assertSame(10, $result->byteSize);
-        $this->assertSame('AAAABBBBCC', Storage::disk(TemporaryUploadStorage::DISK)->get($result->storageKey));
+        $this->assertSame('AAAABBBBCC', $this->storage->read($result->storageKey));
+    }
+
+    public function test_zusammengesetzte_datei_liegt_verschluesselt_auf_der_platte(): void
+    {
+        $prefix = $this->storage->newPrefix();
+        $marker = 'GEHEIMER-ABSCHNITT-2024';
+
+        $this->storage->putChunk($prefix, 0, $marker.'-erster-teil');
+        $this->storage->putChunk($prefix, 1, 'zweiter-teil-'.$marker);
+
+        $result = $this->assembler->assemble($prefix, 2, 0, $this->limits);
+
+        $chiffrat = (string) Storage::disk(TemporaryUploadStorage::DISK)->get($result->storageKey);
+
+        $this->assertStringNotContainsString($marker, $chiffrat);
+        $this->assertStringStartsWith('SAQ1', $chiffrat);
+        $this->assertSame($marker.'-erster-teilzweiter-teil-'.$marker, $this->storage->read($result->storageKey));
+        $this->assertSame($result->byteSize, $this->storage->size($result->storageKey));
+    }
+
+    public function test_manipulierter_abschnitt_wird_bei_der_zusammensetzung_abgelehnt(): void
+    {
+        $prefix = $this->storage->newPrefix();
+
+        $this->storage->putChunk($prefix, 0, str_repeat('A', 512));
+
+        $pfad = $this->storage->absolutePath($this->storage->chunkKey($prefix, 0));
+        $chiffrat = (string) file_get_contents($pfad);
+        $chiffrat[60] = chr(ord($chiffrat[60]) ^ 0x01);
+        file_put_contents($pfad, $chiffrat);
+
+        try {
+            $this->assembler->assemble($prefix, 1, 512, $this->limits);
+            $this->fail('Ein manipulierter Abschnitt darf nicht zusammengesetzt werden.');
+        } catch (CipherIntegrityException) {
+            $this->assertFalse(
+                $this->storage->exists($this->storage->originalKey($prefix)),
+                'Nach dem Abbruch darf keine unvollstaendige Zieldatei liegen bleiben.'
+            );
+        }
     }
 
     public function test_entfernt_die_abschnitte_nach_der_zusammensetzung(): void

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Auth;
 
 use App\Application\Account\AuditRecorder;
+use App\Application\Account\LoginDestination;
 use App\Http\Controllers\Controller;
 use App\Http\Middleware\EnsureOrganizationContext;
 use App\Http\Requests\Auth\LoginRequest;
@@ -39,7 +40,10 @@ use Illuminate\View\View;
  */
 class AuthenticatedSessionController extends Controller
 {
-    public function __construct(private readonly AuditRecorder $audit) {}
+    public function __construct(
+        private readonly AuditRecorder $audit,
+        private readonly LoginDestination $destination,
+    ) {}
 
     public function create(): View
     {
@@ -82,7 +86,11 @@ class AuthenticatedSessionController extends Controller
             );
         }
 
-        return redirect()->intended(route('portal.dashboard'));
+        // Interne Kennungen ohne Mandant werden direkt zur Einrichtung des
+        // Zweitfaktors beziehungsweise in den Adminbereich gefuehrt.
+        return redirect()->intended(
+            $user instanceof User ? $this->destination->for($user) : route('portal.dashboard'),
+        );
     }
 
     public function destroy(Request $request): RedirectResponse

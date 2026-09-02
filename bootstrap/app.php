@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 use App\Application\Account\OrganizationContext;
 use App\Application\BillingRun\IllegalStatusTransitionException;
+use App\Application\Install\TrustedProxyConfiguration;
 use App\Enums\AdminRole;
 use App\Http\Middleware\EnsureOrganizationContext;
 use App\Http\Middleware\ForceHttps;
+use App\Http\Middleware\RedirectToCanonicalHost;
 use App\Http\Middleware\SecurityHeaders;
 use App\Models\User;
 use Illuminate\Auth\Access\Response as AccessResponse;
@@ -45,7 +47,20 @@ return Application::configure(basePath: dirname(__DIR__))
         // die Sitzungsbehandlung laeuft. Sicherheitsheader am Ende der Gruppe,
         // damit sie auf jeder Antwort liegen, auch auf Fehlerseiten.
         $middleware->prependToGroup('web', ForceHttps::class);
+        // Die www-Umleitung liegt VOR ForceHttps, damit www.<domain> in genau
+        // einem Schritt auf die kanonische https-Adresse fuehrt.
+        $middleware->prependToGroup('web', RedirectToCanonicalHost::class);
         $middleware->appendToGroup('web', SecurityHeaders::class);
+
+        /*
+         * Vertrauenswuerdige Proxys (config/deploy.php, TRUSTED_PROXIES).
+         *
+         * Zu diesem Zeitpunkt sind .env und Konfiguration noch nicht geladen.
+         * Hier werden deshalb nur die Header festgelegt; die Adressen werden
+         * im booted-Callback unten aus der Konfiguration uebernommen, bevor die
+         * erste Anfrage die Middleware erreicht.
+         */
+        $middleware->trustProxies(headers: TrustedProxyConfiguration::HEADERS);
 
         $middleware->alias([
             'organisation' => EnsureOrganizationContext::class,
@@ -75,6 +90,11 @@ return Application::configure(basePath: dirname(__DIR__))
         );
     })
     ->booted(function (): void {
+        // Vertrauenswuerdige Proxys aus TRUSTED_PROXIES, siehe config/deploy.php.
+        // Leer bedeutet: keinem Proxy vertrauen. "*" ist auf IONOS Webhosting
+        // die praktikable Einstellung, die Abwaegung steht in der Konfiguration.
+        TrustedProxyConfiguration::apply(config('deploy.trusted_proxies'));
+
         /*
          * Gate "access-admin"
          *

@@ -91,14 +91,54 @@ final class HeicConverter
     }
 
     /**
+     * Wandelt HEIC-Inhalt aus dem Speicher in JPEG-Inhalt um.
+     *
+     * Wird von der Pipeline verwendet: Der Klartext kommt aus dem
+     * entschluesselten Strom des Kurzzeitbereichs und das Ergebnis wird dort
+     * wieder verschluesselt abgelegt. Es entsteht keine Klartextdatei; der
+     * Inhalt liegt nur fuer die Dauer der Umwandlung im Arbeitsspeicher.
+     *
+     * Hinweis: Was ImageMagick beziehungsweise libheif intern mit dem Blob
+     * tun, liegt ausserhalb dieser Anwendung und wird nicht zugesichert.
+     *
+     * @throws UploadRejectedException wenn kein Konverter vorhanden ist oder
+     *                                 die Umwandlung fehlschlaegt
+     */
+    public function convertToJpegBlob(string $heicContents): string
+    {
+        if (! $this->isAvailable()) {
+            throw UploadRejectedException::because(UploadErrorCode::HEIC_KONVERTER_FEHLT);
+        }
+
+        try {
+            $imagick = $this->createImagick(null);
+
+            call_user_func([$imagick, 'readImageBlob'], $heicContents);
+            call_user_func([$imagick, 'stripImage']);
+            call_user_func([$imagick, 'setImageFormat'], 'jpeg');
+            call_user_func([$imagick, 'setImageCompressionQuality'], 88);
+            $jpeg = call_user_func([$imagick, 'getImageBlob']);
+            call_user_func([$imagick, 'clear']);
+        } catch (Throwable) {
+            throw UploadRejectedException::because(UploadErrorCode::STRUKTUR_UNGUELTIG);
+        }
+
+        if (! is_string($jpeg) || $jpeg === '') {
+            throw UploadRejectedException::because(UploadErrorCode::STRUKTUR_UNGUELTIG);
+        }
+
+        return $jpeg;
+    }
+
+    /**
      * Erzeugt die Imagick-Instanz ueber den Klassennamen, damit die
      * Anwendung ohne die Erweiterung analysierbar und lauffaehig bleibt.
      */
-    private function createImagick(string $sourceAbsolutePath): object
+    private function createImagick(?string $sourceAbsolutePath): object
     {
         /** @var class-string $class */
         $class = self::IMAGICK_CLASS;
 
-        return new $class($sourceAbsolutePath);
+        return $sourceAbsolutePath === null ? new $class : new $class($sourceAbsolutePath);
     }
 }

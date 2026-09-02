@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Auth;
 
 use App\Application\Account\AuditRecorder;
+use App\Application\Account\LoginDestination;
 use App\Application\Account\TwoFactorAuthentication;
 use App\Http\Controllers\Controller;
 use App\Http\Middleware\EnsureOrganizationContext;
@@ -51,6 +52,7 @@ class TwoFactorChallengeController extends Controller
     public function __construct(
         private readonly TwoFactorAuthentication $zweiFaktor,
         private readonly AuditRecorder $audit,
+        private readonly LoginDestination $destination,
     ) {}
 
     public function create(Request $request): View|RedirectResponse
@@ -142,7 +144,7 @@ class TwoFactorChallengeController extends Controller
         $ids = $benutzer->organizationIds();
         $request->session()->put(EnsureOrganizationContext::SESSION_KEY, $ids[0] ?? null);
 
-        return redirect()->intended(route('portal.dashboard'));
+        return redirect()->intended($this->destination->for($benutzer));
     }
 
     /**

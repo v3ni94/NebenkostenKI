@@ -5,7 +5,8 @@
 **Betreiber:** Hausverwaltung Müller GmbH
 **Stand dieses Dokuments:** 01.09.2026
 **Status:** Phasen 0 bis 5 umgesetzt, dazu die manuelle Heizkostenerfassung für
-Fall B (ADR-014) und der Zweitfaktor (ADR-015). 1.860 Tests mit 12.158 Assertions grün,
+Fall B (ADR-014), der Zweitfaktor (ADR-015), die Verschlüsselung des
+Kurzzeitbereichs und das Installationspaket für IONOS. 2.008 Tests mit 12.672 Assertions grün,
 PHPStan Level 6 projektweit fehlerfrei, Pint sauber. Der Livegang ist
 ausschließlich durch Betreiberangaben blockiert, nicht durch offene
 Entwicklungsarbeit. Die unabhängige Abschlussprüfung ist in
@@ -500,6 +501,34 @@ Die Kurzzeit-TTL beginnt mit dem Eingang des ersten Upload-Chunks und ist in
 Konfiguration wird im Code auf 120 Minuten reduziert, damit eine fehlerhafte
 `.env` das Konzept nicht aufweichen kann.
 
+**Verschlüsselung des Kurzzeitbereichs.** Jede Datei unter
+`temporary_uploads`, also jeder Chunk, die zusammengesetzte Datei, die
+HEIC-Konvertierung und jeder entpackte Archiveintrag, liegt auf der Platte
+ausschließlich verschlüsselt. Verfahren: libsodium `secretstream`
+(XChaCha20-Poly1305) in Blöcken von 1 MiB, damit auch 25-MB-Dateien mit
+konstantem Speicher verarbeitet werden; fehlt `ext-sodium`, greift Laravels
+`Encrypter` mit AES-256-GCM blockweise (`app/Services/Storage/Crypto`). Beide
+Verfahren sind authentifiziert; ein manipuliertes, abgeschnittenes oder
+verlängertes Chiffrat wird beim Lesen als Fehler abgelehnt, nicht als Inhalt
+weitergegeben. Es gibt keinen Schalter, der die Verschlüsselung abschaltet,
+auch nicht für Tests. Schlüsselableitung: Je Upload wird ein zufälliger
+Dateischlüssel erzeugt und mit einem per HKDF-SHA-256 aus `APP_KEY`
+abgeleiteten Hauptschlüssel (Zweck `smart-abrechnen:temporary-upload-v1`)
+umhüllt in `temporary_uploads.encryption_key_wrapped` gespeichert; der
+Klartextschlüssel liegt nie auf der Platte und wird mit der Löschung entfernt.
+Ein Wechsel von `APP_KEY` macht laufende Uploads unlesbar; sie scheitern mit
+klarem Fehler, ihre Chiffrate werden über Löschpfad und TTL-Cleanup entfernt,
+der Nutzer lädt erneut hoch. Der HMAC-Fingerabdruck wird über den Klartext
+gebildet, nicht über das Chiffrat. Alle Prüfungen (Magic Bytes, Struktur,
+Seitenzahl, Malware, Fingerabdruck) und die Übergabe an den KI-Provider lesen
+den entschlüsselten Klartextstrom im Arbeitsspeicher. Einzige Ausnahme ist
+`ZipArchive`, das nur Dateipfade akzeptiert: `ArchiveGuard::inspectSource()`,
+`PageCounter` für XLSX und `ExpandArchive` erhalten über
+`TemporaryUploadStorage::withDecryptedCopy()` eine Klartextkopie unter
+`<praefix>/arbeit/`, die unmittelbar nach dem Aufruf mit Nullbytes
+überschrieben und gelöscht wird. Der TTL-Cleanup entfernt zusätzlich verwaiste
+Verzeichnisse ohne Datensatz, sobald sie älter als 120 Minuten sind.
+
 ### 5.2 Was dauerhaft gespeichert wird, und was nicht
 
 | Dauerhaft | Niemals dauerhaft |
@@ -615,6 +644,55 @@ Cronjob-Kommando (Pfad und PHP-Binary aus dem IONOS-Konto einsetzen):
 
 Der Scheduler startet daraus die Queue mit begrenzter Laufzeit
 (`queue:work --stop-when-empty --max-time=50`) und den TTL-Cleanup.
+
+### Trusted Proxies
+
+Auf IONOS erreicht die Anfrage PHP über einen vorgeschalteten Proxy
+beziehungsweise Load Balancer. Schema, Host, Port und Client-IP stehen dann nur
+in den `X-Forwarded-*`-Headern. Ohne Vertrauenskonfiguration erkennt
+`ForceHttps` kein HTTPS und leitet endlos um, die Ratenbegrenzung sieht überall
+dieselbe Proxy-Adresse, das Audit-Log protokolliert die falsche Adresse und
+signierte URLs entstehen mit falschem Schema.
+
+- Konfiguration über `TRUSTED_PROXIES` (`config/deploy.php`), angewendet in
+  `bootstrap/app.php` über `App\Application\Install\TrustedProxyConfiguration`.
+- Leer bedeutet: keinem Proxy vertrauen (lokale Entwicklung, Testsuite).
+- `*` vertraut allen Proxys. Auf IONOS Webhosting ist das die praktikable
+  Einstellung, weil die Proxy-Adressen nicht veröffentlicht sind. Das Risiko
+  gefälschter Header besteht nur, wenn ein Client PHP unter Umgehung der
+  Plattform erreicht; auf IONOS Webhosting läuft jede Anfrage über den Proxy.
+- Auf einem eigenen Server (Profil B) werden die konkreten Adressen oder
+  CIDR-Bereiche des Proxys eingetragen.
+- Ausgewertet werden `X-Forwarded-For`, `-Host`, `-Port` und `-Proto`; der
+  RFC-7239-Header `Forwarded` wird nicht ausgewertet.
+
+### Kanonische Domain
+
+`www.<domain>` leitet dauerhaft (301) auf die Domain aus `APP_URL` um, mit
+Erhalt von Pfad und Query. Erste Linie ist die Regel in `public/.htaccess`, die
+Apache ohne PHP beantwortet; Rückfall ist
+`App\Http\Middleware\RedirectToCanonicalHost`, die vor `ForceHttps` läuft.
+Nichts ist hart codiert; andere Hostnamen (Staging, lokal) bleiben unberührt.
+
+### Document Root und Releaselayout
+
+Bevorzugt zeigt der Document Root im IONOS-Control-Center auf
+`<root>/current/public`. Lässt er sich nicht dorthin legen, liegt die
+Wurzel-`.htaccess` des Repositories im Document Root und schreibt jede Anfrage
+intern nach `current/public/` (oder `public/`) um. Vorher sperrt sie `.env`,
+`.git`, `shared/`, `releases/`, `storage/`, `vendor/`, `app/`, `bootstrap/`,
+`config/`, `database/`, `routes/`, `tests/` und die Metadateien der
+Projektwurzel mit 403. Die Sperren stehen vor der Umschreibung und sind in
+`tests/Unit/Install/HtaccessTest.php` nachgewiesen; `bin/deploy-sftp.php`
+prüft sie nach jedem Umschalten zusätzlich per HTTP.
+
+Releaselayout unterhalb von `SFTP_DEPLOY_ROOT`: `shared/.env`,
+`shared/storage/`, `releases/<name>/`, `current/`. Der Releasezeiger
+`current` ist ein gewöhnliches Verzeichnis und wird ohne SSH über zwei atomare
+SFTP-Umbenennungen umgeschaltet; ein Rollback ist dieselbe Operation in
+Gegenrichtung. Migrationen und Caches laufen danach über den CLI-Cronjob
+`smartabrechnen:install`. Details in
+[docs/betrieb/installation.md](docs/betrieb/installation.md).
 
 ---
 

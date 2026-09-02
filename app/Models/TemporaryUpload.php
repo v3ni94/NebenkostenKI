@@ -19,16 +19,21 @@ use Illuminate\Support\Carbon;
  * Einziger Ort mit einem Storage-Key auf eine Originaldatei.
  *
  * DATENSCHUTZ: Der Bereich liegt verschluesselt ausserhalb des Webroots, ohne
- * Backup und mit kurzer TTL. Nach erfolgreicher Loeschung wird der Datensatz
- * entfernt oder auf einen inhaltslosen Tombstone reduziert (storage_key null,
- * is_tombstone true). Ein unabhaengiger Cleanup-Job loescht ueberfaellige Dateien
- * auch dann, wenn die Verarbeitung haengen geblieben ist.
+ * Backup und mit kurzer TTL. Jede Datei ist mit einem zufaelligen
+ * Dateischluessel verschluesselt; encryption_key_wrapped traegt diesen
+ * Schluessel ausschliesslich in der mit dem Anwendungsschluessel umhuellten
+ * Form (App\Services\Storage\Crypto\TemporaryUploadKeyring). Nach erfolgreicher
+ * Loeschung wird der Datensatz entfernt oder auf einen inhaltslosen Tombstone
+ * reduziert (storage_key null, encryption_key_wrapped null, is_tombstone true).
+ * Ein unabhaengiger Cleanup-Job loescht ueberfaellige Dateien auch dann, wenn
+ * die Verarbeitung haengen geblieben ist.
  *
  * @property string $id
  * @property string $organization_id
  * @property string $document_id
  * @property string $storage_disk
  * @property string|null $storage_key
+ * @property string|null $encryption_key_wrapped
  * @property int|null $byte_size
  * @property int|null $total_chunks
  * @property int $received_chunks
@@ -63,7 +68,7 @@ class TemporaryUpload extends Model
     /**
      * @var list<string>
      */
-    protected $hidden = ['storage_key', 'provider_file_id'];
+    protected $hidden = ['storage_key', 'encryption_key_wrapped', 'provider_file_id'];
 
     /**
      * @return array<string, string>
@@ -71,6 +76,10 @@ class TemporaryUpload extends Model
     protected function casts(): array
     {
         return [
+            // Bewusst KEIN "encrypted"-Cast: der Wert ist bereits mit dem aus
+            // APP_KEY abgeleiteten Hauptschluessel umhuellt. Eine zweite Huelle
+            // brachte keinen Schutz und verschleierte das Schluesselmodell.
+            'encryption_key_wrapped' => 'string',
             'byte_size' => 'integer',
             'total_chunks' => 'integer',
             'received_chunks' => 'integer',

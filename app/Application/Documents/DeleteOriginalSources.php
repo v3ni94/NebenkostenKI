@@ -109,6 +109,8 @@ final class DeleteOriginalSources
             'last_error' => $errorCode->message(),
             'provider_deletion_status' => $providerStatus,
             'storage_key' => $localResult['deleted'] ? null : $upload->getAttribute('storage_key'),
+            // Der umhuellte Dateischluessel wird mit dem Chiffrat entfernt.
+            'encryption_key_wrapped' => $localResult['deleted'] ? null : $upload->getAttribute('encryption_key_wrapped'),
         ])->save();
 
         $document->forceFill(['deletion_status' => $documentStatus])->save();
@@ -198,7 +200,7 @@ final class DeleteOriginalSources
 
     /**
      * Inhaltsloser Tombstone. Der Datensatz bleibt als Nachweis bestehen, traegt
-     * aber keinen Storage-Key und keine Provider-Datei-ID mehr
+     * aber keinen Storage-Key, keinen Dateischluessel und keine Provider-Datei-ID mehr
      * (Abschnitt 6.4: temporaere Provider-Datei-IDs werden nach Abschluss der
      * Verarbeitung nicht dauerhaft gespeichert).
      */
@@ -206,6 +208,7 @@ final class DeleteOriginalSources
     {
         $upload->forceFill([
             'storage_key' => null,
+            'encryption_key_wrapped' => null,
             'provider_file_id' => null,
             'provider_file_deleted_at' => $providerStatus === DeletionStatus::ERFOLGREICH ? $now : null,
             'provider_deletion_status' => $providerStatus,

@@ -20,7 +20,7 @@ use App\Services\Storage\TemporaryUploadStorage;
 use App\Services\Storage\UploadErrorCode;
 use App\Services\Storage\UploadLimits;
 use Illuminate\Support\Carbon;
-use RuntimeException;
+use Throwable;
 use ZipArchive;
 
 /**
@@ -66,25 +66,33 @@ final class ExpandArchive
             throw UploadRejectedException::because(UploadErrorCode::QUELLE_NICHT_VORHANDEN);
         }
 
-        $archivePath = $this->storage->absolutePath($this->storage->originalKey($prefix));
+        // AUSNAHME: ZipArchive arbeitet nur ueber Dateipfade. Das Archiv wird
+        // deshalb fuer die Dauer des Entpackens als Klartextkopie bereitgestellt
+        // und unmittelbar danach ueberschrieben und geloescht
+        // (TemporaryUploadStorage::withDecryptedCopy()). Die entpackten
+        // Eintraege selbst werden ueber verschluesselnde Writer geschrieben.
+        return $this->storage->withDecryptedCopy(
+            $this->storage->originalKey($prefix),
+            function (string $archivePath) use ($archiveDocument, $entries, $limits): array {
+                $archive = new ZipArchive;
 
-        $archive = new ZipArchive;
+                if ($archive->open($archivePath, ZipArchive::RDONLY) !== true) {
+                    throw UploadRejectedException::because(UploadErrorCode::STRUKTUR_UNGUELTIG);
+                }
 
-        if ($archive->open($archivePath, ZipArchive::RDONLY) !== true) {
-            throw UploadRejectedException::because(UploadErrorCode::STRUKTUR_UNGUELTIG);
-        }
+                $created = [];
 
-        $created = [];
+                try {
+                    foreach ($entries as $entry) {
+                        $created[] = $this->createDocumentFromEntry($archive, $archiveDocument, $entry, $limits);
+                    }
+                } finally {
+                    $archive->close();
+                }
 
-        try {
-            foreach ($entries as $entry) {
-                $created[] = $this->createDocumentFromEntry($archive, $archiveDocument, $entry, $limits);
-            }
-        } finally {
-            $archive->close();
-        }
-
-        return $created;
+                return $created;
+            },
+        );
     }
 
     /**
@@ -101,11 +109,9 @@ final class ExpandArchive
 
         $byteSize = $this->extractEntry($archive, $entry->index, $targetKey, $limits);
 
-        $inspection = $this->mimeGuard->inspectFile(
-            $this->storage->absolutePath($targetKey),
-            $entry->extension,
-            $limits,
-        );
+        $source = $this->storage->source($targetKey);
+
+        $inspection = $this->mimeGuard->inspectSource($source, $entry->extension, $limits);
 
         $sequence = $this->nextSequenceNumber($archiveDocument);
 
@@ -120,7 +126,7 @@ final class ExpandArchive
             'mime_type' => $inspection->mimeType,
             'original_byte_size' => $byteSize,
             'page_count' => $inspection->pageCount,
-            'fingerprint_hmac' => $this->fingerprints->forFile($this->storage->absolutePath($targetKey)),
+            'fingerprint_hmac' => $this->fingerprints->forSource($source),
             'processing_status' => DocumentProcessingStatus::SICHERHEITSPRUEFUNG,
             'security_checked_at' => Carbon::now(),
             'malware_scanner_driver' => $archiveDocument->getAttribute('malware_scanner_driver'),
@@ -139,6 +145,7 @@ final class ExpandArchive
             'document_id' => $document->getKey(),
             'storage_disk' => TemporaryUploadStorage::DISK,
             'storage_key' => $entryPrefix,
+            'encryption_key_wrapped' => $this->storage->wrappedKeyFor($entryPrefix),
             'byte_size' => $byteSize,
             'total_chunks' => 1,
             'received_chunks' => 1,
@@ -169,8 +176,9 @@ final class ExpandArchive
     }
 
     /**
-     * Entpackt einen Eintrag blockweise in den Quarantaenebereich. Der Inhalt
-     * wird nicht als Ganzes in den Speicher geladen.
+     * Entpackt einen Eintrag blockweise und verschluesselt in den
+     * Quarantaenebereich. Der Inhalt wird nicht als Ganzes in den Speicher
+     * geladen und liegt zu keinem Zeitpunkt als Klartextdatei vor.
      *
      * @throws UploadRejectedException
      */
@@ -182,15 +190,7 @@ final class ExpandArchive
             throw UploadRejectedException::because(UploadErrorCode::ARCHIV_EINTRAG_UNZULAESSIG);
         }
 
-        $this->storage->disk()->put($targetKey, '');
-
-        $target = fopen($this->storage->absolutePath($targetKey), 'wb');
-
-        if ($target === false) {
-            fclose($source);
-
-            throw new RuntimeException('Der Archiveintrag konnte nicht in den Kurzzeitbereich geschrieben werden.');
-        }
+        $target = $this->storage->openWriter($targetKey);
 
         $written = 0;
 
@@ -202,7 +202,8 @@ final class ExpandArchive
                     continue;
                 }
 
-                $written += (int) fwrite($target, $block);
+                $target->write($block);
+                $written += strlen($block);
 
                 if ($written > $limits->maxFileBytes) {
                     throw UploadRejectedException::withContext(UploadErrorCode::ARCHIV_ZIP_BOMBE, [
@@ -211,16 +212,15 @@ final class ExpandArchive
                     ]);
                 }
             }
-        } catch (UploadRejectedException $exception) {
-            fclose($target);
-            fclose($source);
-            $this->storage->disk()->delete($targetKey);
+
+            $written = $target->finish();
+        } catch (Throwable $exception) {
+            $target->abort();
 
             throw $exception;
+        } finally {
+            fclose($source);
         }
-
-        fclose($target);
-        fclose($source);
 
         return $written;
     }

@@ -25,11 +25,34 @@ final class SocketClamAvTransport implements ClamAvTransport
         private readonly int $timeoutSeconds = 20,
     ) {}
 
-    public function instream(string $absolutePath): string
+    public function instream(mixed $source): string
     {
         if ($this->endpoint === '') {
             throw new ClamAvTransportException('Es ist kein ClamAV-Endpunkt konfiguriert.');
         }
+
+        if (is_resource($source)) {
+            return $this->send($source, false);
+        }
+
+        if (! is_string($source)) {
+            throw new ClamAvTransportException('Die zu pruefende Datei konnte nicht gelesen werden.');
+        }
+
+        $file = fopen($source, 'rb');
+
+        if ($file === false) {
+            throw new ClamAvTransportException('Die zu pruefende Datei konnte nicht gelesen werden.');
+        }
+
+        return $this->send($file, true);
+    }
+
+    /**
+     * @param  resource  $file
+     */
+    private function send($file, bool $closeFile): string
+    {
 
         $errorNumber = 0;
         $errorMessage = '';
@@ -42,6 +65,10 @@ final class SocketClamAvTransport implements ClamAvTransport
         );
 
         if ($socket === false) {
+            if ($closeFile) {
+                fclose($file);
+            }
+
             throw new ClamAvTransportException(sprintf(
                 'Die Verbindung zum ClamAV-Endpunkt ist fehlgeschlagen (Code %d).',
                 $errorNumber
@@ -49,14 +76,6 @@ final class SocketClamAvTransport implements ClamAvTransport
         }
 
         stream_set_timeout($socket, $this->timeoutSeconds);
-
-        $file = fopen($absolutePath, 'rb');
-
-        if ($file === false) {
-            fclose($socket);
-
-            throw new ClamAvTransportException('Die zu pruefende Datei konnte nicht gelesen werden.');
-        }
 
         try {
             fwrite($socket, "zINSTREAM\0");
@@ -77,7 +96,10 @@ final class SocketClamAvTransport implements ClamAvTransport
 
             $response = (string) stream_get_contents($socket);
         } finally {
-            fclose($file);
+            if ($closeFile) {
+                fclose($file);
+            }
+
             fclose($socket);
         }
 

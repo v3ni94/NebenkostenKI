@@ -15,6 +15,9 @@ use ZipArchive;
  * DATENSCHUTZ: Es wird kein Text extrahiert, kein Seitenbild erzeugt und kein
  * Inhalt zurueckgegeben. Ist die Seitenzahl nicht sicher bestimmbar, bleibt sie
  * null. Es wird niemals geschaetzt (Grundsatz 5).
+ *
+ * Der Klartext wird als Strom gelesen. Einzige Ausnahme ist die XLSX-Zaehlung:
+ * ZipArchive verlangt einen Dateipfad, siehe ReadableSource::withLocalPath().
  */
 final class PageCounter
 {
@@ -24,16 +27,25 @@ final class PageCounter
      */
     private const MAX_SCAN_BYTES = 8 * 1024 * 1024;
 
+    private const READ_BLOCK_BYTES = 1024 * 1024;
+
     public function count(string $absolutePath, FileCategory $category, string $mimeType): ?int
     {
-        if (! is_file($absolutePath)) {
+        return $this->countSource(new PlainFileSource($absolutePath), $category, $mimeType);
+    }
+
+    public function countSource(ReadableSource $source, FileCategory $category, string $mimeType): ?int
+    {
+        if (! $source->exists()) {
             return null;
         }
 
         return match ($category) {
-            FileCategory::PDF => $this->countPdfPages($absolutePath),
+            FileCategory::PDF => $this->countPdfPages($source),
             FileCategory::BILD, FileCategory::HEIC => 1,
-            FileCategory::TABELLE => $mimeType === 'text/csv' ? 1 : $this->countWorksheets($absolutePath),
+            FileCategory::TABELLE => $mimeType === 'text/csv'
+                ? 1
+                : $source->withLocalPath(fn (string $path): ?int => $this->countWorksheets($path)),
             FileCategory::ARCHIV => null,
         };
     }
@@ -43,9 +55,9 @@ final class PageCounter
      * wird null zurueckgegeben und in validation_issues eine Pruefaufgabe
      * erzeugt, statt einen Wert zu erfinden.
      */
-    private function countPdfPages(string $absolutePath): ?int
+    private function countPdfPages(ReadableSource $source): ?int
     {
-        $contents = (string) file_get_contents($absolutePath, false, null, 0, self::MAX_SCAN_BYTES);
+        $contents = $this->readHead($source, self::MAX_SCAN_BYTES);
 
         if ($contents === '') {
             return null;
@@ -69,6 +81,31 @@ final class PageCounter
         );
 
         return $counts === [] ? null : max($counts);
+    }
+
+    /**
+     * Liest hoechstens $maxBytes vom Anfang des Klartextstroms.
+     */
+    private function readHead(ReadableSource $source, int $maxBytes): string
+    {
+        $stream = $source->openStream();
+        $contents = '';
+
+        try {
+            while (strlen($contents) < $maxBytes && ! feof($stream)) {
+                $block = fread($stream, min(self::READ_BLOCK_BYTES, $maxBytes - strlen($contents)));
+
+                if ($block === false || $block === '') {
+                    break;
+                }
+
+                $contents .= $block;
+            }
+        } finally {
+            fclose($stream);
+        }
+
+        return $contents;
     }
 
     /**

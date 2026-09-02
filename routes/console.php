@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Application\Install\SchedulerHeartbeat;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -39,6 +40,18 @@ use Illuminate\Support\Facades\Schedule;
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+// --- Lebenszeichen des Schedulers --------------------------------------------
+// Setzt bei jedem Lauf einen Zeitstempel im Cache. smartabrechnen:check-config
+// liest ihn und meldet, ob der Cronjob des IONOS-Control-Centers tatsaechlich
+// schedule:run aufruft. Kein Hintergrundprozess, kein Netzzugriff.
+
+Schedule::call(static function (SchedulerHeartbeat $heartbeat): void {
+    $heartbeat->record();
+})
+    ->everyMinute()
+    ->name('smartabrechnen:scheduler-heartbeat')
+    ->description('Zeitstempel des letzten Schedulerlaufs für den Konfigurationscheck.');
 
 // --- Teiljobs der Dokumentverarbeitung ---------------------------------------
 // Kurzer Lauf, damit ein Aufruf sicher innerhalb der Prozesslaufzeit eines

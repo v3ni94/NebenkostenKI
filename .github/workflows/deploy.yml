@@ -1,22 +1,45 @@
 name: Deploy (SFTP)
 
-# Vorlage fuer das SFTP-Deployment auf IONOS.
+# SFTP-Deployment auf IONOS (Masterprompt 21, docs/betrieb/installation.md).
 #
-# Ablauf: Releasepaket bauen, auf Staging ausliefern, Smoke-Test, danach
-# Produktion nur aus einem geschuetzten Branch und nur mit manueller Freigabe.
+# Ablauf: Releasepaket bauen, per SFTP in ein NEUES Releaseverzeichnis laden,
+# Releasezeiger umschalten, Smoke-Test, bei Fehlschlag automatisches Rollback.
+# Produktion nur aus dem geschuetzten Branch und mit manueller Freigabe ueber
+# den Environment-Schutz.
 #
-# Verbindliche Regeln:
-# - Upload in ein NEUES Releaseverzeichnis, niemals halb ueber die aktive Version.
-# - Document Root beziehungsweise Releasezeiger erst nach dem Smoke-Test umschalten.
-# - Vorherige Version fuer ein Rollback erhalten.
-# - Migrationen werden ueber einen gezielt aktivierten CLI-Cronjob im
-#   IONOS-Control-Center ausgefuehrt. Es gibt keine frei erreichbare migrate.php.
-# - SFTP-, Datenbank- und API-Zugangsdaten ausschliesslich als Secrets.
-#   Keine Secrets in Workflow-Logs ausgeben.
+# ENTSCHEIDUNG ZUM RELEASEZEIGER (ohne SSH, siehe bin/deploy-sftp.php):
+# "current" ist ein gewoehnliches Verzeichnis, kein Symlink. Das Umschalten
+# besteht aus zwei atomaren SFTP-Umbenennungen (current -> releases/<alt>,
+# releases/<neu> -> current). Document Root (current/public), Wurzel-.htaccess
+# und Cronjob-Pfad (current/artisan) bleiben dadurch dauerhaft gleich. Eine
+# signaturgeschuetzte Umschaltroute wurde verworfen: sie braeuchte ein
+# zusaetzliches Secret in der Webanwendung, waere ueber HTTP angreifbar und
+# koennte das Verzeichnis, aus dem sie selbst laeuft, nicht sauber austauschen.
+# Eine frei erreichbare migrate.php gibt es nicht. Migrationen und Caches
+# laufen nach dem Umschalten ueber den CLI-Cronjob
+# "php current/artisan smartabrechnen:install" im IONOS-Control-Center.
 #
-# Vor der ersten Nutzung sind folgende Secrets zu setzen:
-#   SFTP_HOST, SFTP_PORT, SFTP_USERNAME, SFTP_PASSWORD oder SFTP_PRIVATE_KEY,
-#   SFTP_DEPLOY_ROOT (privater Zielpfad), SMOKE_TEST_URL
+# SMOKE-TEST: Vor dem Umschalten ist das neue Release unter derselben Domain
+# nicht erreichbar. Deshalb wird zuerst die Integritaet auf dem Server geprueft
+# (Pflichtdateien, .env), dann umgeschaltet, dann der HTTP-Smoke-Test gegen
+# SMOKE_TEST_URL ausgefuehrt (/up muss 200 liefern, /.env und /storage duerfen
+# nicht ausgeliefert werden). Schlaegt er fehl, schaltet das Skript sofort auf
+# das vorige Release zurueck und der Job endet mit Fehler. Die Umgebung
+# "staging" ist der Ort, an dem ein Release vor der Produktion geprueft wird.
+#
+# SECRETS je Environment (staging, production), niemals in Logs:
+#   SFTP_HOST, SFTP_PORT, SFTP_USERNAME,
+#   SFTP_PASSWORD oder SFTP_PRIVATE_KEY (Schluesselinhalt),
+#   SFTP_DEPLOY_ROOT (privater Zielpfad, enthaelt shared/, releases/, current/),
+#   SMOKE_TEST_URL (https://<domain>)
+#
+# Einmalig vor dem ersten Deployment: shared/.env per SFTP anlegen (Vorlage
+# .env.example) und den Document Root im IONOS-Control-Center auf
+# <SFTP_DEPLOY_ROOT>/current/public setzen oder die Wurzel-.htaccess nutzen.
+#
+# ROLLBACK: Workflow mit action=rollback und release=<name> starten, oder vom
+# Arbeitsplatz: php bin/deploy-sftp.php --rollback=<name>. Die letzten drei
+# Releases bleiben unter releases/ erhalten.
 
 on:
   workflow_dispatch:
@@ -27,6 +50,16 @@ on:
         default: staging
         type: choice
         options: [staging, production]
+      action:
+        description: Aktion
+        required: true
+        default: deploy
+        type: choice
+        options: [deploy, rollback, list]
+      release:
+        description: Releasename fuer rollback (siehe Aktion list)
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -38,7 +71,10 @@ concurrency:
 jobs:
   build:
     name: Releasepaket bauen
+    if: inputs.action == 'deploy'
     runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.package.outputs.release }}
     steps:
       - uses: actions/checkout@v4
 
@@ -46,7 +82,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: mbstring, intl, gd, zip, pdo_mysql, fileinfo, openssl
+          extensions: mbstring, intl, gd, zip, pdo_mysql, fileinfo, openssl, ctype, dom, tokenizer
           coverage: none
 
       - name: Node einrichten
@@ -75,46 +111,133 @@ jobs:
           npm run build
 
       - name: Releasepaket zusammenstellen
+        id: package
         run: |
           RELEASE="release-$(date -u +%Y%m%d%H%M%S)-${GITHUB_SHA::7}"
-          echo "RELEASE=$RELEASE" >> "$GITHUB_ENV"
+          echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
           mkdir -p "build-release/$RELEASE"
+          # Ausschlussliste entspricht App\Application\Install\ReleasePackage
+          # (Unit-Test ReleasePackageTest haelt beide Listen zusammen).
           rsync -a --delete \
             --exclude '.git' \
             --exclude '.github' \
+            --exclude '.claude' \
             --exclude '.env' \
+            --exclude '.env.*' \
             --exclude 'node_modules' \
             --exclude 'tests' \
+            --exclude 'docs' \
+            --exclude 'resources/css' \
+            --exclude 'resources/js' \
             --exclude 'storage/logs/*' \
             --exclude 'storage/app/temporary-uploads/*' \
+            --exclude 'storage/app/private/*' \
+            --exclude 'storage/framework/cache/data/*' \
+            --exclude 'storage/framework/sessions/*' \
+            --exclude 'storage/framework/testing' \
+            --exclude 'storage/framework/views/*' \
+            --exclude 'bootstrap/cache/*' \
             --exclude 'build-release' \
+            --exclude '.phpunit.result.cache' \
+            --exclude 'phpunit.xml' \
+            --exclude 'phpstan.neon' \
+            --exclude 'pint.json' \
+            --exclude 'package.json' \
+            --exclude 'package-lock.json' \
+            --exclude 'vite.config.js' \
+            --exclude '*.log' \
+            --exclude '*.sqlite' \
             ./ "build-release/$RELEASE/"
-          # Versionsmetadaten und Healthcheck
+          # Versionsmetadaten fuer /version.json und den Releasenamen
           printf '{\n  "release": "%s",\n  "commit": "%s",\n  "built_at": "%s"\n}\n' \
             "$RELEASE" "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             > "build-release/$RELEASE/public/version.json"
+          # Sicherheitsnetz: keine .env im Paket
+          if find "build-release/$RELEASE" -name '.env*' | grep -q .; then
+            echo "Eine .env-Datei ist im Paket. Abbruch."; exit 1
+          fi
 
       - name: Paket sichern
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.RELEASE }}
+          name: ${{ steps.package.outputs.release }}
           path: build-release
           retention-days: 14
 
   deploy:
     name: Ausliefern (${{ inputs.target }})
+    if: inputs.action == 'deploy'
     needs: build
     runs-on: ubuntu-latest
     # Production erfordert eine manuelle Freigabe ueber den Environment-Schutz.
     environment: ${{ inputs.target }}
     steps:
-      - name: Hinweis
+      - name: PHP einrichten
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, openssl
+          coverage: none
+
+      - name: Paket laden
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.release }}
+          path: build-release
+
+      - name: Per SFTP in ein neues Releaseverzeichnis laden, umschalten, Smoke-Test
+        # Das Skript nutzt vendor/ aus dem Paket (Flysystem SFTP). Zugangsdaten
+        # ausschliesslich als Umgebungsvariablen; das Skript gibt weder Host
+        # noch Benutzer aus.
         run: |
-          echo "Die eigentliche SFTP-Uebertragung ist bewusst noch nicht aktiviert."
-          echo "Sie wird erst eingeschaltet, wenn Zielpfad und Zugangsdaten des"
-          echo "IONOS-Kontos bestaetigt vorliegen (siehe README, Vor Livegang)."
-          echo "Schritte danach:"
-          echo "1. Paket in ein neues Releaseverzeichnis unter SFTP_DEPLOY_ROOT laden."
-          echo "2. Smoke-Test gegen SMOKE_TEST_URL ausfuehren."
-          echo "3. Releasezeiger umschalten, vorherige Version behalten."
-          echo "4. Migrationen ueber den CLI-Cronjob im IONOS-Control-Center starten."
+          RELEASE_DIR="build-release/${{ needs.build.outputs.release }}"
+          php "$RELEASE_DIR/bin/deploy-sftp.php" --source="$RELEASE_DIR" --keep=3
+        env:
+          SFTP_HOST: ${{ secrets.SFTP_HOST }}
+          SFTP_PORT: ${{ secrets.SFTP_PORT }}
+          SFTP_USERNAME: ${{ secrets.SFTP_USERNAME }}
+          SFTP_PASSWORD: ${{ secrets.SFTP_PASSWORD }}
+          SFTP_PRIVATE_KEY: ${{ secrets.SFTP_PRIVATE_KEY }}
+          SFTP_DEPLOY_ROOT: ${{ secrets.SFTP_DEPLOY_ROOT }}
+          SMOKE_TEST_URL: ${{ secrets.SMOKE_TEST_URL }}
+
+      - name: Hinweis auf Migrationen
+        run: |
+          echo "Release aktiv. Jetzt im IONOS-Control-Center den Cronjob"
+          echo "  <php> <SFTP_DEPLOY_ROOT>/current/artisan smartabrechnen:install --no-interaction"
+          echo "ausfuehren (Migrationen, Kategorien, Caches). Danach smartabrechnen:check-config."
+
+  maintain:
+    name: ${{ inputs.action }} (${{ inputs.target }})
+    if: inputs.action != 'deploy'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: PHP einrichten
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, openssl
+          coverage: none
+
+      - name: Abhaengigkeiten fuer das Deployskript
+        run: composer install --no-dev --no-interaction --prefer-dist --no-progress
+
+      - name: Releases anzeigen oder Rollback
+        run: |
+          if [ "${{ inputs.action }}" = "list" ]; then
+            php bin/deploy-sftp.php --list
+          else
+            if [ -z "${{ inputs.release }}" ]; then echo "Bitte release angeben."; exit 1; fi
+            php bin/deploy-sftp.php --rollback="${{ inputs.release }}"
+          fi
+        env:
+          SFTP_HOST: ${{ secrets.SFTP_HOST }}
+          SFTP_PORT: ${{ secrets.SFTP_PORT }}
+          SFTP_USERNAME: ${{ secrets.SFTP_USERNAME }}
+          SFTP_PASSWORD: ${{ secrets.SFTP_PASSWORD }}
+          SFTP_PRIVATE_KEY: ${{ secrets.SFTP_PRIVATE_KEY }}
+          SFTP_DEPLOY_ROOT: ${{ secrets.SFTP_DEPLOY_ROOT }}
+          SMOKE_TEST_URL: ${{ secrets.SMOKE_TEST_URL }}

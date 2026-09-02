@@ -53,6 +53,22 @@ class HeicConverterTest extends TestCase
         }
     }
 
+    public function test_lehnt_die_umwandlung_aus_dem_speicher_ohne_konverter_mit_klarem_fehlercode_ab(): void
+    {
+        $converter = new HeicConverter;
+
+        if ($converter->isAvailable()) {
+            $this->markTestSkipped('Auf diesem System ist ein HEIC-Konverter vorhanden.');
+        }
+
+        try {
+            $converter->convertToJpegBlob(SampleFiles::heic());
+            $this->fail('Ohne Konverter muss die Umwandlung abgelehnt werden.');
+        } catch (UploadRejectedException $exception) {
+            $this->assertSame(UploadErrorCode::HEIC_KONVERTER_FEHLT, $exception->errorCode);
+        }
+    }
+
     public function test_die_verfuegbarkeitspruefung_ist_stabil_und_wirft_niemals(): void
     {
         $converter = new HeicConverter;

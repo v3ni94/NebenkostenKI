@@ -15,7 +15,8 @@ keine Rechtsberatung im Einzelfall.
 
 **Architektur und Entscheidungen:** siehe [ARCHITECTURE.md](ARCHITECTURE.md).
 **Ergebnis der Abschlussprüfung:** siehe [docs/abnahme.md](docs/abnahme.md).
-**Betrieb:** [Backup und Restore](docs/betrieb/backup-und-restore.md),
+**Betrieb:** [Inbetriebnahme auf IONOS](docs/betrieb/installation.md),
+[Backup und Restore](docs/betrieb/backup-und-restore.md),
 [Löschkonzept im Betrieb](docs/betrieb/loeschkonzept-betrieb.md).
 
 ---
@@ -112,7 +113,7 @@ vendor/bin/phpstan analyse --no-progress --memory-limit=1G
 vendor/bin/pint --test
 ```
 
-Stand 01.09.2026: **1.715 Tests mit 11.586 Assertions grün**, PHPStan Level 6
+Stand 02.09.2026: **2.008 Tests mit 12.672 Assertions grün**, PHPStan Level 6
 projektweit fehlerfrei, Pint sauber. Einzelne Nachweise lassen sich gezielt
 laufen, zum Beispiel:
 
@@ -162,6 +163,17 @@ Ziel ist ein IONOS-Linux-Hosting oder ein IONOS-Server. Kanonische Produktiv-URL
 ist `https://smart-abrechnen.de`; `www.smart-abrechnen.de` leitet dauerhaft
 darauf um. Die Anwendung unterstützt zwei Betriebsprofile, Details in
 [ARCHITECTURE.md](ARCHITECTURE.md), Abschnitt 8.
+
+Die vollständige Schritt-für-Schritt-Anleitung für den Betreiber steht in
+[docs/betrieb/installation.md](docs/betrieb/installation.md). Befehle der
+Inbetriebnahme:
+
+```bash
+php artisan smartabrechnen:install --no-interaction   # Umgebung prüfen, Migrationen, Kategorien, Caches, Livegang-Blocker
+php artisan smartabrechnen:admin:create --email=...   # erster Administrator mit Einmalpasswort, Zweitfaktor beim ersten Login
+php artisan smartabrechnen:check-config               # Datenbank, SFTP, SMTP, Stripe, KI, Assets, Cronjob, Sicherheitseinstellungen
+php bin/deploy-sftp.php --source=. [--dry-run]        # SFTP-Auslieferung vom Arbeitsplatz, Rollback mit --rollback=<release>
+```
 
 ### Releasepaket
 
@@ -295,9 +307,10 @@ die Abnahme anonymisierter Musterabrechnungen.
 - [ ] HVM-Logo und CI-Assets in `/public/ci/` eingespielt (siehe
       [public/ci/README.md](public/ci/README.md)); es wird kein Logo generiert
 - [ ] Abnahme realer, vollständig anonymisierter Musterabrechnungen
-- [ ] Übertragungsschritt in `.github/workflows/deploy.yml` aktiviert, nachdem
-      Zielpfad und Zugangsdaten bestätigt vorliegen, mit Smoke-Test gegen ein
-      neues Releaseverzeichnis vor dem Umschalten des Releasezeigers
+- [ ] Secrets für `.github/workflows/deploy.yml` je Environment hinterlegt
+      (`SFTP_HOST`, `SFTP_PORT`, `SFTP_USERNAME`, `SFTP_PASSWORD` oder
+      `SFTP_PRIVATE_KEY`, `SFTP_DEPLOY_ROOT`, `SMOKE_TEST_URL`) und `shared/.env`
+      auf dem Server angelegt, siehe [docs/betrieb/installation.md](docs/betrieb/installation.md)
 - [ ] erster Restore-Test nach [docs/betrieb/backup-und-restore.md](docs/betrieb/backup-und-restore.md)
       durchgeführt und protokolliert
 

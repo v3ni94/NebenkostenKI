@@ -38,6 +38,8 @@ final class MimeGuard
 
     private const TAIL_BYTES = 8192;
 
+    private const READ_BLOCK_BYTES = 1024 * 1024;
+
     /**
      * Zulaessige Dateiendungen und der dazu erwartete MIME-Typ.
      *
@@ -74,7 +76,9 @@ final class MimeGuard
     public function __construct(private readonly PageCounter $pageCounter = new PageCounter) {}
 
     /**
-     * Prueft eine Datei auf der Platte.
+     * Prueft eine Klartextdatei auf der Platte. Fuer Tests und lokale
+     * Werkzeuge; die Pipeline verwendet inspectSource() mit der
+     * verschluesselten Quelle.
      *
      * @param  string|null  $declaredExtension  angekuendigte Dateiendung ohne Punkt.
      *                                          Bewusst nur die Endung, niemals der Originaldateiname.
@@ -83,19 +87,30 @@ final class MimeGuard
      */
     public function inspectFile(string $absolutePath, ?string $declaredExtension, UploadLimits $limits): FileInspection
     {
-        if (! is_file($absolutePath)) {
+        return $this->inspectSource(new PlainFileSource($absolutePath), $declaredExtension, $limits);
+    }
+
+    /**
+     * Prueft eine Quelle ueber ihren Klartextstrom. Gelesen werden nur der
+     * Anfang und, im Durchlauf, das Ende; der Inhalt wird nie als Ganzes in
+     * eine Variable geladen.
+     *
+     * @throws UploadRejectedException
+     */
+    public function inspectSource(ReadableSource $source, ?string $declaredExtension, UploadLimits $limits): FileInspection
+    {
+        if (! $source->exists()) {
             throw UploadRejectedException::because(UploadErrorCode::QUELLE_NICHT_VORHANDEN);
         }
 
-        $byteSize = (int) filesize($absolutePath);
-        $head = (string) file_get_contents($absolutePath, false, null, 0, self::HEAD_BYTES);
-        $tailOffset = max(0, $byteSize - self::TAIL_BYTES);
-        $tail = (string) file_get_contents($absolutePath, false, null, $tailOffset, self::TAIL_BYTES);
+        $byteSize = $source->byteSize();
+
+        [$head, $tail] = $byteSize > 0 ? $this->headAndTail($source) : ['', ''];
 
         $inspection = $this->inspect($head, $tail, $byteSize, $declaredExtension, $limits);
 
         if ($inspection->category === FileCategory::PDF || $inspection->category === FileCategory::TABELLE) {
-            $pages = $this->pageCounter->count($absolutePath, $inspection->category, $inspection->mimeType);
+            $pages = $this->pageCounter->countSource($source, $inspection->category, $inspection->mimeType);
 
             return new FileInspection(
                 $inspection->mimeType,
@@ -169,6 +184,39 @@ final class MimeGuard
     public function mimeTypesForExtension(string $extension): array
     {
         return self::EXTENSION_MIME_MAP[$this->normalizeExtension($extension) ?? ''] ?? [];
+    }
+
+    /**
+     * Liest den Strom einmal sequentiell durch und behaelt nur Kopf- und
+     * Endbereich. Der Zwischenraum wird verworfen.
+     *
+     * @return array{string, string}
+     */
+    private function headAndTail(ReadableSource $source): array
+    {
+        $stream = $source->openStream();
+        $head = '';
+        $tail = '';
+
+        try {
+            while (! feof($stream)) {
+                $block = fread($stream, self::READ_BLOCK_BYTES);
+
+                if ($block === false || $block === '') {
+                    continue;
+                }
+
+                if (strlen($head) < self::HEAD_BYTES) {
+                    $head .= substr($block, 0, self::HEAD_BYTES - strlen($head));
+                }
+
+                $tail = substr($tail.$block, -self::TAIL_BYTES);
+            }
+        } finally {
+            fclose($stream);
+        }
+
+        return [$head, $tail];
     }
 
     /**

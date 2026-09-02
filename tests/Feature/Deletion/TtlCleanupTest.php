@@ -189,6 +189,42 @@ class TtlCleanupTest extends TestCase
         $this->assertSame(3, TemporaryUpload::query()->where('is_tombstone', true)->count());
     }
 
+    public function test_cleanup_entfernt_verwaiste_chiffrate_ohne_datensatz_erst_nach_der_hoechst_ttl(): void
+    {
+        $storage = new TemporaryUploadStorage;
+
+        // Verwaist: Datei ohne Datensatz, etwa nach einem Prozessabbruch
+        // zwischen Dateischreiben und Speichern des Datensatzes.
+        $verwaist = $storage->newPrefix();
+        $storage->put($storage->originalKey($verwaist), SampleFiles::pdf());
+
+        // Regulaer: gueltiger Upload mit Datensatz.
+        $gueltig = $this->ladeDateiHoch(SampleFiles::pdf(2), 'pdf');
+        $gueltigPrefix = (string) $gueltig->getAttribute('storage_key');
+
+        $this->artisan('smartabrechnen:cleanup-temporary-uploads')->assertSuccessful();
+
+        $this->assertNotSame(
+            [],
+            Storage::disk(TemporaryUploadStorage::DISK)->allFiles($verwaist),
+            'Ein frisch verwaistes Verzeichnis darf nicht sofort entfernt werden.'
+        );
+
+        Carbon::setTestNow(Carbon::now()->addMinutes(121));
+
+        $this->artisan('smartabrechnen:cleanup-temporary-uploads')->assertSuccessful();
+
+        Carbon::setTestNow();
+
+        $this->assertSame([], Storage::disk(TemporaryUploadStorage::DISK)->allFiles($verwaist));
+        $this->assertNotContains($verwaist, $storage->allPrefixes());
+
+        // Der gueltige Upload ist mit seinem Datensatz ueber die TTL gelaufen
+        // und regulaer geloescht worden; die Verzeichnisse sind leer.
+        $this->assertSame([], Storage::disk(TemporaryUploadStorage::DISK)->allFiles($gueltigPrefix));
+        $this->assertSame(1, TemporaryUpload::query()->where('is_tombstone', true)->count());
+    }
+
     public function test_ttl_ist_hart_auf_120_minuten_begrenzt(): void
     {
         config(['smartabrechnen.retention.temp_upload_ttl_minutes' => 9999]);

@@ -118,7 +118,8 @@ trait BuildsAiIntegration
         $storage = new TemporaryUploadStorage;
         $prefix = $storage->newPrefix();
 
-        $storage->disk()->put($storage->originalKey($prefix), $inhalt ?? SampleFiles::pdf($seiten));
+        // Verschluesselt ueber den Kurzzeitbereich, wie es die Pipeline tut.
+        $storage->put($storage->originalKey($prefix), $inhalt ?? SampleFiles::pdf($seiten));
 
         $document = Document::factory()->processing()->create([
             'organization_id' => $welt['organization']->getKey(),

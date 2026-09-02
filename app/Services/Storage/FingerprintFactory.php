@@ -40,8 +40,8 @@ final class FingerprintFactory
     private const READ_CHUNK_BYTES = 1024 * 1024;
 
     /**
-     * Fingerabdruck einer Datei auf der Platte. Die Datei wird in Bloecken
-     * gelesen, damit auch 25 MB ohne Speicherlast verarbeitet werden.
+     * Fingerabdruck einer Klartextdatei auf der Platte. Die Datei wird in
+     * Bloecken gelesen, damit auch 25 MB ohne Speicherlast verarbeitet werden.
      */
     public function forFile(string $absolutePath): string
     {
@@ -55,6 +55,31 @@ final class FingerprintFactory
             throw new RuntimeException('Die Quelldatei konnte fuer den Fingerabdruck nicht geoeffnet werden.');
         }
 
+        return $this->forStream($handle);
+    }
+
+    /**
+     * Fingerabdruck einer Quelle. Fuer den Kurzzeitbereich wird der
+     * entschluesselte Klartextstrom gehasht, nicht das Chiffrat, damit
+     * dieselbe Datei bei jedem Upload denselben Fingerabdruck erhaelt.
+     */
+    public function forSource(ReadableSource $source): string
+    {
+        if (! $source->exists()) {
+            throw new RuntimeException('Fuer den Fingerabdruck ist keine lesbare Quelldatei vorhanden.');
+        }
+
+        return $this->forStream($source->openStream());
+    }
+
+    /**
+     * Fingerabdruck ueber einen Klartextstrom. Der Strom wird blockweise
+     * gelesen und am Ende geschlossen.
+     *
+     * @param  resource  $handle
+     */
+    public function forStream($handle): string
+    {
         $context = hash_init('sha256');
 
         try {

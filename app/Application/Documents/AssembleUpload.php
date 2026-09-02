@@ -18,6 +18,7 @@ use App\Services\Storage\FingerprintFactory;
 use App\Services\Storage\HeicConverter;
 use App\Services\Storage\MalwareScannerFactory;
 use App\Services\Storage\MimeGuard;
+use App\Services\Storage\ReadableSource;
 use App\Services\Storage\TemporaryUploadStorage;
 use App\Services\Storage\UploadErrorCode;
 use App\Services\Storage\UploadLimits;
@@ -38,7 +39,9 @@ use Illuminate\Support\Carbon;
  *   8. Seitenzahl und minimal noetige technische Metadaten sichern
  *
  * DATENSCHUTZ:
- * - Es wird ausschliesslich auf der Disk temporary_uploads gearbeitet.
+ * - Es wird ausschliesslich auf der Disk temporary_uploads gearbeitet. Dort
+ *   liegt jede Datei verschluesselt; die Pruefkette liest den Klartext als
+ *   Strom (ReadableSource), niemals als Datei.
  * - Der Originaldateiname erreicht diesen Use Case nicht; uebergeben wird nur
  *   die angekuendigte Endung als technischer Parameter.
  * - Der reine SHA-256 wird nur fluechtig gebildet, dauerhaft gespeichert wird
@@ -82,15 +85,20 @@ final class AssembleUpload
             $limits,
         );
 
-        $absolutePath = $this->storage->absolutePath($assembly->storageKey);
+        // Alle Pruefungen lesen den entschluesselten Klartextstrom der Quelle.
+        // Ein Pfad auf der Platte wird nicht herausgegeben; dort liegt nur das
+        // Chiffrat.
+        $source = $this->storage->source($assembly->storageKey);
 
-        $inspection = $this->mimeGuard->inspectFile($absolutePath, $declaredExtension, $limits);
+        $inspection = $this->mimeGuard->inspectSource($source, $declaredExtension, $limits);
 
-        $this->scanForMalware($document, $absolutePath);
+        $this->scanForMalware($document, $source);
 
-        $converted = $this->convertIfNeeded($prefix, $absolutePath, $inspection);
+        $converted = $this->convertIfNeeded($prefix, $source, $inspection);
 
-        $fingerprint = $this->fingerprints->forFile($absolutePath);
+        // Der Fingerabdruck wird ueber den Klartext gebildet, nicht ueber das
+        // Chiffrat. Nur so erkennt die Dublettenerkennung dieselbe Datei wieder.
+        $fingerprint = $this->fingerprints->forSource($source);
 
         $document->forceFill([
             'mime_type' => $inspection->mimeType,
@@ -121,7 +129,7 @@ final class AssembleUpload
         }
 
         if ($inspection->category === FileCategory::ARCHIV) {
-            $entries = $this->archiveGuard->inspect($absolutePath, $limits);
+            $entries = $this->archiveGuard->inspectSource($source, $limits);
             $expanded = ($this->expandArchive)($document, $upload, $entries, $limits);
 
             return new AssemblyResult($document, $inspection, false, true, $expanded, $converted);
@@ -174,10 +182,10 @@ final class AssembleUpload
     /**
      * @throws UploadRejectedException
      */
-    private function scanForMalware(Document $document, string $absolutePath): void
+    private function scanForMalware(Document $document, ReadableSource $source): void
     {
         $scanner = $this->scanners->make();
-        $result = $scanner->scanFile($absolutePath);
+        $result = $scanner->scanStream($source->openStream());
 
         $document->forceFill([
             'malware_scanner_driver' => $scanner->driver(),
@@ -202,17 +210,30 @@ final class AssembleUpload
      *
      * @throws UploadRejectedException
      */
-    private function convertIfNeeded(string $prefix, string $absolutePath, FileInspection $inspection): bool
+    private function convertIfNeeded(string $prefix, ReadableSource $source, FileInspection $inspection): bool
     {
         if (! $inspection->category->requiresConversion()) {
             return false;
         }
 
-        $targetKey = $this->storage->convertedImageKey($prefix);
+        // Ohne Konverter wird abgelehnt, bevor der Klartext gelesen wird.
+        if (! $this->heicConverter->isAvailable()) {
+            throw UploadRejectedException::because(UploadErrorCode::HEIC_KONVERTER_FEHLT);
+        }
 
-        $this->storage->disk()->put($targetKey, '');
+        // Der HEIC-Klartext liegt nur fuer die Umwandlung im Arbeitsspeicher.
+        // Das JPEG wird verschluesselt unter demselben Praefix abgelegt.
+        $stream = $source->openStream();
 
-        $this->heicConverter->convertToJpeg($absolutePath, $this->storage->absolutePath($targetKey));
+        try {
+            $heic = stream_get_contents($stream);
+        } finally {
+            fclose($stream);
+        }
+
+        $jpeg = $this->heicConverter->convertToJpegBlob($heic === false ? '' : $heic);
+
+        $this->storage->put($this->storage->convertedImageKey($prefix), $jpeg);
 
         return true;
     }

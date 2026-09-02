@@ -138,11 +138,17 @@ final class StartUpload
     ): TemporaryUpload {
         $upload = new TemporaryUpload;
 
+        // Mit dem Praefix entsteht der zufaellige Dateischluessel dieses
+        // Uploads. Gespeichert wird nur die mit dem Anwendungsschluessel
+        // umhuellte Form.
+        $prefix = $this->storage->newPrefix();
+
         $upload->fill([
             'organization_id' => $document->getAttribute('organization_id'),
             'document_id' => $document->getKey(),
             'storage_disk' => TemporaryUploadStorage::DISK,
-            'storage_key' => $this->storage->newPrefix(),
+            'storage_key' => $prefix,
+            'encryption_key_wrapped' => $this->storage->wrappedKeyFor($prefix),
             'byte_size' => $command->byteSize,
             'total_chunks' => $totalChunks,
             'received_chunks' => 0,

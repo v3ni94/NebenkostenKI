@@ -50,6 +50,23 @@ final class ArchiveGuard
     ) {}
 
     /**
+     * Prueft ein Archiv aus einer Quelle.
+     *
+     * AUSNAHME: ZipArchive arbeitet ausschliesslich ueber Dateipfade. Fuer
+     * eine verschluesselte Quelle entsteht deshalb fuer die Dauer der Pruefung
+     * eine Klartextkopie, die unmittelbar danach ueberschrieben und geloescht
+     * wird (TemporaryUploadStorage::withDecryptedCopy()).
+     *
+     * @return list<ArchiveEntryReport>
+     *
+     * @throws UploadRejectedException
+     */
+    public function inspectSource(ReadableSource $source, UploadLimits $limits): array
+    {
+        return $source->withLocalPath(fn (string $path): array => $this->inspect($path, $limits));
+    }
+
+    /**
      * @return list<ArchiveEntryReport>
      *
      * @throws UploadRejectedException

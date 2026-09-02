@@ -69,14 +69,17 @@ final class DocumentPayloadFactory
         }
 
         try {
-            $contents = $this->storage->disk()->get($key);
+            // Entschluesselt aus dem Kurzzeitbereich. Ein manipuliertes
+            // Chiffrat fuehrt hier zu einer Ausnahme und damit zu "keine
+            // Nutzlast", niemals zu Muelldaten beim Provider.
+            $contents = $this->storage->read($key);
         } catch (Throwable) {
             // Die Meldung wird bewusst verworfen. Sie koennte den Storage-Key
             // und damit einen Hinweis auf die Ablage enthalten.
             return null;
         }
 
-        if (! is_string($contents) || $contents === '') {
+        if ($contents === '') {
             return null;
         }
 

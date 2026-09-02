@@ -13,11 +13,15 @@ namespace App\Services\Storage\Scanner;
 interface ClamAvTransport
 {
     /**
-     * Uebertraegt die Datei per INSTREAM an clamd und gibt die Rohantwort
+     * Uebertraegt den Inhalt per INSTREAM an clamd und gibt die Rohantwort
      * zurueck, zum Beispiel "stream: OK" oder "stream: Eicar-Test-Signature
      * FOUND".
      *
+     * @param  string|resource  $source  absoluter Pfad einer Klartextdatei oder
+     *                                   ein lesbarer Klartextstrom; ein Strom
+     *                                   wird nicht geschlossen
+     *
      * @throws ClamAvTransportException
      */
-    public function instream(string $absolutePath): string;
+    public function instream(mixed $source): string;
 }

@@ -7,8 +7,10 @@ namespace Tests\Unit\Storage;
 use App\Services\Storage\Exceptions\UploadRejectedException;
 use App\Services\Storage\FileCategory;
 use App\Services\Storage\MimeGuard;
+use App\Services\Storage\TemporaryUploadStorage;
 use App\Services\Storage\UploadErrorCode;
 use App\Services\Storage\UploadLimits;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -173,6 +175,58 @@ class MimeGuardTest extends TestCase
             $this->fail('Eine leere Datei muss abgelehnt werden.');
         } catch (UploadRejectedException $exception) {
             $this->assertSame(UploadErrorCode::DATEI_LEER, $exception->errorCode);
+        }
+    }
+
+    public function test_prueft_eine_verschluesselte_quelle_ueber_den_klartextstrom(): void
+    {
+        Storage::fake(TemporaryUploadStorage::DISK);
+
+        $storage = new TemporaryUploadStorage;
+        $prefix = $storage->newPrefix();
+        $key = $storage->originalKey($prefix);
+
+        $storage->put($key, SampleFiles::pdf(3));
+
+        $inspection = $this->guard->inspectSource($storage->source($key), 'pdf', $this->limits);
+
+        $this->assertSame('application/pdf', $inspection->mimeType);
+        $this->assertSame(FileCategory::PDF, $inspection->category);
+        $this->assertSame(strlen(SampleFiles::pdf(3)), $inspection->byteSize);
+        $this->assertSame(3, $inspection->pageCount);
+    }
+
+    public function test_verschluesselte_xlsx_wird_ueber_die_arbeitskopie_gezaehlt_und_hinterlaesst_nichts(): void
+    {
+        Storage::fake(TemporaryUploadStorage::DISK);
+
+        $storage = new TemporaryUploadStorage;
+        $prefix = $storage->newPrefix();
+        $key = $storage->originalKey($prefix);
+
+        $storage->put($key, SampleFiles::xlsx(2));
+
+        $inspection = $this->guard->inspectSource($storage->source($key), 'xlsx', $this->limits);
+
+        $this->assertSame(FileCategory::TABELLE, $inspection->category);
+        $this->assertSame(2, $inspection->pageCount);
+        $this->assertSame([$key], Storage::disk(TemporaryUploadStorage::DISK)->allFiles($prefix));
+    }
+
+    public function test_mime_taeuschung_wird_auch_bei_verschluesselter_quelle_erkannt(): void
+    {
+        Storage::fake(TemporaryUploadStorage::DISK);
+
+        $storage = new TemporaryUploadStorage;
+        $key = $storage->originalKey($storage->newPrefix());
+
+        $storage->put($key, SampleFiles::png());
+
+        try {
+            $this->guard->inspectSource($storage->source($key), 'pdf', $this->limits);
+            $this->fail('Eine MIME-Taeuschung muss abgelehnt werden.');
+        } catch (UploadRejectedException $exception) {
+            $this->assertSame(UploadErrorCode::MIME_TAEUSCHUNG, $exception->errorCode);
         }
     }
 

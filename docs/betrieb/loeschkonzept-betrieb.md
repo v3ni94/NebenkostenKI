@@ -33,6 +33,22 @@ Fehlercode ohne Dateiinhalt und ohne Dateinamen. Eine fehlgeschlagene Löschung
 ist ein offener Datenschutzvorfall und im Adminbereich als kritischer Alarm zu
 behandeln, nicht als gewöhnliche Warnung.
 
+Verschlüsselung: Jede Datei im Kurzzeitbereich liegt ausschließlich
+verschlüsselt auf der Platte (libsodium XChaCha20-Poly1305 in Blöcken,
+Rückfallebene AES-256-GCM über Laravels Encrypter, ohne Abschalter). Je Upload
+gibt es einen zufälligen Dateischlüssel, der mit einem aus `APP_KEY`
+abgeleiteten Hauptschlüssel umhüllt in `temporary_uploads.encryption_key_wrapped`
+steht und mit der Löschung entfernt wird. Betriebsfolge: Ein Wechsel von
+`APP_KEY` macht gerade laufende Uploads unlesbar; die betroffenen Dokumente
+scheitern mit Fehlercode, ihre Chiffrate werden über Löschpfad und TTL-Cleanup
+entfernt, die Nutzer laden erneut hoch. Ein Schlüsselwechsel ist deshalb in
+einer Zeit ohne laufende Uploads durchzuführen. Nur für ZipArchive
+(Archivprüfung, XLSX-Blattzählung, Entpacken) entsteht unter
+`<praefix>/arbeit/` eine kurzlebige Klartextkopie, die unmittelbar nach dem
+Aufruf überschrieben und gelöscht wird; Reste eines abgestürzten Prozesses
+entfernt der TTL-Cleanup zusammen mit verwaisten Verzeichnissen ohne Datensatz
+nach 120 Minuten.
+
 ---
 
 ## 3. Aufbewahrungsfristen

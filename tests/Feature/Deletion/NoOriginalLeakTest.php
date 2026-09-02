@@ -155,6 +155,24 @@ class NoOriginalLeakTest extends TestCase
         }
     }
 
+    public function test_waehrend_der_verarbeitung_liegt_kein_klartext_im_kurzzeitbereich(): void
+    {
+        // Schritt 1: Abschnitte angenommen, noch nicht zusammengesetzt.
+        $this->ladeDateiHoch($this->markiertesPdf(), 'pdf');
+
+        $this->assertKeinKlartextImKurzzeitbereich();
+
+        // Schritt 2: zusammengesetzt und geprueft. Ohne KI-Schicht bleibt die
+        // Datei fuer den naechsten Versuch liegen.
+        $this->verarbeiteQueue();
+
+        $this->assertKeinKlartextImKurzzeitbereich();
+
+        $dokument = Document::query()->firstOrFail();
+
+        $this->assertNotNull($dokument->getAttribute('fingerprint_hmac'), 'Die Pruefkette muss den Klartext gelesen haben.');
+    }
+
     public function test_der_kurzzeitbereich_ist_nach_abschluss_leer(): void
     {
         $this->bindeErfolgreicheKiSchicht();
@@ -193,6 +211,25 @@ class NoOriginalLeakTest extends TestCase
             $this->assertStringNotContainsString(self::MARKER, $inhalt);
             $this->assertStringNotContainsString('quarantaene', $inhalt);
             $this->assertStringNotContainsString('.pdf', $inhalt);
+        }
+    }
+
+    /**
+     * Prueft ALLE Dateien im Kurzzeitbereich gegen den Marker, nicht nur den
+     * erwarteten Pfad.
+     */
+    private function assertKeinKlartextImKurzzeitbereich(): void
+    {
+        $disk = Storage::disk(TemporaryUploadStorage::DISK);
+        $dateien = $disk->allFiles('quarantaene');
+
+        $this->assertNotSame([], $dateien, 'Waehrend der Verarbeitung muss die Datei im Kurzzeitbereich liegen.');
+
+        foreach ($dateien as $datei) {
+            $inhalt = (string) $disk->get($datei);
+
+            $this->assertStringNotContainsString(self::MARKER, $inhalt, 'Klartext in '.$datei);
+            $this->assertStringNotContainsString('%PDF-', $inhalt, 'PDF-Kopf in '.$datei);
         }
     }
 
