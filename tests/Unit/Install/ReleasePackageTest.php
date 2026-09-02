@@ -152,7 +152,13 @@ final class ReleasePackageTest extends TestCase
     {
         foreach ($dateien as $pfad => $inhalt) {
             $voll = $this->quelle.'/'.$pfad;
-            @mkdir(dirname($voll), 0750, true);
+
+            // Mehrere Dateien teilen sich ein Verzeichnis; ein erneutes mkdir
+            // erzeugt eine Warnung, die PHPUnit als Testwarnung meldet.
+            if (! is_dir(dirname($voll))) {
+                mkdir(dirname($voll), 0750, true);
+            }
+
             file_put_contents($voll, $inhalt);
         }
     }
