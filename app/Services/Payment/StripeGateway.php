@@ -7,7 +7,7 @@ namespace App\Services\Payment;
 use App\Services\Payment\Contracts\CheckoutClient;
 use App\Services\Payment\Dto\CheckoutSessionPayload;
 use App\Services\Payment\Dto\CheckoutSessionResult;
-use RuntimeException;
+use App\Services\Payment\Exceptions\CheckoutProviderException;
 use Stripe\Checkout\Session;
 use Stripe\Exception\ApiErrorException;
 use Stripe\StripeClient;
@@ -23,7 +23,10 @@ use Stripe\StripeClient;
  *  2. Beträge und Positionen stammen ausschliesslich aus dem Payload und damit
  *     aus der Datenbank. Es wird kein Wert aus einem Formular verwendet.
  *  3. Die Sitzung wird ueber client_reference_id an den Abrechnungslauf und
- *     ueber metadata zusaetzlich an Lauf, Nutzer und Mandant gebunden.
+ *     ueber metadata zusaetzlich an Lauf, Nutzer und Mandant gebunden. Die
+ *     gleichen Kennungen werden ueber payment_intent_data.metadata auf die
+ *     Zahlungsabsicht uebertragen, damit auch payment_intent-Ereignisse
+ *     zuordenbar sind.
  *  4. Der Idempotency-Key verhindert, dass ein doppelt abgesendetes Formular
  *     zwei Zahlungsvorgaenge erzeugt.
  *  5. Uebertragen wird ausschliesslich, was der Payload enthaelt: eine neutrale
@@ -58,11 +61,7 @@ final class StripeGateway implements CheckoutClient
                 ['idempotency_key' => $payload->idempotencyKey],
             );
         } catch (ApiErrorException $exception) {
-            throw new RuntimeException(
-                'Die Zahlungsseite konnte nicht angelegt werden. Bitte versuchen Sie es in einigen Minuten erneut.',
-                0,
-                $exception,
-            );
+            throw CheckoutProviderException::sessionNotCreated($exception);
         }
 
         return $this->result($session, $payload);
@@ -113,6 +112,10 @@ final class StripeGateway implements CheckoutClient
             'line_items' => $lineItems,
             'client_reference_id' => $payload->clientReferenceId,
             'metadata' => $payload->metadata,
+            // Dieselben technischen Kennungen auf der Zahlungsabsicht. Der
+            // Anbieter kopiert Sitzungsmetadaten nicht; ohne diese Angabe
+            // waeren payment_intent-Ereignisse nicht zuordenbar.
+            'payment_intent_data' => ['metadata' => $payload->metadata],
             'success_url' => $payload->successUrl,
             'cancel_url' => $payload->cancelUrl,
             'locale' => 'de',
@@ -134,7 +137,7 @@ final class StripeGateway implements CheckoutClient
         $url = is_string($session->url) ? $session->url : '';
 
         if ($id === '' || $url === '') {
-            throw new RuntimeException('Der Zahlungsanbieter hat keine gültige Zahlungsseite zurückgemeldet.');
+            throw CheckoutProviderException::invalidResponse();
         }
 
         $total = $session->amount_total;

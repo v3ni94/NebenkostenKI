@@ -4,6 +4,10 @@
     VERBINDLICH: Diese Seite ist KEIN Zahlungsnachweis. Sie sagt ausdruecklich
     nicht, dass die Zahlung bestaetigt sei, solange die signaturgeprüfte
     Rueckmeldung des Anbieters nicht eingegangen ist (Abschnitt 15.1).
+
+    Ist die Zahlung bestaetigt, die Erstellung der Abrechnungen aber gescheitert,
+    sagt die Seite das ehrlich: Es ist nichts zu zahlen, der Betrieb holt die
+    Erstellung nach.
 --}}
 @extends('layouts.portal')
 
@@ -16,7 +20,13 @@
         lead="Ihre Abrechnungen werden unmittelbar nach der Bestätigung des Zahlungsanbieters erstellt." />
 
     <div class="mt-8 max-w-3xl">
-        @if ($bezahlt)
+        @if ($verzoegert)
+            <x-hvm.alert variant="warning" label="Hinweis" title="Zahlung bestätigt, Erstellung verzögert">
+                Ihre Zahlung ist bestätigt. Bei der Erstellung Ihrer Abrechnungen ist eine technische Störung
+                aufgetreten. Wir holen die Erstellung nach und melden uns per E-Mail, sobald Ihre Dateien
+                bereitstehen. Sie müssen nichts weiter tun und nicht erneut zahlen.
+            </x-hvm.alert>
+        @elseif ($bezahlt)
             <x-hvm.alert variant="success" label="Erledigt" title="Zahlung bestätigt">
                 Die Zahlung ist bestätigt. Ihre Final-Abrechnungen werden erstellt. Sobald sie bereitstehen,
                 erhalten Sie eine E-Mail mit einem sicheren Downloadlink.

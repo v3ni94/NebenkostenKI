@@ -139,17 +139,12 @@ final class LivegangBlockerTest extends AdminTestCase
         self::assertFalse($bestaetigt->has(LaunchBlockerCheck::AUFBEWAHRUNG_ERGEBNIS_PDF));
     }
 
-    public function test_eine_nicht_entschiedene_korrekturfrist_wird_erkannt(): void
+    public function test_die_korrekturfrist_ist_kein_livegang_blocker_mehr(): void
     {
-        self::assertTrue($this->bericht()->has(LaunchBlockerCheck::KORREKTURFRIST));
-
-        $_SERVER['PRICE_CORRECTION_FREE_DAYS'] = '14';
-
-        try {
-            self::assertFalse($this->bericht()->has(LaunchBlockerCheck::KORREKTURFRIST));
-        } finally {
-            unset($_SERVER['PRICE_CORRECTION_FREE_DAYS']);
-        }
+        // Die Korrektur nach Zahlung ist zum Start nicht verfuegbar; die
+        // Einstellung PRICE_CORRECTION_FREE_DAYS hat keine Wirkung und wird
+        // deshalb nicht als offene Entscheidung gefuehrt.
+        self::assertFalse($this->bericht()->has(LaunchBlockerCheck::KORREKTURFRIST));
     }
 
     public function test_die_uebersicht_zeigt_die_anzahl_der_blocker(): void

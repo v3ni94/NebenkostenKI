@@ -82,6 +82,16 @@ final class StripeGatewayParametersTest extends TestCase
         self::assertSame('01ZAHLUNG000000000000000000', $parameter['metadata']['payment_id']);
     }
 
+    public function test_die_kennungen_werden_auch_auf_die_zahlungsabsicht_uebertragen(): void
+    {
+        $parameter = (new StripeGateway(StripeConfiguration::of(null, null)))->parameters($this->payload());
+
+        // Der Anbieter kopiert Sitzungsmetadaten nicht auf die Zahlungsabsicht.
+        // Ohne diese Angabe waeren payment_intent-Ereignisse nicht zuordenbar.
+        self::assertSame($parameter['metadata'], $parameter['payment_intent_data']['metadata']);
+        self::assertSame(['metadata'], array_keys($parameter['payment_intent_data']));
+    }
+
     public function test_es_werden_ausschliesslich_die_vorgesehenen_felder_uebertragen(): void
     {
         $parameter = (new StripeGateway(StripeConfiguration::of(null, null)))->parameters($this->payload());
@@ -91,6 +101,7 @@ final class StripeGatewayParametersTest extends TestCase
             'line_items',
             'client_reference_id',
             'metadata',
+            'payment_intent_data',
             'success_url',
             'cancel_url',
             'locale',

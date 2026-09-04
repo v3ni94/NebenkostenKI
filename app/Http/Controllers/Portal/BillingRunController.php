@@ -10,6 +10,7 @@ use App\Application\BillingRun\BillingRunStateMachine;
 use App\Application\BillingRun\CreateBillingRun;
 use App\Application\BillingRun\IllegalStatusTransitionException;
 use App\Application\BillingRun\PortalStatusResolver;
+use App\Application\Payment\CancelCheckout;
 use App\Enums\BillingMode;
 use App\Enums\BillingRunStatus;
 use App\Http\Controllers\Controller;
@@ -43,6 +44,7 @@ class BillingRunController extends Controller
         private readonly BillingRunStateMachine $stateMachine,
         private readonly PortalStatusResolver $status,
         private readonly AuditRecorder $audit,
+        private readonly CancelCheckout $cancelCheckout,
     ) {}
 
     public function index(): View
@@ -205,11 +207,18 @@ class BillingRunController extends Controller
 
     /**
      * Abbruch eines Laufs ueber die Statusmaschine.
+     *
+     * Ein offener Zahlungsvorgang wird zuvor beendet (Zahlungsseite beim
+     * Anbieter ablaufen lassen, Zahlung ABGEBROCHEN), damit ein abgebrochener
+     * Lauf nicht anschliessend noch bezahlt werden kann.
      */
     public function cancel(string $billingRun): RedirectResponse
     {
         $lauf = $this->lauf($billingRun);
         $this->authorize('delete', $lauf);
+
+        ($this->cancelCheckout)($lauf, $this->context->user());
+        $lauf->refresh();
 
         try {
             $this->stateMachine->transitionTo(
@@ -231,6 +240,10 @@ class BillingRunController extends Controller
     {
         $lauf = $this->lauf($billingRun);
         $this->authorize('delete', $lauf);
+
+        // Offene Zahlungsvorgaenge werden vor dem Entfernen beendet, sonst
+        // koennte die Zahlungsseite beim Anbieter noch bezahlt werden.
+        ($this->cancelCheckout)($lauf, $this->context->user());
 
         $lauf->delete();
 

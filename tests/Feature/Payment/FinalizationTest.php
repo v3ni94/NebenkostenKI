@@ -324,6 +324,31 @@ final class FinalizationTest extends PaymentTestCase
         self::assertSame(1, Invoice::query()->whereNull('cancels_invoice_id')->count());
     }
 
+    public function test_eine_zweite_finalisierung_laesst_den_rechnungsbeleg_aktiv(): void
+    {
+        $vorgang = $this->bezahlterVorgang();
+
+        $erste = app(FinalizeBillingRun::class)($vorgang['lauf'], $vorgang['nutzer']);
+
+        self::assertNotNull($erste->invoice);
+
+        /** @var GeneratedDocument $beleg */
+        $beleg = GeneratedDocument::query()->where('invoice_id', $erste->invoice->getKey())->firstOrFail();
+
+        $lauf = BillingRun::query()->findOrFail($vorgang['lauf']->getKey());
+        $lauf->forceFill(['status' => BillingRunStatus::PAID])->save();
+
+        app(FinalizeBillingRun::class)($lauf, $vorgang['nutzer']);
+
+        // Die Rechnung wird nicht neu erzeugt und darf deshalb nicht als
+        // ersetzt gelten: sie ist ein aufzubewahrender Beleg.
+        $beleg->refresh();
+
+        self::assertSame(GeneratedDocumentStatus::AKTIV, $beleg->getAttribute('status'));
+        self::assertNull($beleg->getAttribute('replaced_by_document_id'));
+        self::assertSame(GeneratedDocumentKind::HVM_RECHNUNG, $beleg->getAttribute('kind'));
+    }
+
     public function test_die_rechnung_stellt_den_bezahlten_betrag_und_nicht_den_neuen_preis(): void
     {
         $vorgang = $this->bezahlterVorgang(2);

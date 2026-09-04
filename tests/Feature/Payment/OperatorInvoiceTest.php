@@ -51,8 +51,9 @@ final class OperatorInvoiceTest extends PaymentTestCase
         $rechnung = app(IssueOperatorInvoice::class)($vorgang['lauf'], $vorgang['zahlung'], $preis);
 
         self::assertSame(7470, (int) $rechnung->getAttribute('gross_cent'));
-        self::assertSame(6277, (int) $rechnung->getAttribute('net_cent'));
-        self::assertSame(1193, (int) $rechnung->getAttribute('tax_cent'));
+        // 3 mal 20,92 EUR netto, Steuer als Differenz zum Brutto.
+        self::assertSame(6276, (int) $rechnung->getAttribute('net_cent'));
+        self::assertSame(1194, (int) $rechnung->getAttribute('tax_cent'));
         self::assertSame('19.0000', (string) $rechnung->getAttribute('tax_rate_percent'));
         self::assertSame(InvoiceStatus::BEZAHLT, $rechnung->getAttribute('status'));
         self::assertSame('Stripe Checkout', (string) $rechnung->getAttribute('payment_method'));
@@ -77,6 +78,7 @@ final class OperatorInvoiceTest extends PaymentTestCase
         self::assertStringContainsString('01.01.2025 bis 31.12.2025', (string) $position->getAttribute('description'));
         self::assertSame('3.0000', (string) $position->getAttribute('quantity'));
         self::assertSame(2092, (int) $position->getAttribute('unit_price_net_cent'));
+        self::assertSame(3 * 2092, (int) $position->getAttribute('net_cent'));
         self::assertSame(7470, (int) $position->getAttribute('gross_cent'));
     }
 

@@ -61,6 +61,22 @@ final class CheckoutNotAllowedException extends RuntimeException
         );
     }
 
+    public static function paymentAlreadyReceived(): self
+    {
+        return new self(
+            'Zu diesem Abrechnungslauf liegt bereits ein Zahlungseingang vor, der noch zugeordnet wird. '
+            .'Bitte zahlen Sie nicht erneut und wenden Sie sich an den Support.'
+        );
+    }
+
+    public static function billingAddressMissing(): self
+    {
+        return new self(
+            'Für die Rechnung fehlt Ihre vollständige Rechnungsanschrift (Straße und Hausnummer, Postleitzahl, '
+            .'Ort). Bitte ergänzen Sie sie unter Konto, bevor Sie die Zahlung einleiten.'
+        );
+    }
+
     public static function operatorMasterdataMissing(): self
     {
         return new self(

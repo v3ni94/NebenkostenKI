@@ -38,14 +38,20 @@
                     </dd>
                 </div>
                 <div class="flex justify-between">
-                    <dt>Kostenfreie Korrekturfrist</dt>
-                    <dd>{{ $zustand['korrekturfrist_tage'] }} Tage</dd>
+                    <dt>Korrektur nach Zahlung</dt>
+                    <dd>nicht verfügbar</dd>
                 </div>
                 <div class="flex justify-between">
                     <dt>Geschützte Berechnungsstände</dt>
                     <dd>{{ $geschuetzte_staende }}</dd>
                 </div>
             </dl>
+
+            <p class="mt-4 text-sm text-hvm-anthrazit">
+                Eine Korrektur eines bezahlten Abrechnungslaufs ist zum Start nicht verfügbar. Korrekturen erfolgen
+                über einen neuen Abrechnungslauf zum regulären Preis. Die Einstellung PRICE_CORRECTION_FREE_DAYS hat
+                derzeit keine Wirkung.
+            </p>
 
             @unless ($zustand['im_korridor'])
                 <div class="mt-4">

@@ -16,6 +16,7 @@ use App\Enums\PaymentProvider;
 use App\Enums\PaymentStatus;
 use App\Models\BillingRun;
 use App\Models\LegalAcceptance;
+use App\Models\Organization;
 use App\Models\Payment;
 use App\Models\User;
 use App\Services\Payment\CheckoutSessionFactory;
@@ -66,6 +67,8 @@ final class StartCheckout
         string $cancelUrl,
     ): CheckoutStart {
         $this->assertStatus($billingRun);
+        $this->assertNoConfirmedPayment($billingRun);
+        $this->assertBillingAddress($billingRun);
         $this->assertUserConfirmation($billingRun);
         $this->assertConsent($consent);
 
@@ -80,6 +83,7 @@ final class StartCheckout
 
         $payment->forceFill([
             'checkout_session_id' => $session->sessionId,
+            'payment_intent_id' => $session->paymentIntentId ?? $payment->getAttribute('payment_intent_id'),
             'status' => PaymentStatus::AUSSTEHEND,
         ])->save();
 
@@ -120,10 +124,19 @@ final class StartCheckout
      * sich der Betrag nicht geaendert hat. Aendert sich der Betrag, entsteht ein
      * neuer Vorgang mit neuem Schluessel, denn der Anbieter wuerde denselben
      * Schluessel mit abweichenden Daten ablehnen.
+     *
+     * Der Lauf wird innerhalb der Transaktion zeilenweise gesperrt. Zwei
+     * gleichzeitige Absendungen (Doppelklick, zwei Browserfenster) laufen so
+     * nacheinander; die zweite findet den Vorgang der ersten.
      */
     private function openPaymentFor(BillingRun $billingRun, User $user, PriceQuote $quote): Payment
     {
         return DB::transaction(function () use ($billingRun, $user, $quote): Payment {
+            BillingRun::query()
+                ->whereKey($billingRun->getKey())
+                ->lockForUpdate()
+                ->first();
+
             $existing = Payment::query()
                 ->where('billing_run_id', $billingRun->getKey())
                 ->whereIn('status', [PaymentStatus::ERSTELLT->value, PaymentStatus::AUSSTEHEND->value])
@@ -209,6 +222,62 @@ final class StartCheckout
         if ($billingRun->getAttribute('active_calculation_snapshot_id') === null) {
             throw CheckoutNotAllowedException::snapshotMissing();
         }
+    }
+
+    /**
+     * Ein Lauf, zu dem bereits ein Zahlungseingang vorliegt, der noch nicht
+     * zugeordnet werden konnte, wird nicht ein zweites Mal bezahlt.
+     *
+     * @throws CheckoutNotAllowedException
+     */
+    private function assertNoConfirmedPayment(BillingRun $billingRun): void
+    {
+        $confirmed = Payment::query()
+            ->where('billing_run_id', $billingRun->getKey())
+            ->where('status', PaymentStatus::BEZAHLT->value)
+            ->exists();
+
+        if ($confirmed) {
+            throw CheckoutNotAllowedException::paymentAlreadyReceived();
+        }
+    }
+
+    /**
+     * Die Rechnung der Hausverwaltung Mueller GmbH braucht die vollstaendige
+     * Anschrift des Leistungsempfaengers. Sie wird vor dem Checkout verlangt,
+     * weil eine festgeschriebene Rechnung nicht nachgebessert werden kann.
+     *
+     * @throws CheckoutNotAllowedException
+     */
+    private function assertBillingAddress(BillingRun $billingRun): void
+    {
+        if (! self::hasBillingAddress($billingRun)) {
+            throw CheckoutNotAllowedException::billingAddressMissing();
+        }
+    }
+
+    /**
+     * True, wenn Strasse, Postleitzahl und Ort der Rechnungsanschrift des
+     * Mandanten hinterlegt sind.
+     */
+    public static function hasBillingAddress(BillingRun $billingRun): bool
+    {
+        $organizationId = $billingRun->getAttribute('organization_id');
+        $organization = is_string($organizationId) ? Organization::query()->find($organizationId) : null;
+
+        if (! $organization instanceof Organization) {
+            return false;
+        }
+
+        foreach (['billing_address_line', 'billing_postal_code', 'billing_city'] as $field) {
+            $value = $organization->getAttribute($field);
+
+            if (! is_string($value) || trim($value) === '') {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

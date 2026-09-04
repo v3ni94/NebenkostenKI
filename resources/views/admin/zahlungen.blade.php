@@ -17,6 +17,12 @@
         </div>
     @endif
 
+    <div class="mt-6">
+        <x-hvm.button href="{{ route('admin.zahlungsnachlauf') }}" variant="secondary" size="sm">
+            Zahlungsnachlauf: offene Fälle nach bestätigter Zahlung
+        </x-hvm.button>
+    </div>
+
     <div class="mt-6 grid gap-6 lg:grid-cols-3">
         <x-hvm.card title="Umsatz laufender Monat">
             <p class="text-2xl font-semibold">{{ \App\Application\Admin\MetricsOverview::formatCent($umsatz_cent) }}</p>

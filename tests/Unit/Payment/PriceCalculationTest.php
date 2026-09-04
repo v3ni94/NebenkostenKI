@@ -24,11 +24,12 @@ final class PriceCalculationTest extends TestCase
     public static function mengen(): array
     {
         // Anzahl, Brutto, Netto, Steuer bei 24,90 EUR brutto und 19 Prozent.
+        // Netto ist Anzahl mal 20,92 EUR, die Steuer die Differenz zum Brutto.
         return [
             [1, 2490, 2092, 398],
-            [2, 4980, 4185, 795],
-            [7, 17430, 14647, 2783],
-            [13, 32370, 27202, 5168],
+            [2, 4980, 4184, 796],
+            [7, 17430, 14644, 2786],
+            [13, 32370, 27196, 5174],
         ];
     }
 
@@ -129,5 +130,16 @@ final class PriceCalculationTest extends TestCase
         $preis = app(CalculatePrice::class)->estimate(7);
 
         self::assertSame(2092, $preis->unitNetCent());
+    }
+
+    public function test_anzahl_mal_nettoeinzelpreis_ergibt_den_positionsnettobetrag(): void
+    {
+        foreach ([3, 7, 13] as $anzahl) {
+            $preis = app(CalculatePrice::class)->estimate($anzahl);
+
+            self::assertSame($anzahl * $preis->unitNetCent(), $preis->netCent - $preis->baseNetCent());
+            self::assertSame($preis->grossCent, $preis->netCent + $preis->taxCent);
+            self::assertTrue($preis->isConsistent());
+        }
     }
 }

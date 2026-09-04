@@ -10,6 +10,11 @@ use App\Enums\PaymentStatus;
 use App\Models\BillingRun;
 use App\Models\LegalAcceptance;
 use App\Models\Payment;
+use App\Services\Payment\Contracts\CheckoutClient;
+use App\Services\Payment\Dto\CheckoutSessionPayload;
+use App\Services\Payment\Dto\CheckoutSessionResult;
+use App\Services\Payment\Exceptions\CheckoutProviderException;
+use App\Services\Payment\Exceptions\PaymentConfigurationException;
 
 /**
  * Schritt 11: Zahlung einleiten (Abschnitt 15.1, 2.3, ADR-010).
@@ -25,8 +30,9 @@ final class CheckoutTest extends PaymentTestCase
 
         $antwort->assertOk();
         $antwort->assertSee('74,70 EUR');
-        $antwort->assertSee('62,77 EUR');
-        $antwort->assertSee('11,93 EUR');
+        // 3 mal 20,92 EUR netto, Steuer als Differenz zum Brutto.
+        $antwort->assertSee('62,76 EUR');
+        $antwort->assertSee('11,94 EUR');
         $antwort->assertSee('Umsatzsteuer 19 Prozent');
         $antwort->assertSee('Erzeugte Mieterabrechnungen');
     }
@@ -311,6 +317,174 @@ final class CheckoutTest extends PaymentTestCase
         self::assertSame(BillingRunStatus::PREVIEW_READY, $lauf->getAttribute('status'));
         self::assertSame(PaymentStatus::ABGEBROCHEN, $zahlung->getAttribute('status'));
         self::assertNotSame([], $this->checkoutClient->expiredSessions);
+    }
+
+    public function test_ein_preis_ausserhalb_des_korridors_zeigt_eine_meldung_statt_eines_serverfehlers(): void
+    {
+        config()->set('smartabrechnen.pricing.per_statement_gross_cent', 1990);
+
+        $daten = $this->vorschaubereiterLauf(2);
+
+        $antwort = $this->actingAs($daten['user'])
+            ->get(route('portal.checkout.show', ['billingRun' => $daten['billingRun']->getKey()]));
+
+        $antwort->assertOk();
+        $antwort->assertSee('außerhalb des freigegebenen Korridors');
+        $antwort->assertDontSee('Kostenpflichtig zahlen');
+
+        // Auch das Absenden leitet keine Zahlung ein.
+        $this->actingAs($daten['user'])
+            ->from(route('portal.checkout.show', ['billingRun' => $daten['billingRun']->getKey()]))
+            ->post(route('portal.checkout.store', ['billingRun' => $daten['billingRun']->getKey()]), [
+                'sofortige_ausfuehrung' => '1',
+                'vertragsgrundlagen' => '1',
+            ])
+            ->assertSessionHasErrors(['zahlung']);
+
+        self::assertSame([], $this->checkoutClient->payloads);
+    }
+
+    public function test_ein_fehler_des_zahlungsanbieters_erreicht_den_nutzer_als_verstaendliche_meldung(): void
+    {
+        $daten = $this->vorschaubereiterLauf(2);
+
+        $this->app->instance(CheckoutClient::class, new class implements CheckoutClient
+        {
+            public function createCheckoutSession(CheckoutSessionPayload $payload): CheckoutSessionResult
+            {
+                throw CheckoutProviderException::sessionNotCreated();
+            }
+
+            public function expireCheckoutSession(string $sessionId): void {}
+        });
+
+        $antwort = $this->actingAs($daten['user'])
+            ->from(route('portal.checkout.show', ['billingRun' => $daten['billingRun']->getKey()]))
+            ->post(route('portal.checkout.store', ['billingRun' => $daten['billingRun']->getKey()]), [
+                'sofortige_ausfuehrung' => '1',
+                'vertragsgrundlagen' => '1',
+            ]);
+
+        $antwort->assertRedirect(route('portal.checkout.show', ['billingRun' => $daten['billingRun']->getKey()]));
+        $antwort->assertSessionHasErrors(['zahlung']);
+
+        self::assertStringContainsString(
+            'Die Zahlungsseite konnte nicht angelegt werden',
+            (string) session('errors')?->first('zahlung'),
+        );
+
+        // Der Lauf bleibt in der Vorschau, es wurde nichts freigeschaltet.
+        self::assertSame(BillingRunStatus::PREVIEW_READY, BillingRun::query()
+            ->findOrFail($daten['billingRun']->getKey())
+            ->getAttribute('status'));
+    }
+
+    public function test_eine_unvollstaendige_zahlungsanbindung_erreicht_den_nutzer_als_verstaendliche_meldung(): void
+    {
+        $daten = $this->vorschaubereiterLauf(2);
+
+        $this->app->instance(CheckoutClient::class, new class implements CheckoutClient
+        {
+            public function createCheckoutSession(CheckoutSessionPayload $payload): CheckoutSessionResult
+            {
+                throw PaymentConfigurationException::missing('STRIPE_SECRET');
+            }
+
+            public function expireCheckoutSession(string $sessionId): void {}
+        });
+
+        $antwort = $this->actingAs($daten['user'])
+            ->from(route('portal.checkout.show', ['billingRun' => $daten['billingRun']->getKey()]))
+            ->post(route('portal.checkout.store', ['billingRun' => $daten['billingRun']->getKey()]), [
+                'sofortige_ausfuehrung' => '1',
+                'vertragsgrundlagen' => '1',
+            ]);
+
+        $antwort->assertSessionHasErrors(['zahlung']);
+
+        // Der Name der Umgebungsvariable gehoert nicht auf die Kundenseite.
+        self::assertStringNotContainsString('STRIPE_SECRET', (string) session('errors')?->first('zahlung'));
+    }
+
+    public function test_ohne_rechnungsanschrift_wird_der_checkout_abgelehnt(): void
+    {
+        $daten = $this->vorschaubereiterLauf(2);
+
+        $daten['organization']->forceFill([
+            'billing_address_line' => null,
+            'billing_postal_code' => null,
+            'billing_city' => null,
+        ])->save();
+
+        $seite = $this->actingAs($daten['user'])
+            ->get(route('portal.checkout.show', ['billingRun' => $daten['billingRun']->getKey()]));
+
+        $seite->assertOk();
+        $seite->assertSee('Rechnungsanschrift fehlt noch');
+        $seite->assertSee(route('portal.konto.edit'));
+
+        $antwort = $this->actingAs($daten['user'])
+            ->from(route('portal.checkout.show', ['billingRun' => $daten['billingRun']->getKey()]))
+            ->post(route('portal.checkout.store', ['billingRun' => $daten['billingRun']->getKey()]), [
+                'sofortige_ausfuehrung' => '1',
+                'vertragsgrundlagen' => '1',
+            ]);
+
+        $antwort->assertSessionHasErrors(['zahlung']);
+
+        self::assertSame(0, Payment::query()->count());
+        self::assertSame([], $this->checkoutClient->payloads);
+    }
+
+    public function test_der_abbruch_beendet_alle_offenen_zahlungsvorgaenge_des_laufs(): void
+    {
+        $daten = $this->vorschaubereiterLauf(2);
+
+        $this->actingAs($daten['user'])
+            ->post(route('portal.checkout.store', ['billingRun' => $daten['billingRun']->getKey()]), [
+                'sofortige_ausfuehrung' => '1',
+                'vertragsgrundlagen' => '1',
+            ])
+            ->assertRedirect();
+
+        // Ein zweiter offener Vorgang, wie er bei zwei gleichzeitigen
+        // Absendungen entstehen kann.
+        Payment::factory()->create([
+            'organization_id' => $daten['organization']->getKey(),
+            'billing_run_id' => $daten['billingRun']->getKey(),
+            'user_id' => $daten['user']->getKey(),
+            'checkout_session_id' => 'cs_test_zweiter_vorgang',
+            'amount_cent' => 4980,
+            'statement_count' => 2,
+            'status' => PaymentStatus::AUSSTEHEND,
+        ]);
+
+        $this->actingAs($daten['user'])
+            ->delete(route('portal.checkout.destroy', ['billingRun' => $daten['billingRun']->getKey()]))
+            ->assertRedirect();
+
+        self::assertSame(0, Payment::query()
+            ->where('billing_run_id', $daten['billingRun']->getKey())
+            ->whereIn('status', [PaymentStatus::ERSTELLT->value, PaymentStatus::AUSSTEHEND->value])
+            ->count());
+        self::assertCount(2, $this->checkoutClient->expiredSessions);
+        self::assertContains('cs_test_zweiter_vorgang', $this->checkoutClient->expiredSessions);
+    }
+
+    public function test_die_kundenansicht_nennt_keine_fehlenden_betreiberangaben(): void
+    {
+        // Betreiberstammdaten nicht bestaetigt: der Blocker ist eine interne
+        // Angabe des Betriebs und gehoert nicht auf die Kundenseite.
+        $daten = $this->vorschaubereiterLauf(2);
+
+        $antwort = $this->actingAs($daten['user'])
+            ->get(route('portal.checkout.show', ['billingRun' => $daten['billingRun']->getKey()]));
+
+        $antwort->assertOk();
+        $antwort->assertDontSee('Steuernummer');
+        $antwort->assertDontSee('IBAN');
+        $antwort->assertDontSee('blockiert');
+        $antwort->assertSee('wird Ihnen nachgereicht');
     }
 
     public function test_ohne_bestaetigte_email_adresse_ist_die_zahlung_gesperrt(): void

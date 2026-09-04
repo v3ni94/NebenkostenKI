@@ -7,6 +7,7 @@ namespace Tests\Feature\EndToEnd;
 use App\Application\Account\EmailVerification;
 use App\Application\BillingRun\BillingRunStateMachine;
 use App\Enums\DocumentType;
+use App\Enums\OrganizationType;
 use App\Jobs\DocumentJobRegistry;
 use App\Models\AuditLog;
 use App\Models\BillingRun;
@@ -160,7 +161,21 @@ abstract class EndToEndTestCase extends TestCase
             ->whereIn('id', $nutzer->organizationIds())
             ->firstOrFail();
 
-        return ['user' => $nutzer, 'organization' => $organisation];
+        // Die Rechnungsanschrift wird wie im Produkt ueber die Kontoseite
+        // hinterlegt. Ohne sie ist der Checkout gesperrt, weil die Rechnung
+        // der Hausverwaltung eine vollstaendige Empfaengeranschrift braucht.
+        $typ = $organisation->getAttribute('type');
+
+        $this->actingAs($nutzer)->put(route('portal.konto.update'), [
+            'name' => 'Maria Beispiel',
+            'organization_name' => (string) $organisation->getAttribute('name'),
+            'organization_type' => $typ instanceof OrganizationType ? $typ->value : (string) $typ,
+            'billing_address_line' => 'Beispielweg 5',
+            'billing_postal_code' => '40789',
+            'billing_city' => 'Monheim am Rhein',
+        ])->assertRedirect();
+
+        return ['user' => $nutzer, 'organization' => $organisation->refresh()];
     }
 
     // --- Schritt 4 und 5: Objekt, Einheiten, Mietverhaeltnis ----------------

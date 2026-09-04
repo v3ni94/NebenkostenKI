@@ -9,7 +9,6 @@ use App\Services\Ai\AiConfig;
 use App\Services\Ai\AiProviderKey;
 use App\Services\Ai\ProviderReleaseGate;
 use App\Services\Storage\MalwareScannerFactory;
-use Illuminate\Support\Env;
 use Throwable;
 
 /**
@@ -114,7 +113,6 @@ final class LaunchBlockerCheck
             $this->corporateIdentity(),
             $this->extractedDataRetention(),
             $this->generatedPdfRetention(),
-            $this->correctionPeriod(),
         ] as $blocker) {
             if ($blocker instanceof LaunchBlocker) {
                 $blockers[] = $blocker;
@@ -334,37 +332,6 @@ final class LaunchBlockerCheck
             'Die Ergebnisdateien bleiben unbefristet gespeichert. Die Frist ist gegen die steuerlichen '
                 .'Aufbewahrungspflichten der Rechnungen abzugrenzen.',
             'Betreiber, in Abstimmung mit dem Steuerberater.',
-        );
-    }
-
-    private function correctionPeriod(): ?LaunchBlocker
-    {
-        // Der Konfigurationswert hat einen Standard. Entschieden ist die Frist
-        // erst, wenn der Betreiber sie ausdruecklich gesetzt hat. Deshalb wird
-        // hier die Umgebungsvariable selbst gelesen und nicht ihr Standard.
-        //
-        // Bei zwischengespeicherter Konfiguration ist die Variable zur Laufzeit
-        // nicht lesbar. Der Punkt gilt dann als offen. Das ist die konservative
-        // Richtung: eine nicht nachweisbare Entscheidung wird nicht als
-        // getroffen behauptet.
-        $raw = Env::get('PRICE_CORRECTION_FREE_DAYS');
-
-        if (is_int($raw) || (is_string($raw) && trim($raw) !== '')) {
-            return null;
-        }
-
-        return new LaunchBlocker(
-            self::KORREKTURFRIST,
-            'Preis',
-            'Die Korrekturfrist nach der Zahlung ist nicht entschieden '
-                .'(PRICE_CORRECTION_FREE_DAYS ist nicht gesetzt).',
-            sprintf(
-                'Es gilt der Standard von %d Tagen, also keine kostenfreie Korrektur. Ohne ausdrückliche '
-                .'Entscheidung ist die Preisangabe gegenüber dem Kunden nicht belastbar.',
-                $this->configInt('smartabrechnen.pricing.correction_free_days') ?? 0,
-            ),
-            'Geschäftsführung, kaufmännische Entscheidung.',
-            LaunchBlocker::SCHWERE_ENTSCHEIDUNG,
         );
     }
 
