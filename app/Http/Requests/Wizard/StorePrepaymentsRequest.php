@@ -4,18 +4,19 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Wizard;
 
+use App\Application\Heating\EuroAmountInput;
 use App\Enums\ValueSource;
 use App\Http\Requests\GermanFormRequest;
-use Brick\Math\BigDecimal;
-use Brick\Math\Exception\MathException;
-use Brick\Math\RoundingMode;
+use Illuminate\Contracts\Validation\Validator;
 
 /**
  * Schritt 7: erfasste Vorauszahlungen je Mietverhältnis.
  *
- * Die Beträge werden in deutscher Schreibweise erfasst und mit brick/math in
- * Cent umgerechnet. Es entsteht kein float (ADR-004). Eine leere Eingabe ist
- * kein Betrag von 0,00 EUR, sondern eine fehlende Angabe.
+ * Die Beträge werden in deutscher Schreibweise erfasst und über
+ * App\Application\Heating\EuroAmountInput mit brick/math in Cent umgerechnet.
+ * Es entsteht kein float (ADR-004). Eine leere Eingabe ist kein Betrag von
+ * 0,00 EUR, sondern eine fehlende Angabe. Ein nicht auswertbarer Betrag ist
+ * ein Validierungsfehler, er wird weder gerundet noch still verworfen.
  */
 class StorePrepaymentsRequest extends GermanFormRequest
 {
@@ -51,6 +52,40 @@ class StorePrepaymentsRequest extends GermanFormRequest
     }
 
     /**
+     * Jeder erfasste Ist-Betrag muss exakt auswertbar sein.
+     */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            $zeilen = $this->input('zeilen');
+
+            if (! is_array($zeilen)) {
+                return;
+            }
+
+            foreach ($zeilen as $tenancyId => $zeile) {
+                if (! is_array($zeile)) {
+                    continue;
+                }
+
+                $wert = $zeile['ist'] ?? null;
+
+                if ($wert === null || is_int($wert)) {
+                    continue;
+                }
+
+                if (! is_string($wert) || ! EuroAmountInput::isValid($wert)) {
+                    $validator->errors()->add(
+                        sprintf('zeilen.%s.ist', $tenancyId),
+                        'Bitte geben Sie die tatsächlich geleisteten Vorauszahlungen in der Form 1.234,56 an. '
+                        .'Mehr als zwei Nachkommastellen sind nicht zulässig.'
+                    );
+                }
+            }
+        });
+    }
+
+    /**
      * Aufbereitete Eingaben für App\Application\Wizard\PrepaymentWorkspace.
      *
      * @return array<string, array{ist_cent: int|null, annahme: bool, herkunft: string}>
@@ -82,7 +117,8 @@ class StorePrepaymentsRequest extends GermanFormRequest
     }
 
     /**
-     * Deutscher Betrag als Integer in Cent.
+     * Betrag als Integer in Cent. Die Gültigkeit ist durch withValidator()
+     * bereits sichergestellt.
      */
     private function cent(mixed $wert): ?int
     {
@@ -90,21 +126,7 @@ class StorePrepaymentsRequest extends GermanFormRequest
             return is_int($wert) ? $wert * 100 : null;
         }
 
-        $bereinigt = str_replace([' ', '.'], '', trim($wert));
-        $bereinigt = str_replace(',', '.', $bereinigt);
-
-        if ($bereinigt === '') {
-            return null;
-        }
-
-        try {
-            return BigDecimal::of($bereinigt)
-                ->withPointMovedRight(2)
-                ->toScale(0, RoundingMode::HALF_UP)
-                ->toInt();
-        } catch (MathException) {
-            return null;
-        }
+        return EuroAmountInput::parse($wert)?->cents;
     }
 
     /**

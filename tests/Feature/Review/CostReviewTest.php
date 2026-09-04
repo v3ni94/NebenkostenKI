@@ -251,29 +251,103 @@ final class CostReviewTest extends ReviewTestCase
             'kleiner Restcent' => ['0,07', 7],
             'grosser Betrag' => ['99.999,99', 9999999],
             'negative Gutschrift' => ['-1.845,30', -184530],
+            // B29, B38: Punkt nur bei genau drei Folgeziffern als Tausendertrennzeichen.
+            'Punkt als Dezimaltrennzeichen' => ['1234.56', 123456],
+            'Punkt als Dezimaltrennzeichen, zwei Vorkommastellen' => ['12.50', 1250],
+            'Punkt als Dezimaltrennzeichen, drei Vorkommastellen' => ['150.00', 15000],
+            'Punkt als Tausendertrennzeichen ohne Komma' => ['1.500', 150000],
+            'Tausenderpunkt mit Suffix EUR' => ['1.200 EUR', 120000],
         ];
     }
 
-    public function test_ein_unleserlicher_betrag_wird_nicht_geschaetzt(): void
+    /**
+     * B29, B38: Ein nicht auswertbarer Betrag ist ein Validierungsfehler. Er
+     * wird weder geschaetzt noch gerundet noch still verworfen.
+     *
+     * @return array<string, array{string}>
+     */
+    public static function unleserlicheBetraege(): array
+    {
+        return [
+            'Text' => ['etwa dreihundert'],
+            'drei Nachkommastellen' => ['12,345'],
+            'englische Tausenderschreibweise' => ['1,234.56'],
+        ];
+    }
+
+    #[DataProvider('unleserlicheBetraege')]
+    public function test_ein_unleserlicher_betrag_wird_nicht_geschaetzt(string $eingabe): void
     {
         $mandant = $this->mandant();
         $lauf = $this->lauf($mandant['organization'], $mandant['property']);
 
         $position = $this->position($lauf, $mandant['organization'], 'Unklare Leistung', null, 25000);
 
-        $this->actingAs($mandant['user'])->put(route('portal.pruefung.kosten.update', [
+        $antwort = $this->actingAs($mandant['user'])->put(route('portal.pruefung.kosten.update', [
             'billingRun' => $lauf->getKey(),
             'costItem' => $position->getKey(),
         ]), [
-            'description' => 'Unklare Leistung',
-            'betrag_euro' => 'etwa dreihundert',
+            'description' => 'Geänderte Leistung',
+            'betrag_euro' => $eingabe,
         ]);
+
+        // Der Nutzer erhaelt eine Fehlermeldung statt einer Erfolgsmeldung.
+        $antwort->assertSessionHasErrors('betrag_euro');
+        self::assertStringContainsString(
+            '1.234,56',
+            (string) session('errors')?->first('betrag_euro')
+        );
 
         $position->refresh();
 
         // Grundsatz 5: ein nicht lesbarer Wert wird nicht uebernommen und nicht
-        // geschaetzt. Der bisherige Betrag bleibt unveraendert.
+        // geschaetzt. Der bisherige Betrag und die Position bleiben unveraendert.
         self::assertSame(25000, $position->getAttribute('amount_cent'));
+        self::assertSame('Unklare Leistung', $position->getAttribute('description'));
+    }
+
+    /**
+     * B29: Ein unleserlicher Lohnanteil wird ebenfalls abgelehnt.
+     */
+    public function test_ein_unleserlicher_lohnanteil_wird_abgelehnt(): void
+    {
+        $mandant = $this->mandant();
+        $lauf = $this->lauf($mandant['organization'], $mandant['property']);
+
+        $position = $this->position($lauf, $mandant['organization'], 'Hauswart', 'HAUSWART', 30000);
+
+        $this->actingAs($mandant['user'])->put(route('portal.pruefung.kosten.update', [
+            'billingRun' => $lauf->getKey(),
+            'costItem' => $position->getKey(),
+        ]), [
+            'description' => 'Hauswart',
+            'betrag_euro' => '300,00',
+            'lohnanteil_euro' => '100,125',
+        ])->assertSessionHasErrors('lohnanteil_euro');
+
+        self::assertSame(30000, $position->refresh()->getAttribute('amount_cent'));
+    }
+
+    /**
+     * B29: Eine manuelle Position mit unleserlichem Betrag wird nicht mit
+     * 0,00 EUR angelegt.
+     */
+    public function test_manuelle_position_mit_unleserlichem_betrag_wird_nicht_angelegt(): void
+    {
+        $mandant = $this->mandant();
+        $lauf = $this->lauf($mandant['organization'], $mandant['property']);
+        $kategorie = $this->kategorie('GARTENPFLEGE');
+
+        $this->actingAs($mandant['user'])->post(
+            route('portal.pruefung.kosten.store', ['billingRun' => $lauf->getKey()]),
+            [
+                'description' => 'Gartenpflege Herbst',
+                'betrag_euro' => 'ca. 450',
+                'cost_category_id' => $kategorie->getKey(),
+            ]
+        )->assertSessionHasErrors('betrag_euro');
+
+        self::assertSame(0, CostItem::query()->where('billing_run_id', $lauf->getKey())->count());
     }
 
     public function test_aufnahme_einer_nicht_umlagefaehigen_position_erfordert_begruendung(): void

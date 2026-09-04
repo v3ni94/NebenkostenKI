@@ -8,6 +8,7 @@ use App\Application\Wizard\PrepaymentWorkspace;
 use App\Enums\ValueSource;
 use App\Models\AuditLog;
 use App\Models\Prepayment;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Feature\Calculation\CalculationTestCase;
 
 /**
@@ -42,7 +43,114 @@ final class PrepaymentStepTest extends CalculationTestCase
 
         // 150,00 EUR Betriebskosten plus 90,00 EUR Heizkosten mal zwölf Monate.
         self::assertSame(288000, $zeilen[0]->targetTotal->cents);
-        self::assertStringContainsString('240,00 EUR monatlich × 12 × 365 Nutzungstage', $zeilen[0]->targetExplanation);
+        self::assertStringContainsString(
+            '240,00 EUR monatlich für 12 volle Monate im Nutzungszeitraum (365 Nutzungstage) ergeben 2.880,00 EUR.',
+            $zeilen[0]->targetExplanation
+        );
+    }
+
+    /**
+     * B3: Ein unterjähriger Abrechnungszeitraum ergibt nur die Monatsraten
+     * seiner Monate, nicht den Jahresbetrag.
+     */
+    public function test_die_sollsumme_bei_unterjaehrigem_zeitraum_entspricht_den_faelligen_monatsraten(): void
+    {
+        $szenario = $this->szenario();
+
+        Prepayment::query()->where('billing_run_id', $szenario['billingRun']->getKey())->delete();
+        $szenario['billingRun']->forceFill(['period_start' => '2025-01-01', 'period_end' => '2025-06-30'])->save();
+
+        $zeilen = app(PrepaymentWorkspace::class)->rows($szenario['billingRun']->refresh());
+
+        // 240,00 EUR monatlich mal sechs Monate, nicht mal zwölf.
+        self::assertSame(144000, $zeilen[0]->targetTotal->cents);
+        self::assertStringContainsString('für 6 volle Monate im Nutzungszeitraum (181 Nutzungstage)', $zeilen[0]->targetExplanation);
+    }
+
+    /**
+     * B3: Ein angebrochener Monat zählt taggenau innerhalb dieses Monats.
+     */
+    public function test_ein_angebrochener_monat_zaehlt_taggenau(): void
+    {
+        $szenario = $this->szenario();
+
+        Prepayment::query()->where('billing_run_id', $szenario['billingRun']->getKey())->delete();
+        $szenario['tenancies'][0]->forceFill(['starts_on' => '2025-01-16'])->save();
+
+        $zeilen = app(PrepaymentWorkspace::class)->rows($szenario['billingRun']->refresh());
+
+        // 11 volle Monate plus 16 von 31 Tagen im Januar: 240 × (11 + 16/31) = 2.763,87 EUR.
+        self::assertSame(276387, $zeilen[0]->targetTotal->cents);
+        self::assertStringContainsString('11 volle Monate und einen anteiligen Monat (16 von 31 Tagen im Monat 01/2025)', $zeilen[0]->targetExplanation);
+    }
+
+    /**
+     * U7: Nach Änderung des Monatsbetrags gilt eine bestätigte Annahme Ist
+     * gleich Soll nicht mehr. Die Zeile ist offen und der Sollwert aktuell.
+     */
+    public function test_eine_bestaetigte_annahme_verfaellt_bei_geaendertem_monatsbetrag(): void
+    {
+        $szenario = $this->szenario();
+        $mietverhaeltnis = $szenario['tenancies'][0];
+
+        $this->actingAs($szenario['user'])->post(
+            route('portal.wizard.vorauszahlungen.speichern', ['billingRun' => $szenario['billingRun']->getKey()]),
+            ['zeilen' => [(string) $mietverhaeltnis->getKey() => ['annahme' => '1']]]
+        )->assertRedirect();
+
+        $this->actingAs($szenario['user'])->put(
+            route('portal.mietverhaeltnisse.update', ['tenancy' => $mietverhaeltnis->getKey()]),
+            [
+                'tenant_display_name' => $mietverhaeltnis->tenant_display_name,
+                'kind' => 'WOHNRAUM',
+                'starts_on' => '2025-01-01',
+                'heating_prepayment_separate' => '1',
+                'monthly_operating_prepayment_eur' => '200,00',
+                'monthly_heating_prepayment_eur' => '90,00',
+            ]
+        )->assertRedirect();
+
+        $zeilen = app(PrepaymentWorkspace::class)->rows($szenario['billingRun']->refresh());
+
+        self::assertSame(348000, $zeilen[0]->targetTotal->cents);
+        self::assertStringContainsString('290,00 EUR monatlich', $zeilen[0]->targetExplanation);
+        self::assertStringContainsString('ergeben 3.480,00 EUR.', $zeilen[0]->targetExplanation);
+        self::assertFalse($zeilen[0]->assumedFromTarget);
+        self::assertTrue($zeilen[0]->isOpen());
+        self::assertFalse(app(PrepaymentWorkspace::class)->isComplete($szenario['billingRun']->refresh()));
+
+        $this->actingAs($szenario['user'])->post(
+            route('portal.wizard.vorauszahlungen.speichern', ['billingRun' => $szenario['billingRun']->getKey()]),
+            ['zeilen' => [(string) $mietverhaeltnis->getKey() => ['annahme' => '1']]]
+        )->assertRedirect();
+
+        $vorauszahlung = Prepayment::query()->where('tenancy_id', $mietverhaeltnis->getKey())->firstOrFail();
+
+        self::assertSame(348000, $vorauszahlung->target_cent);
+        self::assertSame(348000, $vorauszahlung->actual_cent);
+    }
+
+    /**
+     * U7: Ein erfasster Ist-Wert bleibt bestehen, der gespeicherte Sollwert
+     * wird aus den aktuellen Vertragsdaten neu abgeleitet.
+     */
+    public function test_ein_gespeicherter_sollwert_wird_bei_geaendertem_monatsbetrag_neu_abgeleitet(): void
+    {
+        $szenario = $this->szenario();
+        $mietverhaeltnis = $szenario['tenancies'][0];
+
+        $mietverhaeltnis->forceFill(['monthly_operating_prepayment_cent' => 20000])->save();
+
+        $zeilen = app(PrepaymentWorkspace::class)->rows($szenario['billingRun']->refresh());
+
+        self::assertSame(348000, $zeilen[0]->targetTotal->cents);
+        self::assertSame(288000, $zeilen[0]->actualTotal?->cents);
+        self::assertFalse($zeilen[0]->isOpen());
+
+        $vorauszahlung = Prepayment::query()->where('tenancy_id', $mietverhaeltnis->getKey())->firstOrFail();
+
+        self::assertSame(348000, $vorauszahlung->target_cent);
+        self::assertSame(288000, $vorauszahlung->actual_cent);
     }
 
     public function test_die_annahme_ist_gleich_soll_ist_nicht_vorangekreuzt(): void
@@ -79,6 +187,80 @@ final class PrepaymentStepTest extends CalculationTestCase
         self::assertSame(250050, $vorauszahlung->actual_cent);
         self::assertFalse($vorauszahlung->assumed_equal_to_target);
         self::assertSame(ValueSource::ZAHLUNGSUEBERSICHT, $vorauszahlung->source);
+    }
+
+    /**
+     * B11, B30: Der Punkt ist nur bei genau drei Folgeziffern ein
+     * Tausendertrennzeichen, sonst Dezimaltrennzeichen. Ein Suffix EUR ist
+     * zulässig.
+     *
+     * @return array<string, array{string, int}>
+     */
+    public static function istBetraege(): array
+    {
+        return [
+            'deutsche Schreibweise' => ['2.500,50', 250050],
+            'Punkt als Dezimaltrennzeichen' => ['1500.00', 150000],
+            'Punkt als Dezimaltrennzeichen mit vier Vorkommastellen' => ['1234.56', 123456],
+            'Punkt als Dezimaltrennzeichen mit zwei Vorkommastellen' => ['12.50', 1250],
+            'Punkt als Tausendertrennzeichen' => ['1.500', 150000],
+            'mit Suffix EUR' => ['1.500,00 EUR', 150000],
+            'Tausenderpunkt mit Suffix EUR' => ['1.200 EUR', 120000],
+        ];
+    }
+
+    #[DataProvider('istBetraege')]
+    public function test_ist_werte_werden_in_jeder_zulaessigen_schreibweise_exakt_umgerechnet(string $eingabe, int $erwartetCent): void
+    {
+        $szenario = $this->szenario();
+
+        $this->actingAs($szenario['user'])->post(
+            route('portal.wizard.vorauszahlungen.speichern', ['billingRun' => $szenario['billingRun']->getKey()]),
+            ['zeilen' => [(string) $szenario['tenancies'][0]->getKey() => ['ist' => $eingabe]]]
+        )->assertRedirect()->assertSessionHasNoErrors();
+
+        $vorauszahlung = Prepayment::query()
+            ->where('tenancy_id', $szenario['tenancies'][0]->getKey())
+            ->firstOrFail();
+
+        self::assertSame($erwartetCent, $vorauszahlung->actual_cent);
+    }
+
+    /**
+     * B11, B30: Nicht auswertbare Beträge werden abgelehnt, nicht gerundet und
+     * nicht still verworfen.
+     *
+     * @return array<string, array{string}>
+     */
+    public static function unzulaessigeIstBetraege(): array
+    {
+        return [
+            'drei Nachkommastellen' => ['12,345'],
+            'englische Tausenderschreibweise' => ['1,200.50'],
+            'Text' => ['etwa dreihundert'],
+        ];
+    }
+
+    #[DataProvider('unzulaessigeIstBetraege')]
+    public function test_ein_nicht_auswertbarer_ist_wert_wird_mit_fehlermeldung_abgelehnt(string $eingabe): void
+    {
+        $szenario = $this->szenario();
+        $tenancyId = (string) $szenario['tenancies'][0]->getKey();
+
+        $antwort = $this->actingAs($szenario['user'])->post(
+            route('portal.wizard.vorauszahlungen.speichern', ['billingRun' => $szenario['billingRun']->getKey()]),
+            ['zeilen' => [$tenancyId => ['ist' => $eingabe]]]
+        );
+
+        $antwort->assertSessionHasErrors('zeilen.'.$tenancyId.'.ist');
+        self::assertStringContainsString(
+            '1.234,56',
+            (string) session('errors')?->first('zeilen.'.$tenancyId.'.ist')
+        );
+
+        $vorauszahlung = Prepayment::query()->where('tenancy_id', $tenancyId)->firstOrFail();
+
+        self::assertSame(288000, $vorauszahlung->actual_cent);
     }
 
     public function test_die_bestaetigte_annahme_wird_protokolliert(): void
