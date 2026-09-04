@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Auth;
 use App\Application\Account\AuditRecorder;
 use App\Application\Account\LoginDestination;
 use App\Application\Account\TwoFactorAuthentication;
+use App\Enums\UserStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Middleware\EnsureOrganizationContext;
 use App\Http\Requests\Auth\TwoFactorCodeRequest;
@@ -30,6 +31,14 @@ use Illuminate\View\View;
  * Schluessel gesetzt ist, gilt die Sitzung als nicht vollstaendig
  * authentifiziert und erreicht keinen geschuetzten Bereich, weil sie fuer die
  * Middleware auth ein Gast ist. Erst der gueltige Code meldet den Nutzer an.
+ *
+ * KONTOSTATUS
+ *
+ * Der Status wird in beiden Schritten geprueft. Wird ein Konto zwischen
+ * Passwort und Code gesperrt, endet der zweite Schritt mit derselben Meldung
+ * wie der erste; der Sitzungsschluessel wird verworfen. Ohne diese Pruefung
+ * wuerde eine offene Codeeingabe die Sperre ueberdauern, weil ihre Sitzung
+ * noch keinem Nutzer zugeordnet ist und vom Sperren nicht beendet wird.
  *
  * RATENBEGRENZUNG
  *
@@ -63,6 +72,10 @@ class TwoFactorChallengeController extends Controller
             return redirect()->route('login');
         }
 
+        if (! $this->kontoNutzbar($benutzer)) {
+            return $this->kontoNichtNutzbar($request, $benutzer);
+        }
+
         return view('auth.zwei-faktor-code', [
             'verbleibendeCodes' => $this->zweiFaktor->remainingRecoveryCodes($benutzer),
         ]);
@@ -76,6 +89,13 @@ class TwoFactorChallengeController extends Controller
             return redirect()->route('login')->withErrors([
                 'code' => 'Die Anmeldung ist abgelaufen. Bitte melden Sie sich erneut an.',
             ]);
+        }
+
+        // Der Kontostatus wird auch im zweiten Schritt geprueft. Eine Sperre
+        // zwischen Passwort und Code darf die Anmeldung nicht mehr abschliessen,
+        // und eine offene Codeeingabe darf die Sperre nicht ueberdauern.
+        if (! $this->kontoNutzbar($benutzer)) {
+            return $this->kontoNichtNutzbar($request, $benutzer);
         }
 
         $schluessel = $this->throttleKey($request, $benutzer);
@@ -175,6 +195,40 @@ class TwoFactorChallengeController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Nur aktive und unbestaetigte Konten duerfen die Anmeldung abschliessen,
+     * dieselbe Regel wie in App\Http\Requests\Auth\LoginRequest.
+     */
+    private function kontoNutzbar(User $benutzer): bool
+    {
+        $status = $benutzer->getAttribute('status');
+
+        return $status === UserStatus::AKTIV || $status === UserStatus::UNBESTAETIGT;
+    }
+
+    /**
+     * Verwirft den offenen zweiten Schritt und meldet mit derselben Meldung
+     * wie der erste Schritt ab.
+     */
+    private function kontoNichtNutzbar(Request $request, User $benutzer): RedirectResponse
+    {
+        $status = $benutzer->getAttribute('status');
+
+        Auth::guard('web')->logout();
+        $request->session()->forget([
+            TwoFactorAuthentication::SESSION_OFFENER_NUTZER,
+            TwoFactorAuthentication::SESSION_MERKEN,
+        ]);
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        $meldung = $status === UserStatus::GESPERRT
+            ? 'Dieses Konto ist gesperrt. Bitte wenden Sie sich an kontakt@smart-abrechnen.de.'
+            : 'Dieses Konto steht nicht zur Verfügung. Bitte wenden Sie sich an kontakt@smart-abrechnen.de.';
+
+        return redirect()->route('login')->withErrors(['email' => $meldung]);
     }
 
     private function throttleKey(Request $request, User $benutzer): string

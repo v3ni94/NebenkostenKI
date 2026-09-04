@@ -7,10 +7,12 @@ namespace App\Http\Controllers\Portal;
 use App\Application\FollowUpYear\CarryOverToFollowUpYear;
 use App\Application\FollowUpYear\KeinFinalisierterVorjahreslaufException;
 use App\Http\Controllers\Controller;
+use App\Models\BillingRun;
 use App\Models\Property;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 /**
  * Start des Folgejahreslaufs (Masterprompt 8.3).
@@ -26,6 +28,9 @@ use Illuminate\Http\Request;
  *    Organisation des angemeldeten Nutzers gehoert.
  *  - Ein fremdes Objekt fuehrt zu 404 und nicht zu 403. Ein 403 wuerde
  *    bestaetigen, dass die Kennung existiert.
+ *  - Zusaetzlich gelten die Policies der regulaeren Anlage eines Laufs
+ *    (PropertyPolicy::update, BillingRunPolicy::create). Eine nur lesende
+ *    Rolle legt auch ueber den CTA keinen Lauf an.
  *
  * Der Vorgang ist idempotent. Ein zweiter Aufruf oeffnet denselben
  * vorbereiteten Lauf und legt keinen zweiten an.
@@ -49,6 +54,16 @@ class FollowUpYearController extends Controller
 
         abort_unless(
             is_string($organisation) && $nutzer->belongsToOrganization($organisation),
+            404
+        );
+
+        // Dieselben Policies wie bei der regulaeren Anlage eines Laufs
+        // (BillingRunController::store): Schreibrecht am Objekt und Recht zur
+        // Anlage. Eine nur lesende Rolle legt keinen Lauf an. Verweigerung als
+        // 404, damit die Existenz des Objekts nicht bestaetigt wird.
+        abort_unless(
+            Gate::forUser($nutzer)->allows('update', $objekt)
+                && Gate::forUser($nutzer)->allows('create', BillingRun::class),
             404
         );
 

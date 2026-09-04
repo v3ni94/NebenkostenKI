@@ -174,6 +174,21 @@
                         <p class="text-sm text-status-error">{{ $message }}</p>
                     @enderror
 
+                    <div>
+                        <label for="loeschung-passwort" class="block text-sm font-semibold text-hvm-textschwarz">
+                            Aktuelles Passwort zur Bestätigung
+                        </label>
+                        <input id="loeschung-passwort" name="current_password" type="password" required
+                               autocomplete="current-password"
+                               class="mt-1 block w-full min-h-11 rounded-md border border-hvm-mittelgrau px-3 py-2 sm:max-w-md">
+                        <p class="mt-1 text-sm text-hvm-dunkelgrau">
+                            Wir senden Ihnen eine Bestätigung des Antrags mit dem Löschtermin per E-Mail.
+                        </p>
+                        @error('current_password')
+                            <p class="mt-1 text-sm text-status-error">{{ $message }}</p>
+                        @enderror
+                    </div>
+
                     <x-hvm.button type="submit">Löschung beantragen</x-hvm.button>
                 </form>
             @endif

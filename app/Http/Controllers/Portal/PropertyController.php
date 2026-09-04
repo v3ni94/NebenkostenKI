@@ -131,10 +131,24 @@ class PropertyController extends Controller
             ->with('status', 'Die Änderungen am Objekt sind gespeichert.');
     }
 
+    public const string MELDUNG_LAEUFE_VORHANDEN = 'Das Objekt kann nicht entfernt werden, solange Abrechnungsläufe '
+        .'dazu bestehen. Bitte brechen Sie offene Läufe zuerst ab oder entfernen Sie sie; abgeschlossene Läufe '
+        .'bleiben dem Objekt zugeordnet.';
+
     public function destroy(string $property): RedirectResponse
     {
         $objekt = $this->objekt($property);
         $this->authorize('delete', $objekt);
+
+        // Ein weich geloeschtes Objekt hinterliesse seine Abrechnungslaeufe als
+        // Geisterlaeufe: Die Relation BillingRun::property() liefert dann null,
+        // und die Schritte des gefuehrten Ablaufs enden in Laufzeitfehlern.
+        // Solange Laeufe bestehen, wird die Loeschung deshalb verweigert.
+        if ($objekt->billingRuns()->exists()) {
+            return redirect()
+                ->route('portal.objekte.index')
+                ->with('status', self::MELDUNG_LAEUFE_VORHANDEN);
+        }
 
         // Das Modell verwendet SoftDeletes. Der Datensatz bleibt erhalten und
         // ist damit fuer eine spaetere Nachfrage nachvollziehbar. Die

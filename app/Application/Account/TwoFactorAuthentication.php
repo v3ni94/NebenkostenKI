@@ -7,7 +7,9 @@ namespace App\Application\Account;
 use App\Domain\Security\RecoveryCodeGenerator;
 use App\Domain\Security\TimeBasedOneTimePassword;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 /**
  * Einrichtung, Pruefung und Abschaltung des TOTP-Zweitfaktors.
@@ -27,6 +29,19 @@ use Illuminate\Support\Facades\Hash;
  *                                      Wiederherstellungscodes. Ein verbrauchter
  *                                      Code wird aus der Liste entfernt und
  *                                      funktioniert damit nicht erneut.
+ *   users.two_factor_last_counter      Zaehler des zuletzt akzeptierten
+ *                                      Zeitfensters. Angenommen wird nur ein
+ *                                      Code mit groesserem Zaehler, damit ein
+ *                                      abgefangener Code innerhalb der
+ *                                      Toleranz nicht erneut verwendbar ist
+ *                                      (RFC 6238, Abschnitt 5.2).
+ *
+ * ANGEMELDET BLEIBEN
+ *
+ * Aktivierung, Abschaltung und Zuruecksetzung erneuern das Merkmal
+ * remember_token. Ein Cookie, das vor der Aktivierung ohne Zweitfaktor
+ * ausgestellt wurde, meldet danach nicht mehr an; sonst wuerde es die
+ * Adminpflicht des Zweitfaktors dauerhaft umgehen.
  *
  * ABLAUF
  *
@@ -77,6 +92,8 @@ class TwoFactorAuthentication
 
     public const string AKTION_WIEDERHERSTELLUNG = 'account.two_factor_recovery_used';
 
+    public const string AKTION_ZURUECKGESETZT = 'account.two_factor_reset';
+
     public function __construct(
         private readonly TimeBasedOneTimePassword $totp,
         private readonly AuditRecorder $audit,
@@ -117,6 +134,7 @@ class TwoFactorAuthentication
             'two_factor_secret' => $geheimnis,
             'two_factor_confirmed_at' => null,
             'two_factor_recovery_codes' => null,
+            'two_factor_last_counter' => null,
         ])->save();
 
         return $geheimnis;
@@ -150,10 +168,15 @@ class TwoFactorAuthentication
                 static fn (string $klartext): string => Hash::make($klartext),
                 $codes,
             ),
+            // Der Einrichtungscode gilt als verbraucht.
+            'two_factor_last_counter' => $this->matchingCounter($geheimnis, $code, $timestamp),
+            // Vor der Aktivierung gemerkte Geraete verlieren ihr Merkmal.
+            'remember_token' => Str::random(60),
         ])->save();
 
         $this->protokolliere($user, self::AKTION_AKTIVIERT, [
             'wiederherstellungscodes' => count($codes),
+            'remember_token_erneuert' => true,
         ]);
 
         return $codes;
@@ -161,6 +184,10 @@ class TwoFactorAuthentication
 
     /**
      * Prueft einen Code eines aktiven Faktors, etwa bei der Anmeldung.
+     *
+     * Ein Code wird nur angenommen, wenn sein Zeitfensterzaehler groesser ist
+     * als der zuletzt akzeptierte. Derselbe Code ist damit innerhalb der
+     * Toleranz von 90 Sekunden nicht erneut verwendbar.
      */
     public function verify(User $user, string $code, ?int $timestamp = null): bool
     {
@@ -171,6 +198,22 @@ class TwoFactorAuthentication
         }
 
         $gueltig = $this->totp->verify($geheimnis, $code, $timestamp);
+
+        if ($gueltig) {
+            $zaehler = $this->matchingCounter($geheimnis, $code, $timestamp);
+            $letzter = $user->getAttribute('two_factor_last_counter');
+
+            if ($zaehler === null || (is_numeric($letzter) && $zaehler <= (int) $letzter)) {
+                $this->protokolliere($user, self::AKTION_FEHLSCHLAG, [
+                    'verfahren' => 'totp',
+                    'grund' => 'wiederverwendung',
+                ]);
+
+                return false;
+            }
+
+            $user->forceFill(['two_factor_last_counter' => $zaehler])->save();
+        }
 
         $this->protokolliere(
             $user,
@@ -237,13 +280,58 @@ class TwoFactorAuthentication
      */
     public function disable(User $user): void
     {
+        $this->verwerfeFaktor($user);
+
+        $this->protokolliere($user, self::AKTION_DEAKTIVIERT, ['remember_token_erneuert' => true]);
+    }
+
+    /**
+     * Zuruecksetzung durch den Betreiber, etwa bei verlorenem Telefon ohne
+     * Wiederherstellungscodes. Verwirft Geheimnis und Codes, entzieht das
+     * Merkmal "angemeldet bleiben" und beendet alle Datenbanksitzungen des
+     * Nutzers, damit keine Sitzung den entfernten Faktor ueberdauert.
+     *
+     * Begruendung und Akteur protokolliert der aufrufende Adminbereich ueber
+     * den AdminAuditRecorder; hier wird nur die Kontoaenderung selbst
+     * festgehalten.
+     */
+    public function reset(User $user): void
+    {
+        $this->verwerfeFaktor($user);
+
+        DB::table('sessions')->where('user_id', $user->getKey())->delete();
+
+        $this->protokolliere($user, self::AKTION_ZURUECKGESETZT, ['sitzungen_beendet' => true]);
+    }
+
+    private function verwerfeFaktor(User $user): void
+    {
         $user->forceFill([
             'two_factor_secret' => null,
             'two_factor_confirmed_at' => null,
             'two_factor_recovery_codes' => null,
+            'two_factor_last_counter' => null,
+            'remember_token' => Str::random(60),
         ])->save();
+    }
 
-        $this->protokolliere($user, self::AKTION_DEAKTIVIERT);
+    /**
+     * Zaehler des Zeitfensters, in dem der Code passt. Bei mehreren Treffern
+     * zaehlt das juengste Fenster.
+     */
+    private function matchingCounter(string $geheimnis, string $code, ?int $timestamp): ?int
+    {
+        $eingabe = preg_replace('/\s+/', '', $code) ?? '';
+        $basis = intdiv($timestamp ?? time(), TimeBasedOneTimePassword::ZEITFENSTER_SEKUNDEN);
+        $treffer = null;
+
+        for ($schritt = -TimeBasedOneTimePassword::TOLERANZ_SCHRITTE; $schritt <= TimeBasedOneTimePassword::TOLERANZ_SCHRITTE; $schritt++) {
+            if (hash_equals($this->totp->codeForCounter($geheimnis, $basis + $schritt), $eingabe)) {
+                $treffer = $basis + $schritt;
+            }
+        }
+
+        return $treffer;
     }
 
     /**

@@ -55,7 +55,7 @@ final class PrivacyPageTest extends PrivacyTestCase
 
         Carbon::setTestNow(Carbon::parse('2026-09-01 10:00:00'));
 
-        $this->actingAs($a['user'])->post(route('portal.datenschutz.loeschung'), ['bestaetigung' => '1']);
+        $this->actingAs($a['user'])->post(route('portal.datenschutz.loeschung'), ['bestaetigung' => '1', 'current_password' => 'geheimes-testpasswort']);
 
         $antwort = $this->actingAs($a['user'])->get(route('portal.datenschutz.show'));
 
@@ -160,7 +160,7 @@ final class PrivacyPageTest extends PrivacyTestCase
         $a = $this->mandant('A');
         $b = $this->mandant('B');
 
-        $this->actingAs($a['user'])->post(route('portal.datenschutz.loeschung'), ['bestaetigung' => '1']);
+        $this->actingAs($a['user'])->post(route('portal.datenschutz.loeschung'), ['bestaetigung' => '1', 'current_password' => 'geheimes-testpasswort']);
 
         $antwort = $this->actingAs($b['user'])->get(route('portal.datenschutz.show'));
 

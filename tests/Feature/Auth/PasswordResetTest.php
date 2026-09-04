@@ -8,9 +8,12 @@ use App\Models\AuditLog;
 use App\Models\User;
 use App\Notifications\ResetPasswordLink;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
+use Tests\Feature\Auth\Concerns\SimuliertMailausfall;
 use Tests\TestCase;
 
 /**
@@ -19,6 +22,57 @@ use Tests\TestCase;
 final class PasswordResetTest extends TestCase
 {
     use RefreshDatabase;
+    use SimuliertMailausfall;
+
+    public function test_ein_mailausfall_beim_anfordern_fuehrt_nicht_zu_einer_fehlerseite(): void
+    {
+        $this->simuliereMailausfall();
+        $this->nutzer();
+
+        $antwort = $this->from(route('password.request'))
+            ->post(route('password.email'), ['email' => 'reset@beispiel.invalid']);
+
+        // Die Antwort bleibt dieselbe wie im Erfolgsfall, sonst waere der
+        // Zustellfehler ein Kontoorakel.
+        $antwort->assertRedirect(route('password.request'));
+        self::assertStringContainsString(
+            'Falls zu dieser E-Mail-Adresse ein Konto besteht',
+            (string) session('status'),
+        );
+    }
+
+    public function test_zuruecksetzen_beendet_alle_offenen_sitzungen_des_kontos(): void
+    {
+        $nutzer = $this->nutzer();
+        $fremder = User::factory()->create();
+
+        DB::table('sessions')->insert([
+            [
+                'id' => (string) Str::ulid(),
+                'user_id' => $nutzer->getKey(),
+                'payload' => 'fremdes-geraet',
+                'last_activity' => time(),
+            ],
+            [
+                'id' => (string) Str::ulid(),
+                'user_id' => $fremder->getKey(),
+                'payload' => 'anderer-nutzer',
+                'last_activity' => time(),
+            ],
+        ]);
+
+        $token = Password::broker()->createToken($nutzer);
+
+        $this->post(route('password.update'), [
+            'token' => $token,
+            'email' => 'reset@beispiel.invalid',
+            'password' => 'ganz-neues-passwort-2026',
+            'password_confirmation' => 'ganz-neues-passwort-2026',
+        ])->assertRedirect(route('login'));
+
+        $this->assertDatabaseMissing('sessions', ['user_id' => $nutzer->getKey()]);
+        $this->assertDatabaseHas('sessions', ['user_id' => $fremder->getKey()]);
+    }
 
     private function nutzer(): User
     {

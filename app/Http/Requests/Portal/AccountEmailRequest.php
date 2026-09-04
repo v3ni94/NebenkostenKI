@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Requests\Portal;
 
 use App\Http\Requests\GermanFormRequest;
-use Illuminate\Validation\Rule;
 
 /**
  * Aenderung der E-Mail-Adresse.
@@ -14,6 +13,11 @@ use Illuminate\Validation\Rule;
  * Bestaetigung zurueck. An die neue Adresse geht ein neuer Bestaetigungslink.
  * Bis zur Bestaetigung sind Zahlung und finaler Download gesperrt
  * (Masterprompt 8.1).
+ *
+ * KEINE KONTOERKENNUNG: Die Regel unique auf users.email ist bewusst nicht
+ * gesetzt. Sie haette verraten, ob zu einer Adresse ein Konto besteht. Die
+ * Entscheidung faellt im Controller mit identischer Antwort in beiden
+ * Faellen, wie bei der Registrierung.
  */
 class AccountEmailRequest extends GermanFormRequest
 {
@@ -27,16 +31,8 @@ class AccountEmailRequest extends GermanFormRequest
      */
     public function rules(): array
     {
-        $user = $this->user();
-
         return [
-            'email' => [
-                'required',
-                'string',
-                'email:rfc',
-                'max:190',
-                Rule::unique('users', 'email')->ignore($user?->getKey()),
-            ],
+            'email' => ['required', 'string', 'email:rfc', 'max:190'],
             'current_password' => ['required', 'string', 'current_password'],
         ];
     }
@@ -49,16 +45,6 @@ class AccountEmailRequest extends GermanFormRequest
         return [
             'email' => 'Neue E-Mail-Adresse',
             'current_password' => 'Aktuelles Passwort',
-        ];
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    protected function eigeneMeldungen(): array
-    {
-        return [
-            'email.unique' => 'Diese E-Mail-Adresse kann nicht verwendet werden. Bitte wählen Sie eine andere.',
         ];
     }
 }

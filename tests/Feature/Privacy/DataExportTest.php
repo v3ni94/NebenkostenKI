@@ -236,13 +236,55 @@ final class DataExportTest extends PrivacyTestCase
             (string) $erster->document->getAttribute('storage_path'),
             (string) $zweiter->document->getAttribute('storage_path'),
         );
+    }
+
+    public function test_ein_neuer_export_ersetzt_den_frueheren_export_desselben_nutzers(): void
+    {
+        $a = $this->mandant('A');
+
+        $erster = $this->exportiere($a['user'], $a['organization']);
+        $ersterPfad = (string) $erster->document->getAttribute('storage_path');
+
+        self::assertTrue(Storage::disk('local')->exists($ersterPfad));
+
+        $zweiter = $this->exportiere($a['user'], $a['organization']);
+
+        // Ein Export ist eine Vollkopie aller PDFs. Je Nutzer bleibt nur der
+        // juengste bestehen, damit Wiederholungen den Speicher nicht fuellen.
+        self::assertFalse(Storage::disk('local')->exists($ersterPfad));
+        $this->assertDatabaseMissing('generated_documents', ['id' => $erster->document->getKey()]);
+        $this->assertDatabaseHas('generated_documents', ['id' => $zweiter->document->getKey()]);
 
         self::assertSame(
-            2,
+            1,
             GeneratedDocument::query()
                 ->where('kind', GeneratedDocumentKind::DSGVO_EXPORT->value)
                 ->count()
         );
+    }
+
+    public function test_export_ist_an_den_anfordernden_nutzer_gebunden(): void
+    {
+        $a = $this->mandant('A');
+
+        $ergebnis = $this->exportiere($a['user'], $a['organization']);
+
+        self::assertSame(
+            (string) $a['user']->getKey(),
+            $ergebnis->document->getAttribute('requested_by_user_id')
+        );
+    }
+
+    public function test_der_export_eines_anderen_nutzers_bleibt_bestehen(): void
+    {
+        $a = $this->mandant('A');
+        $b = $this->mandant('B');
+
+        $fremd = $this->exportiere($b['user'], $b['organization']);
+        $this->exportiere($a['user'], $a['organization']);
+
+        $this->assertDatabaseHas('generated_documents', ['id' => $fremd->document->getKey()]);
+        self::assertTrue(Storage::disk('local')->exists((string) $fremd->document->getAttribute('storage_path')));
     }
 
     private function exportiere(User $nutzer, Organization $organisation): DataExportResult

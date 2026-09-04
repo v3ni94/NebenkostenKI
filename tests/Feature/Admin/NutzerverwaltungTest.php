@@ -6,7 +6,10 @@ namespace Tests\Feature\Admin;
 
 use App\Enums\AdminRole;
 use App\Enums\UserStatus;
+use App\Mail\ZweitfaktorZurueckgesetztMail;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 
 /**
@@ -158,6 +161,86 @@ final class NutzerverwaltungTest extends AdminTestCase
         $this->assertDatabaseHas('password_reset_tokens', [
             'email' => $kunde['user']->getAttribute('email'),
         ]);
+    }
+
+    public function test_der_zweitfaktor_eines_kunden_wird_mit_begruendung_zurueckgesetzt_und_protokolliert(): void
+    {
+        Mail::fake();
+
+        $kunde = $this->kunde();
+        $kunde['user']->forceFill([
+            'two_factor_secret' => 'JBSWY3DPEHPK3PXP',
+            'two_factor_confirmed_at' => now(),
+            'two_factor_recovery_codes' => ['hash-eins'],
+            'two_factor_last_counter' => 12345,
+            'remember_token' => 'altes-merkmal',
+        ])->save();
+
+        DB::table('sessions')->insert([
+            'id' => 'sitzung-des-kunden',
+            'user_id' => $kunde['user']->getKey(),
+            'payload' => 'leer',
+            'last_activity' => time(),
+        ]);
+
+        $grund = 'Identität per Rückruf und Rechnungsnummer geprüft, Ticket 4730.';
+
+        $this->actingAs($this->interneKennung())
+            ->post('/admin/nutzer/'.$kunde['user']->getKey().'/zweitfaktor-zuruecksetzen', ['grund' => $grund])
+            ->assertRedirect('/admin/nutzer');
+
+        /** @var User $frisch */
+        $frisch = User::query()->findOrFail($kunde['user']->getKey());
+
+        self::assertNull($frisch->getAttribute('two_factor_secret'));
+        self::assertNull($frisch->getAttribute('two_factor_confirmed_at'));
+        self::assertNull($frisch->getAttribute('two_factor_recovery_codes'));
+        self::assertNull($frisch->getAttribute('two_factor_last_counter'));
+        self::assertNotSame('altes-merkmal', $frisch->getAttribute('remember_token'));
+
+        $this->assertDatabaseMissing('sessions', ['user_id' => $kunde['user']->getKey()]);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'admin.user.two_factor_reset',
+            'subject_id' => $kunde['user']->getKey(),
+            'reason' => $grund,
+        ]);
+
+        Mail::assertSent(ZweitfaktorZurueckgesetztMail::class, function (ZweitfaktorZurueckgesetztMail $mail) use ($kunde): bool {
+            return $mail->hasTo((string) $kunde['user']->getAttribute('email')) && $mail->istKritisch();
+        });
+    }
+
+    public function test_der_zweitfaktor_wird_ohne_begruendung_nicht_zurueckgesetzt(): void
+    {
+        $kunde = $this->kunde();
+        $kunde['user']->forceFill([
+            'two_factor_secret' => 'JBSWY3DPEHPK3PXP',
+            'two_factor_confirmed_at' => now(),
+        ])->save();
+
+        $this->actingAs($this->interneKennung())
+            ->post('/admin/nutzer/'.$kunde['user']->getKey().'/zweitfaktor-zuruecksetzen', ['grund' => 'kurz'])
+            ->assertSessionHasErrors('grund');
+
+        self::assertNotNull(
+            User::query()->findOrFail($kunde['user']->getKey())->getAttribute('two_factor_confirmed_at'),
+        );
+    }
+
+    public function test_die_nutzerliste_bietet_den_zweitfaktor_reset_nur_bei_aktivem_faktor(): void
+    {
+        $kunde = $this->kunde();
+        $kunde['user']->forceFill([
+            'two_factor_secret' => 'JBSWY3DPEHPK3PXP',
+            'two_factor_confirmed_at' => now(),
+        ])->save();
+
+        $antwort = $this->actingAs($this->interneKennung())->get('/admin/nutzer');
+
+        $antwort->assertOk();
+        $antwort->assertSee('Zweitfaktor zurücksetzen');
+        $antwort->assertSee(route('admin.nutzer.zweitfaktor', $kunde['user']), false);
     }
 
     public function test_der_adminbereich_setzt_niemals_selbst_ein_passwort(): void

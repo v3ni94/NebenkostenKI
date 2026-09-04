@@ -10,8 +10,10 @@ use Illuminate\Foundation\Http\FormRequest;
  * Antrag auf Löschung des Kontos.
  *
  * Die ausdrückliche Bestätigung ist verbindlich, damit ein Fehlklick keinen
- * Löschantrag auslöst. Die Autorisierung selbst liegt in der Policy des
- * Controllers, nicht hier.
+ * Löschantrag auslöst. Zusätzlich ist das aktuelle Passwort einzugeben: Eine
+ * übernommene oder unbeaufsichtigte Sitzung darf die Löschung des Kontos
+ * nicht anstoßen können, genauso wie sie die E-Mail-Adresse nicht ändern
+ * kann. Die Autorisierung selbst liegt in der Policy des Controllers.
  */
 final class DeletionRequestRequest extends FormRequest
 {
@@ -27,6 +29,7 @@ final class DeletionRequestRequest extends FormRequest
     {
         return [
             'bestaetigung' => ['accepted'],
+            'current_password' => ['required', 'string', 'current_password'],
         ];
     }
 
@@ -37,6 +40,8 @@ final class DeletionRequestRequest extends FormRequest
     {
         return [
             'bestaetigung.accepted' => 'Bitte bestätigen Sie, dass Sie die Löschung Ihres Kontos beantragen möchten.',
+            'current_password.required' => 'Bitte geben Sie zur Bestätigung Ihr aktuelles Passwort ein.',
+            'current_password.current_password' => 'Das eingegebene Passwort ist nicht richtig.',
         ];
     }
 }

@@ -15,6 +15,7 @@ use App\Models\AuditLog;
 use App\Models\Organization;
 use App\Models\OrganizationUser;
 use App\Models\User;
+use Illuminate\Auth\SessionGuard;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -86,9 +87,17 @@ final class TwoFactorTest extends TestCase
         return ['user' => $nutzer->refresh(), 'secret' => $geheimnis, 'codes' => $codes];
     }
 
+    /**
+     * Code des naechsten Zeitfensters.
+     *
+     * Der Einrichtungscode gilt nach der Aktivierung als verbraucht
+     * (Replay-Schutz, RFC 6238 Abschnitt 5.2). Die Anmeldung im Test verwendet
+     * deshalb das Folgefenster, das innerhalb der Toleranz liegt und einen
+     * groesseren Zaehler traegt.
+     */
     private function code(string $geheimnis): string
     {
-        return $this->totp->currentCode($geheimnis);
+        return $this->totp->codeAt($geheimnis, time() + TimeBasedOneTimePassword::ZEITFENSTER_SEKUNDEN);
     }
 
     // --- Einrichtung ---------------------------------------------------------
@@ -313,6 +322,127 @@ final class TwoFactorTest extends TestCase
             ->assertSessionHasErrors('code');
 
         self::assertFalse(Auth::check());
+    }
+
+    public function test_derselbe_code_wird_nicht_zweimal_angenommen(): void
+    {
+        $daten = $this->mitZweitfaktor();
+        $code = $this->code($daten['secret']);
+
+        $this->post(route('login'), [
+            'email' => $daten['user']->getAttribute('email'),
+            'password' => self::PASSWORT,
+        ]);
+
+        $this->post(route('two-factor.challenge.store'), ['code' => $code])
+            ->assertRedirect(route('portal.dashboard'));
+
+        self::assertTrue(Auth::check());
+
+        // Zweite Anmeldung innerhalb des Toleranzfensters mit demselben Code.
+        $this->post(route('logout'));
+
+        $this->post(route('login'), [
+            'email' => $daten['user']->getAttribute('email'),
+            'password' => self::PASSWORT,
+        ]);
+
+        $this->post(route('two-factor.challenge.store'), ['code' => $code])
+            ->assertSessionHasErrors('code');
+
+        self::assertFalse(Auth::check());
+
+        self::assertTrue(
+            AuditLog::query()
+                ->where('action', TwoFactorAuthentication::AKTION_FEHLSCHLAG)
+                ->where('metadata->grund', 'wiederverwendung')
+                ->exists()
+        );
+    }
+
+    public function test_der_einrichtungscode_ist_bei_der_anmeldung_nicht_erneut_verwendbar(): void
+    {
+        $nutzer = $this->nutzer();
+        $geheimnis = $this->dienst()->beginSetup($nutzer);
+        $einrichtungscode = $this->totp->currentCode($geheimnis);
+
+        $this->dienst()->confirm($nutzer, $einrichtungscode);
+
+        self::assertFalse($this->dienst()->verify($nutzer->refresh(), $einrichtungscode));
+    }
+
+    public function test_ein_gesperrtes_konto_schliesst_den_zweiten_schritt_nicht_ab(): void
+    {
+        $daten = $this->mitZweitfaktor();
+
+        $this->post(route('login'), [
+            'email' => $daten['user']->getAttribute('email'),
+            'password' => self::PASSWORT,
+        ])->assertRedirect(route('two-factor.challenge'));
+
+        // Sperre zwischen Passwort und Code, etwa durch den Adminbereich.
+        $daten['user']->forceFill(['status' => UserStatus::GESPERRT])->save();
+
+        $antwort = $this->post(route('two-factor.challenge.store'), [
+            'code' => $this->code($daten['secret']),
+        ]);
+
+        $antwort->assertRedirect(route('login'));
+        $antwort->assertSessionHasErrors('email');
+        self::assertStringContainsString('gesperrt', (string) session('errors')?->first('email'));
+        self::assertFalse(Auth::check());
+        $antwort->assertSessionMissing(TwoFactorAuthentication::SESSION_OFFENER_NUTZER);
+
+        // Auch die Codeseite ist fuer die gesperrte Kennung nicht mehr nutzbar.
+        $this->get(route('two-factor.challenge'))->assertRedirect(route('login'));
+    }
+
+    public function test_ein_vor_der_aktivierung_gemerktes_geraet_meldet_danach_nicht_mehr_an(): void
+    {
+        $nutzer = $this->nutzer(['remember_token' => str_repeat('a', 60)]);
+
+        // Name des Cookies wie in Illuminate\Auth\SessionGuard::getRecallerName().
+        $cookie = 'remember_web_'.sha1(SessionGuard::class);
+        $wert = implode('|', [
+            (string) $nutzer->getKey(),
+            str_repeat('a', 60),
+            (string) $nutzer->getAttribute('password'),
+        ]);
+
+        // Vor der Aktivierung meldet das Cookie an.
+        $this->withCookie($cookie, $wert)->get(route('portal.dashboard'))->assertOk();
+
+        $this->app['auth']->forgetGuards();
+        $this->flushSession();
+
+        $geheimnis = $this->dienst()->beginSetup($nutzer);
+        $this->actingAs($nutzer)
+            ->post(route('two-factor.confirm'), ['code' => $this->totp->currentCode($geheimnis)])
+            ->assertRedirect(route('two-factor.setup'));
+
+        $this->post(route('logout'));
+        $this->app['auth']->forgetGuards();
+        $this->flushSession();
+
+        self::assertNotSame(str_repeat('a', 60), $nutzer->refresh()->getAttribute('remember_token'));
+
+        // Nach der Aktivierung ist das alte Merkmal wertlos.
+        $this->withCookie($cookie, $wert)->get(route('portal.dashboard'))->assertRedirect(route('login'));
+    }
+
+    public function test_die_abschaltung_erneuert_das_merkmal_angemeldet_bleiben(): void
+    {
+        $daten = $this->mitZweitfaktor();
+        $daten['user']->forceFill(['remember_token' => str_repeat('b', 60)])->save();
+
+        $this->actingAs($daten['user'])
+            ->post(route('two-factor.disable'), [
+                'current_password' => self::PASSWORT,
+                'code' => $this->code($daten['secret']),
+            ])
+            ->assertRedirect(route('two-factor.setup'));
+
+        self::assertNotSame(str_repeat('b', 60), $daten['user']->refresh()->getAttribute('remember_token'));
     }
 
     public function test_die_codeeingabe_ist_eigenstaendig_ratenbegrenzt(): void

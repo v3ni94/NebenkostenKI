@@ -17,6 +17,7 @@ use App\Notifications\VerifyEmailAddress;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
+use Tests\Feature\Auth\Concerns\SimuliertMailausfall;
 use Tests\TestCase;
 
 /**
@@ -25,6 +26,49 @@ use Tests\TestCase;
 final class RegistrationTest extends TestCase
 {
     use RefreshDatabase;
+    use SimuliertMailausfall;
+
+    public function test_ein_mailausfall_bei_der_registrierung_fuehrt_nicht_zu_einer_fehlerseite(): void
+    {
+        $this->simuliereMailausfall();
+
+        $antwort = $this->post(route('register'), $this->gueltigeAngaben());
+
+        // Kein HTTP 500: Das Konto ist vollstaendig angelegt, der Nutzer
+        // angemeldet und erhaelt eine neutrale Meldung.
+        $antwort->assertRedirect(route('verification.notice'));
+        $antwort->assertSessionHas('status');
+        self::assertStringContainsString(
+            'konnte gerade nicht versendet werden',
+            (string) session('status'),
+        );
+
+        $this->assertAuthenticated();
+
+        /** @var User|null $nutzer */
+        $nutzer = User::query()->where('email', 'maria.beispiel@beispiel.invalid')->first();
+        self::assertInstanceOf(User::class, $nutzer);
+        self::assertSame(1, OrganizationUser::query()->where('user_id', $nutzer->getKey())->count());
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'email.failed',
+            'subject_id' => $nutzer->getKey(),
+        ]);
+    }
+
+    public function test_ein_mailausfall_im_hinweiszweig_fuehrt_nicht_zu_einer_fehlerseite(): void
+    {
+        $this->simuliereMailausfall();
+
+        User::factory()->create(['email' => 'maria.beispiel@beispiel.invalid']);
+
+        $antwort = $this->post(route('register'), $this->gueltigeAngaben());
+
+        $antwort->assertRedirect(route('verification.notice'));
+        $antwort->assertSessionHas('status');
+        $this->assertGuest();
+        self::assertSame(1, User::query()->where('email', 'maria.beispiel@beispiel.invalid')->count());
+    }
 
     /**
      * @param  array<string, mixed>  $abweichungen

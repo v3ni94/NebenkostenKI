@@ -6,18 +6,25 @@ namespace Tests\Feature\Auth;
 
 use App\Application\Account\EmailVerification;
 use App\Enums\BillingRunStatus;
+use App\Enums\GeneratedDocumentKind;
+use App\Enums\GeneratedDocumentStatus;
+use App\Enums\GeneratedDocumentVariant;
 use App\Enums\UserStatus;
 use App\Models\AuditLog;
 use App\Models\BillingRun;
+use App\Models\GeneratedDocument;
 use App\Models\Organization;
 use App\Models\OrganizationUser;
 use App\Models\Property;
 use App\Models\User;
 use App\Notifications\VerifyEmailAddress;
+use App\Services\Storage\SignedDownloadUrlFactory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
+use Tests\Feature\Auth\Concerns\SimuliertMailausfall;
 use Tests\TestCase;
 
 /**
@@ -29,6 +36,7 @@ use Tests\TestCase;
 final class EmailVerificationTest extends TestCase
 {
     use RefreshDatabase;
+    use SimuliertMailausfall;
 
     /**
      * @return array{user: User, organization: Organization}
@@ -164,6 +172,47 @@ final class EmailVerificationTest extends TestCase
         $antwort->assertForbidden();
     }
 
+    public function test_bestaetigungslink_hebt_eine_sperre_nicht_auf(): void
+    {
+        $welt = $this->welt(false);
+        $verifikation = app(EmailVerification::class);
+
+        $url = $verifikation->signedUrl($welt['user']);
+
+        // Sperre nach dem Versand des Links, etwa durch den Adminbereich.
+        $welt['user']->forceFill(['status' => UserStatus::GESPERRT])->save();
+
+        $this->get($url)->assertRedirect(route('login'));
+
+        $frisch = $welt['user']->fresh();
+        self::assertInstanceOf(User::class, $frisch);
+        self::assertSame(UserStatus::GESPERRT, $frisch->getAttribute('status'));
+        self::assertNotNull($frisch->getAttribute('email_verified_at'));
+    }
+
+    public function test_bestaetigungslink_hebt_eine_loeschvormerkung_nicht_auf(): void
+    {
+        $welt = $this->welt(false);
+        $welt['user']->forceFill(['status' => UserStatus::GELOESCHT])->save();
+
+        $this->get(app(EmailVerification::class)->signedUrl($welt['user']));
+
+        self::assertSame(UserStatus::GELOESCHT, $welt['user']->fresh()?->getAttribute('status'));
+    }
+
+    public function test_ein_mailausfall_beim_erneuten_versand_fuehrt_nicht_zu_einer_fehlerseite(): void
+    {
+        $this->simuliereMailausfall();
+        $welt = $this->welt(false);
+
+        $antwort = $this->actingAs($welt['user'])
+            ->from(route('verification.notice'))
+            ->post(route('verification.send'));
+
+        $antwort->assertRedirect(route('verification.notice'));
+        self::assertStringContainsString('konnte gerade nicht versendet werden', (string) session('status'));
+    }
+
     public function test_erneuter_versand_ist_moeglich(): void
     {
         Notification::fake();
@@ -189,6 +238,41 @@ final class EmailVerificationTest extends TestCase
 
         $antwort->assertForbidden();
         self::assertNull($lauf->fresh()?->getAttribute('review_confirmed_at'));
+    }
+
+    public function test_signierter_final_download_verlangt_eine_bestaetigte_adresse(): void
+    {
+        Storage::fake('local');
+        config(['filesystems.default' => 'local']);
+
+        $welt = $this->welt(false);
+        $lauf = $this->lauf($welt['organization'], $welt['user']);
+
+        Storage::disk('local')->put('abrechnungen/final/test.pdf', '%PDF-1.4 Test');
+
+        /** @var GeneratedDocument $artefakt */
+        $artefakt = GeneratedDocument::factory()->create([
+            'organization_id' => $welt['organization']->getKey(),
+            'billing_run_id' => $lauf->getKey(),
+            'kind' => GeneratedDocumentKind::MIETERABRECHNUNG,
+            'variant' => GeneratedDocumentVariant::FINAL,
+            'status' => GeneratedDocumentStatus::AKTIV,
+            'storage_disk' => 'local',
+            'storage_path' => 'abrechnungen/final/test.pdf',
+        ]);
+
+        $url = app(SignedDownloadUrlFactory::class)->forRoute(
+            'portal.downloads.signed',
+            ['generatedDocument' => (string) $artefakt->getKey()]
+        );
+
+        // Dieselbe Pflicht wie auf der Streaming-Route (Masterprompt 8.1): der
+        // Link aus der Abschlussmail umgeht die Verifizierung nicht.
+        $this->actingAs($welt['user'])->get($url)->assertForbidden();
+
+        $welt['user']->forceFill(['email_verified_at' => now()])->save();
+
+        self::assertNotSame(403, $this->actingAs($welt['user']->refresh())->get($url)->getStatusCode());
     }
 
     public function test_bestaetigter_nutzer_darf_die_pruefung_bestaetigen(): void

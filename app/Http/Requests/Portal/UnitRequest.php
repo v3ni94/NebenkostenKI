@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Requests\Portal;
 
 use App\Http\Requests\GermanFormRequest;
+use App\Models\Unit;
+use Illuminate\Validation\Rule;
 
 /**
  * Anlage und Bearbeitung einer Einheit.
@@ -43,7 +45,19 @@ class UnitRequest extends GermanFormRequest
     public function rules(): array
     {
         return [
-            'label' => ['required', 'string', 'max:120'],
+            'label' => [
+                'required',
+                'string',
+                'max:120',
+                // Der Unique-Index units(property_id, label) darf nicht erst in
+                // der Datenbank greifen. Weich geloeschte Einheiten bleiben
+                // ausser Betracht; sie werden beim Wiederanlegen derselben
+                // Bezeichnung im Controller wiederhergestellt.
+                Rule::unique('units', 'label')
+                    ->where('property_id', $this->propertyId())
+                    ->whereNull('deleted_at')
+                    ->ignore($this->unitId()),
+            ],
             'location' => ['nullable', 'string', 'max:190'],
             'unit_number' => ['nullable', 'string', 'max:60'],
             'living_area_sqm' => ['nullable', 'numeric', 'min:0', 'max:99999'],
@@ -92,6 +106,40 @@ class UnitRequest extends GermanFormRequest
     {
         return [
             'label.required' => 'Bitte geben Sie eine Bezeichnung für die Einheit an, zum Beispiel WE 3.',
+            'label.unique' => 'Diese Bezeichnung ist in diesem Objekt bereits vergeben. Bitte wählen Sie eine andere.',
         ];
+    }
+
+    /**
+     * Kennung der zu bearbeitenden Einheit, sonst null (Anlage).
+     */
+    public function unitId(): ?string
+    {
+        $unit = $this->route('unit');
+
+        return is_string($unit) && $unit !== '' ? $unit : null;
+    }
+
+    /**
+     * Objekt, in dem die Bezeichnung eindeutig sein muss. Bei der Anlage
+     * kommt es aus der Route, bei der Bearbeitung aus der Einheit.
+     */
+    public function propertyId(): string
+    {
+        $property = $this->route('property');
+
+        if (is_string($property) && $property !== '') {
+            return $property;
+        }
+
+        $unitId = $this->unitId();
+
+        if ($unitId === null) {
+            return '';
+        }
+
+        $propertyId = Unit::query()->whereKey($unitId)->value('property_id');
+
+        return is_string($propertyId) ? $propertyId : '';
     }
 }

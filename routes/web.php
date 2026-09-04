@@ -53,11 +53,19 @@ Route::name('legal.')->group(function (): void {
 // der Token enthaelt keine Kundendaten. Kritische Konto- und Zahlungsmails sind
 // von der Abmeldung nicht betroffen.
 
+// GET zeigt nur eine Bestaetigungsseite, die Aenderung selbst erfolgt per
+// POST. Link-Scanner und Vorschaudienste der Postfaecher rufen enthaltene
+// Adressen automatisch ab und wuerden den Nutzer sonst unbemerkt abmelden.
+
 Route::middleware('signed')->name('erinnerungen.')->group(function (): void {
     Route::get('/erinnerungen/abmelden/{token}', [ReminderUnsubscribeController::class, 'unsubscribe'])
         ->name('abmelden');
+    Route::post('/erinnerungen/abmelden/{token}', [ReminderUnsubscribeController::class, 'confirmUnsubscribe'])
+        ->name('abmelden.bestaetigen');
     Route::get('/erinnerungen/aktivieren/{token}', [ReminderUnsubscribeController::class, 'resubscribe'])
         ->name('aktivieren');
+    Route::post('/erinnerungen/aktivieren/{token}', [ReminderUnsubscribeController::class, 'confirmResubscribe'])
+        ->name('aktivieren.bestaetigen');
 });
 
 // --- Anwendung ---------------------------------------------------------------
@@ -74,10 +82,15 @@ Route::prefix('app')
     ->group(base_path('routes/portal.php'));
 
 // --- Adminbereich ------------------------------------------------------------
+//
+// Die bestaetigte E-Mail-Adresse wird ueber das eigene Gate email-verified
+// verlangt. Die Laravel-Middleware verified prueft nur Modelle, die
+// MustVerifyEmail implementieren; App\Models\User tut das bewusst nicht, die
+// Middleware waere hier wirkungslos.
 
 Route::prefix('admin')
     ->name('admin.')
-    ->middleware(['auth', 'verified', 'can:access-admin'])
+    ->middleware(['auth', 'can:email-verified', 'can:access-admin'])
     ->group(base_path('routes/admin.php'));
 
 // --- Webhooks ----------------------------------------------------------------

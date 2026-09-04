@@ -123,6 +123,45 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         /*
+         * Rollentrennung im Adminbereich (ARCHITECTURE.md T10)
+         *
+         * Das Gate access-admin oeffnet den Bereich lesend fuer jede aktive
+         * interne Rolle. Schreibende Handlungen sind je Handlungsklasse
+         * getrennt, damit eine Support- oder Finanzkennung nicht alle Rechte
+         * der Administration erhaelt:
+         *
+         *   admin-manage-users      Sperren, Entsperren, Passwort-Link und
+         *                           Zweitfaktor-Reset von Kundenkonten:
+         *                           ADMIN und SUPPORT. Interne Kennungen darf
+         *                           nur ADMIN aendern, das prueft der
+         *                           Controller zusaetzlich.
+         *   admin-cancel-invoices   Storno von Leistungsrechnungen:
+         *                           ADMIN und FINANCE.
+         *   admin-retry-jobs        Wiederholen von Teiljobs und Loeschungen:
+         *                           ADMIN und SUPPORT.
+         *
+         * Eine Kennung mit unpassender Rolle erhaelt 403, nicht 404: Sie ist
+         * bereits im internen Bereich, die Existenz der Route ist ihr bekannt.
+         */
+        $rollenGate = static function (AdminRole ...$rollen): callable {
+            return static function (User $user) use ($rollen): AccessResponse {
+                foreach ($rollen as $rolle) {
+                    if ($user->hasAdminRole($rolle)) {
+                        return AccessResponse::allow();
+                    }
+                }
+
+                return AccessResponse::deny(
+                    'Diese Handlung ist Ihrer internen Rolle nicht zugeordnet.'
+                );
+            };
+        };
+
+        Gate::define('admin-manage-users', $rollenGate(AdminRole::ADMIN, AdminRole::SUPPORT));
+        Gate::define('admin-cancel-invoices', $rollenGate(AdminRole::ADMIN, AdminRole::FINANCE));
+        Gate::define('admin-retry-jobs', $rollenGate(AdminRole::ADMIN, AdminRole::SUPPORT));
+
+        /*
          * Gate "email-verified"
          *
          * Vorgabe des Masterprompts, Abschnitt 8.1: Die E-Mail-Verifizierung

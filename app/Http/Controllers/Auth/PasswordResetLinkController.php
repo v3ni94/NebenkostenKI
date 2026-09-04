@@ -10,9 +10,11 @@ use App\Models\User;
 use App\Notifications\ResetPasswordLink;
 use Illuminate\Contracts\Auth\CanResetPassword;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Throwable;
 
 /**
  * Anforderung eines Links zum Zuruecksetzen des Passworts.
@@ -41,8 +43,19 @@ class PasswordResetLinkController extends Controller
         Password::broker()->sendResetLink(
             ['email' => Str::lower((string) $request->string('email'))],
             function (CanResetPassword $user, string $token): void {
-                if ($user instanceof User) {
+                if (! $user instanceof User) {
+                    return;
+                }
+
+                // Ein Zustellfehler darf keine Fehlerseite erzeugen und die
+                // Antwort nicht veraendern, sonst waere er ein Kontoorakel.
+                try {
                     $user->notify(new ResetPasswordLink($token));
+                } catch (Throwable $fehler) {
+                    Log::warning('Passwort-Reset-Mail konnte nicht versendet werden.', [
+                        'user_id' => $user->getKey(),
+                        'fehler' => $fehler::class,
+                    ]);
                 }
             }
         );
