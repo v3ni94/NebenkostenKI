@@ -38,6 +38,8 @@
             <div class="mt-4 flex flex-wrap gap-2">
                 <x-hvm.button href="{{ route('portal.einheiten.index', ['property' => $objekt->getKey()]) }}"
                               variant="secondary" size="sm">Einheiten bearbeiten</x-hvm.button>
+                <x-hvm.button href="{{ route('portal.objekte.vermieter.edit', ['property' => $objekt->getKey()]) }}"
+                              variant="secondary" size="sm">Vermieter bearbeiten</x-hvm.button>
             </div>
         </x-hvm.card>
     </div>

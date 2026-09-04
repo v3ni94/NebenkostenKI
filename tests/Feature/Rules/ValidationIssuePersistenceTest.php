@@ -214,6 +214,7 @@ final class ValidationIssuePersistenceTest extends TestCase
                     apportionmentStatus: ApportionmentStatus::NICHT_UMLAGEFAEHIG,
                 ),
             ],
+            landlordPresent: true,
         );
     }
 
@@ -225,6 +226,7 @@ final class ValidationIssuePersistenceTest extends TestCase
             new DateTimeImmutable('2026-03-01 00:00:00', new DateTimeZone('UTC')),
             new RuleTolerances,
             units: [new RuleUnit($unitKey, 'Wohnung 1')],
+            landlordPresent: true,
         );
     }
 }

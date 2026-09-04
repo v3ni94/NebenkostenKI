@@ -41,7 +41,8 @@ final class StatementViewFactory
         CalculationRunResult $result,
         AssembledCalculationInput $assembled,
     ): array {
-        $sender = $this->sender($billingRun);
+        $landlord = $this->landlord($billingRun);
+        $sender = $this->sender($billingRun, $landlord);
         $subjectBase = $this->propertyAddressLine($billingRun);
         $tenancies = $this->tenancies($billingRun);
         $manualHeating = $this->manualHeatingStatement($billingRun);
@@ -65,7 +66,7 @@ final class StatementViewFactory
                 $assembled->heatingCategoryKeys,
                 [],
                 false,
-                $billingRun->landlord->show_bank_details_on_statement ?? false,
+                $landlord instanceof Landlord && $landlord->show_bank_details_on_statement,
                 $manualHeating instanceof HeatingStatement,
             );
         }
@@ -73,11 +74,28 @@ final class StatementViewFactory
         return $views;
     }
 
+    /**
+     * Vermieter des Laufs. Wurde er erst nach Anlage des Laufs am Objekt
+     * erfasst, gilt der Vermieter des Objekts.
+     */
+    private function landlord(BillingRun $billingRun): ?Landlord
+    {
+        $landlord = $billingRun->landlord;
+
+        if ($landlord instanceof Landlord) {
+            return $landlord;
+        }
+
+        $landlord = $billingRun->property->landlord;
+
+        return $landlord instanceof Landlord ? $landlord : null;
+    }
+
     public function ownerOverviewView(
         BillingRun $billingRun,
         CalculationRunResult $result,
     ): OwnerOverviewView {
-        $landlord = $billingRun->landlord;
+        $landlord = $this->landlord($billingRun);
         $manualHeating = $this->manualHeatingStatement($billingRun);
         $origin = $manualHeating?->getAttribute('calculation_origin');
 
@@ -110,11 +128,13 @@ final class StatementViewFactory
         return $statement instanceof HeatingStatement ? $statement : null;
     }
 
-    private function sender(BillingRun $billingRun): LandlordSender
+    private function sender(BillingRun $billingRun, ?Landlord $landlord): LandlordSender
     {
-        $landlord = $billingRun->landlord;
-
         if (! $landlord instanceof Landlord) {
+            // Auf dem regulaeren Weg nicht erreichbar: die Pruefregel
+            // VERMIETER_FEHLT sperrt Vorschau und Finalisierung ohne
+            // Vermieter. Der Zweig bleibt nur fuer Altbestaende, damit ein
+            // bereits bezahlter Lauf weiterhin gerendert werden kann.
             return new LandlordSender(new PostalAddress($billingRun->property->label));
         }
 
@@ -126,11 +146,31 @@ final class StatementViewFactory
         );
     }
 
+    /**
+     * Anschrift des Vermieters. Bei einer Firma steht diese in der ersten
+     * Zeile, der Name der Person in der zweiten; ein Adresszusatz folgt dort.
+     */
     private function landlordAddress(Landlord $landlord): PostalAddress
     {
+        $company = is_string($landlord->company_name) ? trim($landlord->company_name) : '';
+        $extra = is_string($landlord->address_extra) ? trim($landlord->address_extra) : '';
+
+        if ($company === '') {
+            return new PostalAddress(
+                $landlord->sender_name,
+                $extra === '' ? null : $extra,
+                $landlord->address_line,
+                $landlord->postal_code,
+                $landlord->city,
+                $landlord->country === 'DE' ? null : $landlord->country,
+            );
+        }
+
+        $secondLine = $extra === '' ? $landlord->sender_name : $landlord->sender_name.', '.$extra;
+
         return new PostalAddress(
-            $landlord->sender_name,
-            $landlord->address_extra,
+            $company,
+            $secondLine,
             $landlord->address_line,
             $landlord->postal_code,
             $landlord->city,

@@ -20,6 +20,7 @@ use App\Models\AllocationKeyValue;
 use App\Models\BillingRun;
 use App\Models\CostCategory;
 use App\Models\CostItem;
+use App\Models\Landlord;
 use App\Models\Organization;
 use App\Models\OrganizationUser;
 use App\Models\Prepayment;
@@ -131,10 +132,19 @@ abstract class CalculationTestCase extends PortalTestCase
             'joined_at' => now(),
         ]);
 
+        // Der Vermieter ist Absender der Mieterabrechnung; ohne ihn sperrt die
+        // Regel VERMIETER_FEHLT Pruefbericht und Vorschau.
+        /** @var Landlord $vermieter */
+        $vermieter = Landlord::factory()->create([
+            'organization_id' => $organisation->getKey(),
+            'sender_name' => 'Beispiel Vermietung Sonnenweg',
+        ]);
+
         /** @var Property $objekt */
         $objekt = Property::factory()->create([
             'organization_id' => $organisation->getKey(),
             'created_by_user_id' => $nutzer->getKey(),
+            'landlord_id' => $vermieter->getKey(),
             'label' => 'Beispielobjekt Sonnenweg 4',
             'mea_denominator' => '1000.000000',
         ]);

@@ -19,6 +19,7 @@ use App\Models\CalculationSnapshot;
 use App\Models\CostItem;
 use App\Models\DocumentRelation;
 use App\Models\HeatingStatement;
+use App\Models\Landlord;
 use App\Models\Tenancy;
 use App\Rules\Context\RuleAllocationKey;
 use App\Rules\Context\RuleCategoryChecksum;
@@ -91,7 +92,18 @@ final class RuleContextFactory
             $this->supplierHistory($billingRun, $singleAmountAttentionThreshold),
             $this->finalizationState($billingRun),
             RuleEnvironment::fromConfig(),
+            $this->landlordPresent($billingRun),
         );
+    }
+
+    /**
+     * Der Vermieter haengt am Lauf oder, wenn er erst nach Anlage des Laufs
+     * erfasst wurde, am Objekt.
+     */
+    private function landlordPresent(BillingRun $billingRun): bool
+    {
+        return $billingRun->landlord instanceof Landlord
+            || $billingRun->property->landlord instanceof Landlord;
     }
 
     /**
