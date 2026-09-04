@@ -10,6 +10,7 @@ use App\Application\Account\TwoFactorAuthentication;
 use App\Enums\UserStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Middleware\EnsureOrganizationContext;
+use App\Http\Middleware\RequireAdminTwoFactor;
 use App\Http\Requests\Auth\TwoFactorCodeRequest;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -150,6 +151,14 @@ class TwoFactorChallengeController extends Controller
 
         // Sitzungskennung nach der Anmeldung neu erzeugen.
         $request->session()->regenerate();
+
+        // Nachweis des zweiten Faktors in dieser Sitzung. Der Adminbereich
+        // verlangt ihn zusaetzlich zur Anmeldung, weil eine spaetere
+        // Cookie-Anmeldung ("angemeldet bleiben") ohne Code entsteht.
+        $request->session()->put(
+            RequireAdminTwoFactor::SESSION_ZWEITFAKTOR_BESTAETIGT_AT,
+            now()->toIso8601String(),
+        );
 
         $benutzer->forceFill(['last_login_at' => now()])->save();
 

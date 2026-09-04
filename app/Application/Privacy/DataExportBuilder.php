@@ -45,6 +45,7 @@ use App\Models\User;
 use App\Models\VacancyPeriod;
 use App\Models\ValidationIssue;
 use App\Services\Storage\ArtifactStorage;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use RuntimeException;
 use ZipArchive;
@@ -60,7 +61,10 @@ use ZipArchive;
  *    die strukturierten Daten und die vom System erzeugten PDFs.
  * 2. KEINE FREMDDATEN. Jede Query ist über organization_id auf die
  *    Organisationen des anfordernden Nutzers gescopet. Es gibt keinen
- *    ungescopten Zugriff.
+ *    ungescopten Zugriff. Personenbezogene Sammlungen (Nachrichten,
+ *    Erinnerungen, Revisionsprotokoll) sind zusätzlich auf den Antragsteller
+ *    selbst begrenzt, damit ein geteilter Mandant nicht die Daten anderer
+ *    Mitglieder preisgibt.
  * 3. MASCHINENLESBAR. Je Entität eine JSON-Datei mit UTF-8 und unescapten
  *    Zeichen, dazu eine lesbare Übersicht als Textdatei.
  * 4. Die Auslieferung ist nicht Aufgabe dieser Klasse. Sie erzeugt nur die
@@ -104,12 +108,28 @@ final class DataExportBuilder
         'zahlungen' => Payment::class,
         'rechnungen' => Invoice::class,
         'erzeugte_dokumente' => GeneratedDocument::class,
-        'nachrichten' => EmailMessage::class,
-        'erinnerungseinstellungen' => ReminderPreference::class,
-        'erinnerungsereignisse' => ReminderEvent::class,
         'rechtsnachweise' => LegalAcceptance::class,
-        'revisionsprotokoll' => AuditLog::class,
         'loeschnachweise' => SourceDeletionEvent::class,
+    ];
+
+    /**
+     * Personenbezogene Sammlungen eines geteilten Mandanten.
+     *
+     * Nachrichten, Erinnerungen und Protokolleintraege tragen zwar eine
+     * organization_id, gehoeren aber einer bestimmten Person: der
+     * Empfaengeradresse beziehungsweise dem handelnden Nutzer. In einem
+     * Mandanten mit mehreren Mitgliedern erhaelt der Antragsteller deshalb nur
+     * seine eigenen Zeilen, nicht die der anderen Mitglieder. Je Sammlung sind
+     * die Spalten genannt, ueber die eine Zeile dem Antragsteller zugeordnet
+     * wird; eine Zeile wird aufgenommen, wenn eine davon passt.
+     *
+     * @var array<string, array{0: class-string<Model>, 1: list<string>}>
+     */
+    private const USER_SCOPED = [
+        'nachrichten' => [EmailMessage::class, ['user_id', 'recipient_email']],
+        'erinnerungseinstellungen' => [ReminderPreference::class, ['user_id']],
+        'erinnerungsereignisse' => [ReminderEvent::class, ['user_id', 'recipient_email']],
+        'revisionsprotokoll' => [AuditLog::class, ['actor_user_id']],
     ];
 
     /**
@@ -213,6 +233,12 @@ final class DataExportBuilder
                 : $this->rows($model::query()->whereIn('organization_id', $organizationIds)->get()->all());
         }
 
+        foreach (self::USER_SCOPED as $name => [$model, $spalten]) {
+            $ergebnis[$name] = $organizationIds === []
+                ? []
+                : $this->rows($this->userScopedQuery($model, $spalten, $user, $organizationIds)->get()->all());
+        }
+
         // Rechnungspositionen hängen an der Rechnung und tragen selbst keine
         // Mandantenspalte. Sie werden deshalb über die eigenen Rechnungen
         // gescopet, nicht über eine ungescopte Query.
@@ -225,6 +251,48 @@ final class DataExportBuilder
             : $this->rows(InvoiceItem::query()->whereIn('invoice_id', $rechnungsIds)->get()->all());
 
         return $ergebnis;
+    }
+
+    /**
+     * Zeilen einer personenbezogenen Sammlung, die dem Antragsteller gehoeren.
+     *
+     * Der Mandantenbezug bleibt bestehen; zusaetzlich muss eine der genannten
+     * Spalten den Antragsteller nennen. Eine Spalte, die auf "email" endet,
+     * wird gegen die E-Mail-Adresse des Kontos geprueft, alle anderen gegen
+     * seine Kennung. Protokolleintraege, deren Gegenstand das Konto selbst
+     * ist, gehoeren ebenfalls dazu.
+     *
+     * @param  class-string<Model>  $model
+     * @param  list<string>  $spalten
+     * @param  list<string>  $organizationIds
+     * @return Builder<Model>
+     */
+    private function userScopedQuery(string $model, array $spalten, User $user, array $organizationIds): Builder
+    {
+        $email = $user->getAttribute('email');
+        $kennung = (string) $user->getKey();
+
+        return $model::query()
+            ->whereIn('organization_id', $organizationIds)
+            ->where(function (Builder $query) use ($model, $spalten, $email, $kennung): void {
+                foreach ($spalten as $spalte) {
+                    if (str_ends_with($spalte, 'email')) {
+                        if (is_string($email) && $email !== '') {
+                            $query->orWhere($spalte, $email);
+                        }
+
+                        continue;
+                    }
+
+                    $query->orWhere($spalte, $kennung);
+                }
+
+                if ($model === AuditLog::class) {
+                    $query->orWhere(function (Builder $eigenes) use ($kennung): void {
+                        $eigenes->where('subject_type', User::class)->where('subject_id', $kennung);
+                    });
+                }
+            });
     }
 
     /**

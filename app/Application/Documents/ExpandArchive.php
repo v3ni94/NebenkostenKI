@@ -9,6 +9,7 @@ use App\Enums\DeletionStatus;
 use App\Enums\DocumentProcessingStatus;
 use App\Enums\DocumentRelationType;
 use App\Enums\DocumentType;
+use App\Models\BillingRun;
 use App\Models\Document;
 use App\Models\DocumentRelation;
 use App\Models\TemporaryUpload;
@@ -20,6 +21,7 @@ use App\Services\Storage\TemporaryUploadStorage;
 use App\Services\Storage\UploadErrorCode;
 use App\Services\Storage\UploadLimits;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Throwable;
 use ZipArchive;
 
@@ -112,65 +114,81 @@ final class ExpandArchive
         $source = $this->storage->source($targetKey);
 
         $inspection = $this->mimeGuard->inspectSource($source, $entry->extension, $limits);
+        $fingerprint = $this->fingerprints->forSource($source);
 
-        $sequence = $this->nextSequenceNumber($archiveDocument);
+        // Laufende Nummer und Datensaetze entstehen in EINER Transaktion hinter
+        // einer Zeilensperre auf dem Abrechnungslauf, wie in StartUpload. Ohne
+        // die Sperre laesen ein gleichzeitiger Upload im selben Lauf und dieses
+        // Entpacken dieselbe Hoechstnummer, und der zweite Insert scheiterte am
+        // Unique-Index (billing_run_id, sequence_number).
+        /** @var Document $document */
+        $document = DB::transaction(function () use ($archiveDocument, $entryPrefix, $byteSize, $inspection, $fingerprint): Document {
+            BillingRun::query()
+                ->whereKey($archiveDocument->getAttribute('billing_run_id'))
+                ->lockForUpdate()
+                ->first();
 
-        $document = new Document;
+            $sequence = $this->nextSequenceNumber($archiveDocument);
 
-        $document->fill([
-            'organization_id' => $archiveDocument->getAttribute('organization_id'),
-            'billing_run_id' => $archiveDocument->getAttribute('billing_run_id'),
-            'sequence_number' => $sequence,
-            'source_label' => $this->labels->truncate($this->labels->pending($sequence)),
-            'document_type' => DocumentType::SONSTIGES,
-            'mime_type' => $inspection->mimeType,
-            'original_byte_size' => $byteSize,
-            'page_count' => $inspection->pageCount,
-            'fingerprint_hmac' => $this->fingerprints->forSource($source),
-            'processing_status' => DocumentProcessingStatus::SICHERHEITSPRUEFUNG,
-            'security_checked_at' => Carbon::now(),
-            'malware_scanner_driver' => $archiveDocument->getAttribute('malware_scanner_driver'),
-            'malware_scan_clean' => $archiveDocument->getAttribute('malware_scan_clean'),
-            'deletion_status' => DeletionStatus::OFFEN,
-        ]);
+            $document = new Document;
 
-        $document->save();
+            $document->fill([
+                'organization_id' => $archiveDocument->getAttribute('organization_id'),
+                'billing_run_id' => $archiveDocument->getAttribute('billing_run_id'),
+                'sequence_number' => $sequence,
+                'source_label' => $this->labels->truncate($this->labels->pending($sequence)),
+                'document_type' => DocumentType::SONSTIGES,
+                'mime_type' => $inspection->mimeType,
+                'original_byte_size' => $byteSize,
+                'page_count' => $inspection->pageCount,
+                'fingerprint_hmac' => $fingerprint,
+                'processing_status' => DocumentProcessingStatus::SICHERHEITSPRUEFUNG,
+                'security_checked_at' => Carbon::now(),
+                'malware_scanner_driver' => $archiveDocument->getAttribute('malware_scanner_driver'),
+                'malware_scan_clean' => $archiveDocument->getAttribute('malware_scan_clean'),
+                'deletion_status' => DeletionStatus::OFFEN,
+            ]);
 
-        $now = Carbon::now();
+            $document->save();
 
-        $upload = new TemporaryUpload;
+            $now = Carbon::now();
 
-        $upload->fill([
-            'organization_id' => $document->getAttribute('organization_id'),
-            'document_id' => $document->getKey(),
-            'storage_disk' => TemporaryUploadStorage::DISK,
-            'storage_key' => $entryPrefix,
-            'encryption_key_wrapped' => $this->storage->wrappedKeyFor($entryPrefix),
-            'byte_size' => $byteSize,
-            'total_chunks' => 1,
-            'received_chunks' => 1,
-            'received_bytes' => $byteSize,
-            'first_chunk_at' => $now,
-            'expires_at' => $now->copy()->addMinutes($this->ttlMinutes()),
-            'deletion_attempts' => 0,
-            'is_tombstone' => false,
-            'provider_deletion_status' => DeletionStatus::NICHT_ERFORDERLICH,
-        ]);
+            $upload = new TemporaryUpload;
 
-        $upload->save();
+            $upload->fill([
+                'organization_id' => $document->getAttribute('organization_id'),
+                'document_id' => $document->getKey(),
+                'storage_disk' => TemporaryUploadStorage::DISK,
+                'storage_key' => $entryPrefix,
+                'encryption_key_wrapped' => $this->storage->wrappedKeyFor($entryPrefix),
+                'byte_size' => $byteSize,
+                'total_chunks' => 1,
+                'received_chunks' => 1,
+                'received_bytes' => $byteSize,
+                'first_chunk_at' => $now,
+                'expires_at' => $now->copy()->addMinutes($this->ttlMinutes()),
+                'deletion_attempts' => 0,
+                'is_tombstone' => false,
+                'provider_deletion_status' => DeletionStatus::NICHT_ERFORDERLICH,
+            ]);
 
-        $relation = new DocumentRelation;
+            $upload->save();
 
-        $relation->fill([
-            'organization_id' => $document->getAttribute('organization_id'),
-            'billing_run_id' => $document->getAttribute('billing_run_id'),
-            'from_document_id' => $document->getKey(),
-            'to_document_id' => $archiveDocument->getKey(),
-            'relation_type' => DocumentRelationType::ANLAGE_ZU_HAUPTDOKUMENT,
-            'note' => 'Aus einem hochgeladenen Archiv entpackt.',
-        ]);
+            $relation = new DocumentRelation;
 
-        $relation->save();
+            $relation->fill([
+                'organization_id' => $document->getAttribute('organization_id'),
+                'billing_run_id' => $document->getAttribute('billing_run_id'),
+                'from_document_id' => $document->getKey(),
+                'to_document_id' => $archiveDocument->getKey(),
+                'relation_type' => DocumentRelationType::ANLAGE_ZU_HAUPTDOKUMENT,
+                'note' => 'Aus einem hochgeladenen Archiv entpackt.',
+            ]);
+
+            $relation->save();
+
+            return $document;
+        });
 
         return $document;
     }
@@ -225,6 +243,10 @@ final class ExpandArchive
         return $written;
     }
 
+    /**
+     * Laufende Nummer im Abrechnungslauf. Aufruf nur innerhalb der Transaktion
+     * und hinter der Zeilensperre auf dem Lauf (siehe createDocumentFromEntry).
+     */
     private function nextSequenceNumber(Document $archiveDocument): int
     {
         $max = Document::query()

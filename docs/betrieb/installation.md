@@ -254,6 +254,47 @@ anschließend über „Passwort vergessen“ ein eigenes Passwort.
 **Erwartetes Ergebnis:** `https://<domain>/admin` ist erreichbar und zeigt das
 Dashboard mit den Livegang-Blockern.
 
+### 11.1 Zweitfaktor-Notfall: `smartabrechnen:admin:reset-2fa`
+
+Der Adminbereich kann den Zweitfaktor fremder Konten zurücksetzen, nie den
+eigenen. Ist die einzige Adminkennung ausgesperrt (Telefon verloren, keine
+Wiederherstellungscodes mehr), bleibt nur der Weg über einen Cronjob auf dem
+Server:
+
+```
+<php> <root>/current/artisan smartabrechnen:admin:reset-2fa --email=admin@<domain> --grund="Telefon verloren, Wiederherstellungscodes nicht vorhanden, Ticket 4711" --bestaetigt-von="Vorname Nachname" --bestaetigt
+```
+
+Ablauf, verbindlich:
+
+1. **Identitätsprüfung.** Die betroffene Person weist sich gegenüber einer
+   zweiten Person aus dem Betrieb aus, etwa durch Rückruf unter der
+   hinterlegten Telefonnummer oder persönlich. Eine E-Mail allein genügt
+   nicht, weil das Postfach selbst kompromittiert sein kann.
+2. **Vier-Augen-Prinzip.** Der Reset wird von einer zweiten Person freigegeben.
+   Ihr Name wird über `--bestaetigt-von` angegeben und im Revisionsprotokoll
+   festgehalten. `--grund` beschreibt Anlass und Ticket, mindestens 15 Zeichen.
+3. **Ausführung.** Der Befehl setzt Geheimnis, Wiederherstellungscodes und das
+   Merkmal „angemeldet bleiben“ zurück, beendet alle Sitzungen der Kennung und
+   schreibt zwei Protokolleinträge (`account.two_factor_reset` und
+   `admin.user.two_factor_reset` mit Begründung, Kanal `konsole` und
+   bestätigender Person). Ohne `--bestaetigt` fragt der Befehl vor der
+   Ausführung nach; im Cronjob ist die Option daher erforderlich.
+4. **Neue Einrichtung.** Die betroffene Person meldet sich sofort mit Passwort
+   an, wird direkt zur Einrichtung eines neuen Zweitfaktors geführt und sichert
+   die neuen Wiederherstellungscodes. Bis dahin ist die Kennung nur durch das
+   Passwort geschützt; der Zeitraum ist so kurz wie möglich zu halten.
+5. **Nachbereitung.** Cronjob im Control-Center löschen, Vorgang im
+   Betriebsprotokoll vermerken, Protokolleintrag unter `/admin/protokoll`
+   prüfen.
+
+Der Befehl wirkt nur auf Kennungen mit Adminrolle. Kundenkonten werden
+weiterhin im Adminbereich unter Nutzer zurückgesetzt.
+
+**Erwartetes Ergebnis:** Ausgabe `Der Zweitfaktor wurde zurueckgesetzt und der
+Vorgang protokolliert.` Die nächste Anmeldung führt auf
+`https://<domain>/zwei-faktor/einrichten`.
+
 ## Schritt 12: `smartabrechnen:check-config`
 
 ```

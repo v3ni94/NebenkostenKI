@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Portal;
 
+use App\Enums\GeneratedDocumentKind;
 use App\Enums\GeneratedDocumentStatus;
 use App\Enums\GeneratedDocumentVariant;
 use App\Http\Controllers\Controller;
@@ -80,6 +81,19 @@ class DownloadController extends Controller
             is_string($organizationId) && in_array($organizationId, $user->organizationIds(), true),
             404
         );
+
+        // Ein Datenexport enthaelt die Kontodaten des Antragstellers und die
+        // Daten ALLER seiner Mandanten. Die Zugehoerigkeit zum Mandanten reicht
+        // deshalb nicht aus: Ein anderes Mitglied desselben Mandanten erhaelt
+        // ihn nicht, auch hier mit 404 statt 403.
+        if ($generatedDocument->getAttribute('kind') === GeneratedDocumentKind::DSGVO_EXPORT) {
+            $antragsteller = $generatedDocument->getAttribute('requested_by_user_id');
+
+            abort_unless(
+                is_string($antragsteller) && $antragsteller === (string) $user->getKey(),
+                404
+            );
+        }
 
         // Ein Artefakt liegt niemals im Kurzzeitbereich. Weicht die Disk ab,
         // wird nicht ausgeliefert.

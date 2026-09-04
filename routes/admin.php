@@ -37,7 +37,7 @@ use Illuminate\Support\Facades\Route;
 |
 | Schreibende Handlungen tragen zusaetzlich ein Gate je Handlungsklasse
 | (bootstrap/app.php): admin-manage-users, admin-cancel-invoices,
-| admin-retry-jobs. Damit erhaelt eine Support- oder Finanzkennung nicht
+| admin-retry-jobs, admin-manage-payments. Damit erhaelt eine Support- oder Finanzkennung nicht
 | saemtliche Rechte der Administration.
 |
 | RequireAdminTwoFactor wird hier und nicht in bootstrap/app.php angehaengt.
@@ -125,6 +125,7 @@ Route::middleware(RequireAdminTwoFactor::class)->group(function (): void {
 
     Route::get('/kommunikation', [CommunicationController::class, 'index'])->name('kommunikation');
     Route::post('/kommunikation/sperrliste/aufheben', [CommunicationController::class, 'releaseSuppression'])
+        ->middleware('can:admin-manage-users')
         ->name('kommunikation.sperre.aufheben');
     Route::get('/versionen', [VersionController::class, 'index'])->name('versionen');
     Route::get('/technik', [HealthController::class, 'index'])->name('technik');
@@ -139,7 +140,9 @@ Route::middleware(RequireAdminTwoFactor::class)->group(function (): void {
 Route::middleware(RequireAdminTwoFactor::class)->group(function (): void {
     Route::get('/zahlungsnachlauf', [PaymentRecoveryController::class, 'index'])->name('zahlungsnachlauf');
     Route::post('/zahlungsnachlauf/{billingRun}/finalisieren', [PaymentRecoveryController::class, 'finalize'])
+        ->middleware('can:admin-manage-payments')
         ->name('zahlungsnachlauf.finalisieren');
     Route::post('/zahlungsnachlauf/{billingRun}/rechnung', [PaymentRecoveryController::class, 'issueInvoice'])
+        ->middleware('can:admin-manage-payments')
         ->name('zahlungsnachlauf.rechnung');
 });
