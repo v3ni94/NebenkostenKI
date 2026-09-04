@@ -187,3 +187,51 @@ Entscheidungen, die die Geschäftsführung bestätigen sollte, sind in Abschnitt
 14. Unbestätigte Vorjahresschlüssel aus der Folgejahresübernahme blockieren Schritt 8 bis zur Bestätigung.
 15. Externe Heizkostenanteile (Fall A) werden als Vorschläge mit Kategorie Heizung erzeugt, ohne Trennung Heizung und Warmwasser. Bei gewünschter Trennung ist das Extraktionsschema zu erweitern.
 16. Bestandsnutzer mit offenen Läufen ohne Vermieter müssen den Vermieter nachtragen, bevor Vorschau und Zahlung möglich sind.
+
+## 13. Adversariale Nachprüfung der Behebungen und zweite Runde
+
+Jede Behebung wurde von zwei unabhängigen Prüfern je Cluster (Fable 5.1 mit Linse Korrektheit, Opus 5 mit Linse Unabhängigkeit) am zusammengeführten Stand gegengeprüft: Ist der Defekt auf dem Anwendungsweg beseitigt, gibt es einen Regressionstest, der vorher fehlgeschlagen wäre, und hat die Behebung etwas Neues eingeführt.
+
+Ergebnis: 100 von 108 Behebungen bestätigt, 8 unvollständig. Vier gravierende Folgepunkte, darunter drei durch die Behebung selbst eingeführt oder freigelegt:
+
+| Folgepunkt | Schwere | Ursache |
+|---|---|---|
+| Folgejahresübernahme: wertloser Vorjahresschlüssel lässt die Berechnung scheitern | Blocker | Behebung U8 kopierte keine Werte mehr, der Assembler baute aber weiterhin jeden Schlüssel |
+| Datenexport eines Mitglieds über die Downloadroute für andere Mandantenmitglieder abrufbar | Blocker | Behebung B48 filterte nur die Datenschutzseite, nicht den Downloadcontroller |
+| Deployskript: relative Symlink-Ziele brechen nach dem Umschalten nach current | Blocker | Behebung B52 machte die Symlink-Probe erstmals erfolgreich und legte den Fehler frei |
+| Stammdatenänderungen (Einheit, Mietverhältnis, Vermieter) setzen die Vorschau nicht zurück, Checkout ohne gültige Vorschau möglich | hoch | dieselbe Fehlerklasse wie B21, über andere Controller |
+
+Dazu 35 Punkte mittlerer und niedriger Schwere. Alle 39 Folgepunkte wurden in einer zweiten Runde in fünf Arbeitspaketen behoben (Geld, Vorschau und Stammdaten, Konto und Rollen, Betrieb und Zahlung, KI und Kurzzeitbereich), jeweils mit Regressionstest. Zusammenführung ohne Konflikte, zwei Wechselwirkungen zwischen Paketen nachgezogen (Rollen-Gate der neuen Mailwiederholungsroute, Dokumentzählung im Zahlungsfixture).
+
+| Prüfung nach Runde 2 | Ergebnis |
+|---|---|
+| Pint | bestanden |
+| PHPStan Level 6 | keine Fehler |
+| PHPUnit | 2.384 Tests, 14.911 Assertions |
+
+Wesentliche Änderungen der Runde 2 mit Betriebswirkung:
+- Der Checkout verlangt jetzt eine gültige Vorschau und keine offenen Sperrgründe; jede Stammdatenänderung setzt Vorschau und Bestätigung zurück.
+- Personentage-Schlüssel sind bei nicht durchgehend vermieteten Einheiten ein Blocker (keine Schätzung von Leerstandspersonen).
+- Eine gelöschte Einheit löscht ihre Mietverhältnisse mit; Wiederanlegen erzeugt eine neue Einheit.
+- Fehlgeschlagene Mails werden bis zu 24 Stunden automatisch wiederholt und können im Adminbereich erneut gesendet werden.
+- Die Rechtematrix der Adminrollen ist vollständig: Zahlungsnachlauf ADMIN und FINANCE, Sperrliste und Mailwiederholung ADMIN und SUPPORT.
+- Anwendungszeitzone Europe/Berlin ist als fachliche Konstante verankert, Rechnungsdatum und Nummernkreis hängen nicht mehr an APP_TIMEZONE.
+- Neuer Notfallbefehl `smartabrechnen:admin:reset-2fa` mit dokumentiertem Verfahren.
+- Website, FAQ, Uploaddialog und Abschlussmail versprechen keine Übernahme aus Mietvertrag, Vorjahresabrechnung oder Zahlungsübersicht mehr.
+
+Verbleibende offene Punkte stehen in ARCHITECTURE.md Abschnitt 11; die neuen Vorlagen für die Geschäftsführung in Abschnitt 14.
+
+## 14. Weitere Vorlagen für die Geschäftsführung aus Runde 2
+
+1. Rechtematrix: Zahlungsnachlauf (Finalisierung und Rechnung nachholen) für ADMIN und FINANCE, Sperrlistenaufhebung und Mailwiederholung für ADMIN und SUPPORT. Bestätigen.
+2. Adminbereich verlangt je Browsersitzung einmal den Zweitfaktor, auch bei "angemeldet bleiben". Bestätigen.
+3. Notfallverfahren Zweitfaktor-Reset der einzigen Adminkennung (Rückruf, zweite Person, Ticket) als Betriebsanweisung freigeben.
+4. Wiederholungspuffer für fehlgeschlagene Mails hält den vollständigen Inhalt inklusive signierter Downloadlinks bis zu 24 Stunden verschlüsselt. Bestätigen oder Fenster verkürzen.
+5. Providerlöschung mit Antwort 404: als bestätigte Löschung werten oder Dokument blockieren lassen.
+6. Eigene Tabelle für offene Providerdateien vor Livegang nachziehen (Empfehlung der Umsetzung).
+7. Personentage bei Leerstand: soll der Schlüssel dort nutzbar sein, braucht der Leerstand ein Personenfeld. Entscheiden.
+8. Entfernte Einheit mit Abrechnungsbezügen bleibt als umbenannte, gelöschte Zeile erhalten (Nachvollziehbarkeit). Bestätigen.
+9. Fehlende Rechnungsanschrift nach dem Checkout: Leistung wird bereitgestellt, Rechnung wartet im Zahlungsnachlauf. Ob der Kunde aktiv zur Ergänzung aufgefordert wird, entscheiden.
+10. Preiskorridor 20,00 bis 30,00 EUR ist Livegang-Blocker; Preisänderungen außerhalb erfordern Konfigurationsänderung.
+11. Redaktionelle Freigabe der geänderten Website-, FAQ-, Upload- und Mailtexte.
+12. Bei aktivem KI-Tagesbudget ohne Kalkulationsbasis stehen KI-Aufrufe still. Vor Livegang Basis für alle Modelle pflegen oder ohne Limit betreiben.

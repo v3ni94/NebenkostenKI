@@ -128,6 +128,7 @@ Route::middleware(RequireAdminTwoFactor::class)->group(function (): void {
         ->middleware('can:admin-manage-users')
         ->name('kommunikation.sperre.aufheben');
     Route::post('/kommunikation/nachrichten/{emailMessage}/erneut-senden', [CommunicationController::class, 'resend'])
+        ->middleware('can:admin-manage-users')
         ->name('kommunikation.nachricht.erneut');
     Route::get('/versionen', [VersionController::class, 'index'])->name('versionen');
     Route::get('/technik', [HealthController::class, 'index'])->name('technik');

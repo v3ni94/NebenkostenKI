@@ -113,7 +113,7 @@ vendor/bin/phpstan analyse --no-progress --memory-limit=1G
 vendor/bin/pint --test
 ```
 
-Stand 04.09.2026: **2.279 Tests mit 14.253 Assertions grün**, PHPStan Level 6
+Stand 04.09.2026: **2.384 Tests mit 14.911 Assertions grün**, PHPStan Level 6
 projektweit fehlerfrei, Pint sauber. Einzelne Nachweise lassen sich gezielt
 laufen, zum Beispiel:
 

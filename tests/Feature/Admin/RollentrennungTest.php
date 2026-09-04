@@ -14,6 +14,7 @@ use App\Http\Controllers\Admin\CommunicationController;
 use App\Http\Controllers\Admin\UserController;
 use App\Mail\SuppressionGuard;
 use App\Models\BillingRun;
+use App\Models\EmailMessage;
 use App\Models\Invoice;
 use App\Models\ProcessingJob;
 use App\Models\Property;
@@ -258,6 +259,17 @@ final class RollentrennungTest extends AdminTestCase
 
         self::assertTrue(app(SuppressionGuard::class)->isSuppressed('gesperrt@beispiel.invalid'));
         $this->assertDatabaseMissing('audit_logs', ['action' => CommunicationController::AUDIT_SPERRE_AUFGEHOBEN]);
+    }
+
+    public function test_eine_finanzkennung_darf_keine_nachricht_erneut_senden(): void
+    {
+        $nachricht = EmailMessage::factory()->create();
+
+        $this->actingAs($this->interneKennung(AdminRole::FINANCE))
+            ->post(route('admin.kommunikation.nachricht.erneut', ['emailMessage' => $nachricht->getKey()]), [
+                'grund' => 'Kunde bittet um erneute Zusendung der Bestaetigung.',
+            ])
+            ->assertForbidden();
     }
 
     public function test_eine_supportkennung_darf_eine_sperre_aufheben(): void

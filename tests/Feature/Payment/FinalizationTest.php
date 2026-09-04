@@ -288,8 +288,9 @@ final class FinalizationTest extends PaymentTestCase
             self::assertStringContainsString('bereits in Bearbeitung', $ausnahme->getMessage());
         }
 
-        // Nichts erzeugt, der Lauf bleibt beim ersten Aufrufer.
-        self::assertSame(0, GeneratedDocument::query()->count());
+        // Nichts erzeugt, der Lauf bleibt beim ersten Aufrufer. Die
+        // Vorschaudokumente des Fixtures zaehlen nicht.
+        self::assertSame(0, GeneratedDocument::query()->where('variant', GeneratedDocumentVariant::FINAL->value)->count());
         self::assertSame(0, Invoice::query()->count());
         self::assertSame(BillingRunStatus::FINALIZING, BillingRun::query()
             ->findOrFail($vorgang['lauf']->getKey())
