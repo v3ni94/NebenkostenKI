@@ -37,6 +37,18 @@ use Illuminate\Support\Facades\Storage;
  */
 final class AbbruchUndFehlerwegeTest extends EndToEndTestCase
 {
+    /**
+     * Templates der Bestaetigungsmails nach der Finalisierung. Die Statusmails
+     * des Ablaufs (Auswertung, Pruefaufgaben, Vorschau) zaehlen hier nicht.
+     *
+     * @var list<string>
+     */
+    private const array FINALISIERUNGSMAILS = [
+        'zahlung-bestaetigt',
+        'finalabrechnungen-verfuegbar',
+        'hvm-rechnung-verfuegbar',
+    ];
+
     public function test_ohne_erreichbare_ki_anbindung_bleibt_keine_originaldatei_liegen(): void
     {
         // Die KI-Anbindung wird ausdruecklich NICHT gebunden. Das ist der
@@ -303,7 +315,7 @@ final class AbbruchUndFehlerwegeTest extends EndToEndTestCase
                 ->count()
         );
         self::assertSame(0, Invoice::query()->count());
-        self::assertSame(0, EmailMessage::query()->count());
+        self::assertSame(0, EmailMessage::query()->whereIn('template', self::FINALISIERUNGSMAILS)->count());
 
         // Die Rueckkehrseite des Browsers aendert den Zustand nicht.
         $this->actingAs($welt['user'])
@@ -334,7 +346,7 @@ final class AbbruchUndFehlerwegeTest extends EndToEndTestCase
 
         self::assertSame(1, Payment::query()->count());
         self::assertSame(1, Invoice::query()->count());
-        self::assertSame(3, EmailMessage::query()->count());
+        self::assertSame(3, EmailMessage::query()->whereIn('template', self::FINALISIERUNGSMAILS)->count());
         self::assertSame(BillingRunStatus::FINALIZED, $welt['billingRun']->refresh()->getAttribute('status'));
 
         // Das Ereignis ist genau einmal verarbeitet.

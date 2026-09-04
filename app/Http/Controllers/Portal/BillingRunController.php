@@ -10,6 +10,7 @@ use App\Application\BillingRun\BillingRunStateMachine;
 use App\Application\BillingRun\CreateBillingRun;
 use App\Application\BillingRun\IllegalStatusTransitionException;
 use App\Application\BillingRun\PortalStatusResolver;
+use App\Application\Wizard\WizardProgress;
 use App\Enums\BillingMode;
 use App\Enums\BillingRunStatus;
 use App\Http\Controllers\Controller;
@@ -29,9 +30,11 @@ use Illuminate\View\View;
  * Schnellabrechnung oder vollstaendige Objektabrechnung mit automatischer
  * Empfehlung.
  *
- * Die Nutzerbestaetigung vor der Finalisierung (Abschnitt 2.3) setzt eine
- * bestaetigte E-Mail-Adresse voraus. Das wird ueber das Gate email-verified an
- * der Route erzwungen.
+ * Die Nutzerbestaetigung vor der Finalisierung (Abschnitt 2.3) erfolgt
+ * ausschliesslich in Schritt 10 ueber PreviewController::confirm, weil nur dort
+ * die Gueltigkeit der Vorschau geprueft und der Nachweis mit Textfassung
+ * protokolliert wird. Die Detailseite bietet keinen zweiten Bestaetigungsweg,
+ * sie fuehrt den Nutzer zum jeweils naechsten Schritt des Ablaufs.
  */
 class BillingRunController extends Controller
 {
@@ -43,6 +46,7 @@ class BillingRunController extends Controller
         private readonly BillingRunStateMachine $stateMachine,
         private readonly PortalStatusResolver $status,
         private readonly AuditRecorder $audit,
+        private readonly WizardProgress $wizard,
     ) {}
 
     public function index(): View
@@ -158,49 +162,71 @@ class BillingRunController extends Controller
             'objektHinweis' => $this->status->forProperty($objekt),
             'gewerbehinweis' => CreateBillingRun::commercialHint($objekt),
             'naechsteSchritte' => BillingRunStateMachine::allowedTargets($aktuell),
+            'naechsterSchritt' => $this->naechsterSchritt($lauf, $aktuell),
+            'fortschritt' => $this->wizard->bar($lauf),
             'abbrechbar' => $this->stateMachine->canTransition($lauf, BillingRunStatus::CANCELLED),
         ]);
     }
 
     /**
-     * Nutzerbestaetigung vor der Finalisierung.
+     * Der naechste Klick im gefuehrten Ablauf. Vor der Zahlung ist es der
+     * Schritt aus WizardProgress, danach Zahlung, Warteseite oder
+     * Downloadbereich. Fuer abgebrochene und fehlgeschlagene Laeufe gibt es
+     * keinen naechsten Schritt.
      *
-     * Vorgabe des Masterprompts, Abschnitt 2.3 und Schritt 10: Vor der
-     * Finalisierung bestaetigt der Nutzer ausdruecklich, dass er alle Werte,
-     * Umlageschluessel und Ergebnisse geprueft hat und fuer die Abrechnung
-     * verantwortlich ist. Beide Bestaetigungen sind getrennt und nicht
-     * vorangekreuzt.
+     * @return array{titel: string, hinweis: string, url: string, schaltflaeche: string}|null
      */
-    public function confirm(Request $request, string $billingRun): RedirectResponse
+    private function naechsterSchritt(BillingRun $lauf, BillingRunStatus $status): ?array
     {
-        $lauf = $this->lauf($billingRun);
-        $this->authorize('update', $lauf);
+        $parameter = ['billingRun' => $lauf->getKey()];
 
-        $geprueft = $request->boolean('werte_geprueft');
-        $verantwortung = $request->boolean('verantwortung_uebernommen');
-
-        if (! $geprueft || ! $verantwortung) {
-            return back()->withErrors([
-                'werte_geprueft' => 'Bitte bestätigen Sie beide Punkte. Ohne Ihre Bestätigung kann die '
-                    .'Abrechnung nicht abgeschlossen werden.',
-            ]);
+        switch ($status) {
+            case BillingRunStatus::FINALIZED:
+                return [
+                    'titel' => 'Downloadbereich',
+                    'hinweis' => 'Die Abrechnungen sind erstellt. Laden Sie die Dokumente und die Rechnung herunter.',
+                    'url' => route('portal.abschluss.show', $parameter),
+                    'schaltflaeche' => 'Zum Downloadbereich',
+                ];
+            case BillingRunStatus::PAID:
+            case BillingRunStatus::FINALIZING:
+                return [
+                    'titel' => 'Abrechnungen werden erstellt',
+                    'hinweis' => 'Die Zahlung ist bestätigt. Die Abrechnungen werden erstellt, Sie erhalten eine E-Mail.',
+                    'url' => route('portal.checkout.erfolg', $parameter),
+                    'schaltflaeche' => 'Stand ansehen',
+                ];
+            case BillingRunStatus::CHECKOUT_PENDING:
+                return [
+                    'titel' => 'Zahlung',
+                    'hinweis' => 'Die Zahlung ist eingeleitet und noch nicht bestätigt.',
+                    'url' => route('portal.checkout.show', $parameter),
+                    'schaltflaeche' => 'Zur Zahlung',
+                ];
+            case BillingRunStatus::CANCELLED:
+            case BillingRunStatus::FAILED:
+                return null;
+            default:
+                break;
         }
 
-        $lauf->forceFill([
-            'review_confirmed_at' => now(),
-            'responsibility_confirmed_at' => now(),
-        ])->save();
+        if ($status === BillingRunStatus::PREVIEW_READY && $this->wizard->checkoutReady($lauf)) {
+            return [
+                'titel' => 'Zahlung',
+                'hinweis' => 'Ihre Bestätigung liegt vor. Der verbindliche Preis wird vor der Zahlung erneut berechnet.',
+                'url' => route('portal.checkout.show', $parameter),
+                'schaltflaeche' => 'Zur Zahlung',
+            ];
+        }
 
-        $this->audit->record(
-            action: 'billing_run.review_confirmed',
-            subject: $lauf,
-            actor: $this->context->user(),
-            organization: $this->context->organizationId(),
-        );
+        $schritt = $this->wizard->resumeStep($lauf);
 
-        return redirect()
-            ->route('portal.abrechnungen.show', ['billingRun' => $lauf->getKey()])
-            ->with('status', 'Ihre Bestätigung ist gespeichert.');
+        return [
+            'titel' => sprintf('Schritt %d: %s', $schritt->value, $schritt->label()),
+            'hinweis' => $schritt->hint(),
+            'url' => route($schritt->routeName(), $parameter),
+            'schaltflaeche' => 'Weiter mit: '.$schritt->label(),
+        ];
     }
 
     /**

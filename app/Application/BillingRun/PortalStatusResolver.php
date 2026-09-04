@@ -242,15 +242,24 @@ class PortalStatusResolver
         return $hinweise;
     }
 
+    /**
+     * Hinweis fuer einen fehlgeschlagenen Lauf.
+     *
+     * billing_runs.failure_message enthaelt den technischen Ausnahmetext der
+     * Finalisierung (Speicherpfade, Hostnamen, Treiberdetails). Er ist fuer
+     * den internen Bereich bestimmt und wird dem Kunden nicht angezeigt. Der
+     * Kunde erhaelt einen kontrollierten Text ohne technische Rohdaten.
+     */
     private function fehlerhinweis(BillingRun $billingRun): string
     {
-        $meldung = $billingRun->getAttribute('failure_message');
-
-        if (is_string($meldung) && trim($meldung) !== '') {
-            return trim($meldung);
+        if ($billingRun->getAttribute('paid_at') !== null) {
+            return 'Die Abrechnungen konnten nach Ihrer Zahlung noch nicht erstellt werden. Der Vorgang wird '
+                .'geprüft, Ihre Zahlung und Ihre Angaben bleiben erhalten. Sie erhalten eine Nachricht, sobald '
+                .'die Abrechnungen bereitstehen.';
         }
 
-        return 'Die Abrechnung konnte nicht abgeschlossen werden. Bitte prüfen Sie Ihre Angaben und Unterlagen.';
+        return 'Die Abrechnung konnte nicht abgeschlossen werden. Der Vorgang wird geprüft, Ihre Angaben bleiben '
+            .'erhalten.';
     }
 
     /**

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Application\Review;
 
+use App\Application\Wizard\PreviewBuilder;
+use App\Application\Wizard\ReviewConfirmation;
 use App\Enums\ApportionmentStatus;
 use App\Enums\CostItemSource;
 use App\Enums\CostItemStatus;
@@ -30,9 +32,18 @@ use Illuminate\Support\Carbon;
  *     gespeichert und ist keine juristische Freigabe.
  *  3. Ein Betrag wird nie automatisch veraendert. Eine Korrektur ist immer
  *     eine bewusste Eingabe des Nutzers.
+ *  4. Jede Entscheidung ist abrechnungsrelevant. Eine bestehende Vorschau
+ *     wird deshalb ungueltig und eine bereits erteilte Bestaetigung wird
+ *     zurueckgenommen (PreviewBuilder Regel 3). Das geschieht zentral hier,
+ *     damit kein Aufrufer es vergessen kann.
  */
 final class CostItemDecisions
 {
+    public function __construct(
+        private readonly PreviewBuilder $preview,
+        private readonly ReviewConfirmation $confirmation,
+    ) {}
+
     public function confirm(BillingRun $billingRun, CostItem $item, User $user): CostItem
     {
         $item->forceFill([
@@ -40,6 +51,8 @@ final class CostItemDecisions
             'confirmed_by_user_id' => $user->getKey(),
             'confirmed_at' => Carbon::now(),
         ])->save();
+
+        $this->invalidatePreview($billingRun);
 
         return $item;
     }
@@ -52,6 +65,8 @@ final class CostItemDecisions
             'confirmed_by_user_id' => $user->getKey(),
             'confirmed_at' => Carbon::now(),
         ])->save();
+
+        $this->invalidatePreview($billingRun);
 
         return $item;
     }
@@ -70,6 +85,8 @@ final class CostItemDecisions
             'confirmed_by_user_id' => $user->getKey(),
             'confirmed_at' => Carbon::now(),
         ])->save();
+
+        $this->invalidatePreview($billingRun);
 
         return $item;
     }
@@ -147,6 +164,8 @@ final class CostItemDecisions
 
         $item->forceFill($attributes)->save();
 
+        $this->invalidatePreview($billingRun);
+
         return $item;
     }
 
@@ -160,6 +179,8 @@ final class CostItemDecisions
         $item->forceFill([
             'direct_unit_id' => $unit?->getKey(),
         ])->save();
+
+        $this->invalidatePreview($billingRun);
 
         return $item;
     }
@@ -220,7 +241,19 @@ final class CostItemDecisions
 
         $item->save();
 
+        $this->invalidatePreview($billingRun);
+
         return $item;
+    }
+
+    /**
+     * Eine Aenderung an den Kostenpositionen entzieht Vorschau und
+     * Bestaetigung die Grundlage.
+     */
+    private function invalidatePreview(BillingRun $billingRun): void
+    {
+        $this->preview->invalidate($billingRun);
+        $this->confirmation->reset($billingRun);
     }
 
     private function categoryFor(BillingRun $billingRun, mixed $categoryId): ?CostCategory

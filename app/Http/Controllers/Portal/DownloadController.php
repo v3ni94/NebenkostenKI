@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Portal;
 
 use App\Enums\GeneratedDocumentStatus;
+use App\Enums\GeneratedDocumentVariant;
 use App\Http\Controllers\Controller;
 use App\Models\GeneratedDocument;
 use App\Models\User;
 use App\Services\Storage\ArtifactStorage;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -39,6 +41,13 @@ class DownloadController extends Controller
     public function stream(Request $request, GeneratedDocument $generatedDocument): StreamedResponse
     {
         $this->assertAccessible($request, $generatedDocument);
+
+        // Die Vorschau mit Wasserzeichen gehoert zum Ablauf vor der Zahlung
+        // und ist ohne bestaetigte Adresse abrufbar. Alles andere ist finaler
+        // Download und verlangt die Bestaetigung (Masterprompt 8.1).
+        if ($generatedDocument->getAttribute('variant') !== GeneratedDocumentVariant::VORSCHAU) {
+            Gate::authorize('email-verified');
+        }
 
         return $this->deliver($generatedDocument);
     }

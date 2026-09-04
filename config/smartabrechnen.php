@@ -155,6 +155,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Scheduler
+    |--------------------------------------------------------------------------
+    |
+    | Tatsaechliche Aufloesung des Cron-Aufrufs in Minuten (ADR-006). Auf
+    | Shared Hosting ist haeufig nur ein Fuenf-Minuten-Intervall verfuegbar.
+    | Die Oberflaeche nennt diesen Wert als Wartezeit, damit der Nutzer eine
+    | laufende Verarbeitung nicht fuer haengend haelt.
+    |
+    */
+    'scheduler_interval_minutes' => max(1, (int) env('SCHEDULER_INTERVAL_MINUTES', 5)),
+
+    /*
+    |--------------------------------------------------------------------------
     | Erinnerungen fuer Folgejahre
     |--------------------------------------------------------------------------
     |

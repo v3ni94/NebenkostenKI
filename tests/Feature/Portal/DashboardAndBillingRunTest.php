@@ -67,8 +67,42 @@ final class DashboardAndBillingRunTest extends PortalTestCase
 
         $antwort->assertOk();
         $antwort->assertSee('Blockiert die Abrechnung');
-        $antwort->assertSee('Die Heizkostenabrechnung ist unvollständig.');
+        $antwort->assertSee('Die Abrechnung konnte nicht abgeschlossen werden.');
         $antwort->assertDontSee('FAILED');
+    }
+
+    /**
+     * billing_runs.failure_message traegt den technischen Ausnahmetext der
+     * Finalisierung. Er gehoert in den internen Bereich und nicht auf die
+     * Kundenseiten.
+     */
+    public function test_technische_fehlertexte_erreichen_den_kunden_nicht(): void
+    {
+        $mandant = $this->mandant();
+
+        $lauf = BillingRun::factory()->create([
+            'organization_id' => $mandant['organization']->getKey(),
+            'property_id' => $mandant['property']->getKey(),
+            'status' => BillingRunStatus::FAILED,
+            'paid_at' => Carbon::parse('2026-03-04 10:00:00'),
+            'failure_message' => 'Unable to write file at location: abrechnungen/01JTEST/final/01JDOC.pdf. '
+                .'Unable to connect to host: sftp.beispiel.invalid',
+        ]);
+
+        foreach ([
+            route('portal.dashboard'),
+            route('portal.abrechnungen.index'),
+            route('portal.abrechnungen.show', ['billingRun' => $lauf->getKey()]),
+        ] as $url) {
+            $antwort = $this->actingAs($mandant['user'])->get($url);
+
+            $antwort->assertOk();
+            $antwort->assertSee('Blockiert die Abrechnung');
+            $antwort->assertSee('nach Ihrer Zahlung noch nicht erstellt werden');
+            $antwort->assertDontSee('Unable to write');
+            $antwort->assertDontSee('sftp.beispiel.invalid');
+            $antwort->assertDontSee('01JDOC.pdf');
+        }
     }
 
     public function test_finalisierter_lauf_erscheint_als_erledigt(): void
@@ -264,7 +298,12 @@ final class DashboardAndBillingRunTest extends PortalTestCase
         self::assertSame(BillingRunStatus::DRAFT, $lauf->getAttribute('status'));
     }
 
-    public function test_detailseite_zeigt_die_bestaetigung_vor_der_finalisierung(): void
+    /**
+     * Die Detailseite ist die Drehscheibe des Ablaufs: sie fuehrt mit einer
+     * Schaltflaeche zum jeweils naechsten Schritt und zeigt die
+     * Fortschrittsleiste. Ein Bestaetigungsformular gibt es hier nicht mehr.
+     */
+    public function test_detailseite_fuehrt_einen_neuen_lauf_zum_upload(): void
     {
         $mandant = $this->mandant();
 
@@ -272,7 +311,7 @@ final class DashboardAndBillingRunTest extends PortalTestCase
         $lauf = BillingRun::factory()->create([
             'organization_id' => $mandant['organization']->getKey(),
             'property_id' => $mandant['property']->getKey(),
-            'status' => BillingRunStatus::PREVIEW_READY,
+            'status' => BillingRunStatus::DRAFT,
         ]);
 
         $antwort = $this->actingAs($mandant['user'])->get(
@@ -280,11 +319,129 @@ final class DashboardAndBillingRunTest extends PortalTestCase
         );
 
         $antwort->assertOk();
-        $antwort->assertSee('Bestätigung vor der Finalisierung');
-        $antwort->assertSee('alle Werte, Umlageschlüssel und Ergebnisse geprüft');
-        $antwort->assertSee('Verantwortung für diese Betriebskostenabrechnung');
-        // Beide Haken sind nicht vorangekreuzt.
-        $antwort->assertDontSee('name="werte_geprueft" type="checkbox" value="1" checked', false);
+        $antwort->assertSee('Nächster Schritt');
+        $antwort->assertSee('Unterlagen hochladen');
+        $antwort->assertSee(route('portal.uploads.index', ['billingRun' => $lauf->getKey()]), false);
+        $antwort->assertSee('Ihr Fortschritt');
+        $antwort->assertDontSee('folgen in den nächsten Ausbaustufen');
+        $antwort->assertDontSee('name="werte_geprueft"', false);
+        $antwort->assertDontSee('Bestätigung vor der Finalisierung');
+    }
+
+    public function test_detailseite_fuehrt_nach_der_kostenpruefung_zu_den_vorauszahlungen(): void
+    {
+        $mandant = $this->mandant();
+
+        /** @var BillingRun $lauf */
+        $lauf = BillingRun::factory()->create([
+            'organization_id' => $mandant['organization']->getKey(),
+            'property_id' => $mandant['property']->getKey(),
+            'status' => BillingRunStatus::READY_FOR_CALCULATION,
+        ]);
+
+        $antwort = $this->actingAs($mandant['user'])->get(
+            route('portal.abrechnungen.show', ['billingRun' => $lauf->getKey()])
+        );
+
+        $antwort->assertOk();
+        $antwort->assertSee(route('portal.wizard.vorauszahlungen', ['billingRun' => $lauf->getKey()]), false);
+    }
+
+    public function test_detailseite_fuehrt_bei_pruefbedarf_zur_kostenpruefung(): void
+    {
+        $mandant = $this->mandant();
+
+        /** @var BillingRun $lauf */
+        $lauf = BillingRun::factory()->create([
+            'organization_id' => $mandant['organization']->getKey(),
+            'property_id' => $mandant['property']->getKey(),
+            'status' => BillingRunStatus::REVIEW_REQUIRED,
+        ]);
+
+        $antwort = $this->actingAs($mandant['user'])->get(
+            route('portal.abrechnungen.show', ['billingRun' => $lauf->getKey()])
+        );
+
+        $antwort->assertOk();
+        $antwort->assertSee(route('portal.pruefung.kosten', ['billingRun' => $lauf->getKey()]), false);
+    }
+
+    public function test_detailseite_fuehrt_einen_finalisierten_lauf_in_den_downloadbereich(): void
+    {
+        $mandant = $this->mandant();
+
+        /** @var BillingRun $lauf */
+        $lauf = BillingRun::factory()->create([
+            'organization_id' => $mandant['organization']->getKey(),
+            'property_id' => $mandant['property']->getKey(),
+            'status' => BillingRunStatus::FINALIZED,
+        ]);
+
+        $antwort = $this->actingAs($mandant['user'])->get(
+            route('portal.abrechnungen.show', ['billingRun' => $lauf->getKey()])
+        );
+
+        $antwort->assertOk();
+        $antwort->assertSee('Zum Downloadbereich');
+        $antwort->assertSee(route('portal.abschluss.show', ['billingRun' => $lauf->getKey()]), false);
+    }
+
+    public function test_detailseite_fuehrt_eine_laufende_zahlung_zur_zahlungsseite(): void
+    {
+        $mandant = $this->mandant();
+
+        /** @var BillingRun $lauf */
+        $lauf = BillingRun::factory()->create([
+            'organization_id' => $mandant['organization']->getKey(),
+            'property_id' => $mandant['property']->getKey(),
+            'status' => BillingRunStatus::CHECKOUT_PENDING,
+        ]);
+
+        $antwort = $this->actingAs($mandant['user'])->get(
+            route('portal.abrechnungen.show', ['billingRun' => $lauf->getKey()])
+        );
+
+        $antwort->assertOk();
+        $antwort->assertSee(route('portal.checkout.show', ['billingRun' => $lauf->getKey()]), false);
+    }
+
+    public function test_upload_und_analyse_zeigen_die_fortschrittsleiste_mit_wartezeit(): void
+    {
+        config(['smartabrechnen.scheduler_interval_minutes' => 5]);
+
+        $mandant = $this->mandant();
+
+        /** @var BillingRun $lauf */
+        $lauf = BillingRun::factory()->create([
+            'organization_id' => $mandant['organization']->getKey(),
+            'property_id' => $mandant['property']->getKey(),
+            'status' => BillingRunStatus::DRAFT,
+        ]);
+
+        $upload = $this->actingAs($mandant['user'])->get(
+            route('portal.uploads.index', ['billingRun' => $lauf->getKey()])
+        );
+
+        $upload->assertOk();
+        $upload->assertSee('Ihr Fortschritt');
+        $upload->assertSee('spätestens nach', false);
+        $upload->assertSee('5 Minuten');
+        $upload->assertSee(route('portal.pruefung.analyse', ['billingRun' => $lauf->getKey()]), false);
+
+        $analyse = $this->actingAs($mandant['user'])->get(
+            route('portal.pruefung.analyse', ['billingRun' => $lauf->getKey()])
+        );
+
+        $analyse->assertOk();
+        $analyse->assertSee('Ihr Fortschritt');
+        $analyse->assertSee(route('portal.uploads.index', ['billingRun' => $lauf->getKey()]), false);
+
+        $kosten = $this->actingAs($mandant['user'])->get(
+            route('portal.pruefung.kosten', ['billingRun' => $lauf->getKey()])
+        );
+
+        $kosten->assertOk();
+        $kosten->assertSee('Ihr Fortschritt');
     }
 
     public function test_zeitraeume_werden_deutsch_dargestellt(): void

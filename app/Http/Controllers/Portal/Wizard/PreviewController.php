@@ -6,12 +6,16 @@ namespace App\Http\Controllers\Portal\Wizard;
 
 use App\Application\Calculation\CalculationInputException;
 use App\Application\Calculation\EstimatePrice;
+use App\Application\Review\ReviewGate;
+use App\Application\Wizard\AllocationKeyWorkspace;
 use App\Application\Wizard\AuditReportPresenter;
+use App\Application\Wizard\PrepaymentWorkspace;
 use App\Application\Wizard\PreviewBuilder;
 use App\Application\Wizard\ReviewConfirmation;
 use App\Application\Wizard\WizardProgress;
 use App\Application\Wizard\WizardStep;
 use App\Http\Requests\Wizard\ConfirmPreviewRequest;
+use App\Listeners\SendProcessingStatusMails;
 use App\Models\BillingRun;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -31,6 +35,11 @@ use Illuminate\Support\Facades\Gate;
  *    Checkbox. Die Bestätigung wird protokolliert.
  *  - Die Preisschätzung ist ausdrücklich unverbindlich. Der verbindliche
  *    Endpreis wird vor der Zahlung erneut berechnet.
+ *  - Die Vorschau wird nur erzeugt, wenn die Pflichtschritte davor
+ *    abgeschlossen sind: jede Kostenposition ist entschieden, die
+ *    Vorauszahlungen sind erfasst, die Verteilerschlüssel sind vollständig und
+ *    die Regel-Engine meldet keinen Blocker. Kein unbestätigter Wert gelangt in
+ *    einen Berechnungsstand.
  */
 class PreviewController extends WizardController
 {
@@ -40,6 +49,10 @@ class PreviewController extends WizardController
         private readonly EstimatePrice $prices,
         private readonly ReviewConfirmation $confirmation,
         private readonly AuditReportPresenter $report,
+        private readonly ReviewGate $gate,
+        private readonly PrepaymentWorkspace $prepayments,
+        private readonly AllocationKeyWorkspace $keys,
+        private readonly SendProcessingStatusMails $statusmails,
     ) {
         parent::__construct($progress);
     }
@@ -61,19 +74,24 @@ class PreviewController extends WizardController
                 'bestaetigt' => $this->confirmation->isConfirmed($billingRun),
                 'bestaetigungstext' => ReviewConfirmation::TEXT,
                 'textversion' => ReviewConfirmation::TEXT_VERSION,
-                'sperrgrund' => $this->report->blockingReason($billingRun),
+                'sperrgrund' => $this->sperrgrund($billingRun),
             ]
         ));
     }
 
     /**
-     * Erzeugt die Vorschau neu. Blocker verhindern die Erzeugung.
+     * Erzeugt die Vorschau neu. Offene Pflichtschritte und Blocker verhindern
+     * die Erzeugung.
      */
     public function rebuild(BillingRun $billingRun): RedirectResponse
     {
         Gate::authorize('calculate', $billingRun);
 
-        $grund = $this->report->blockingReason($billingRun);
+        // Die Regel-Engine läuft vor der Prüfung, damit ein Blocker auch dann
+        // sperrt, wenn der Prüfbericht nicht geöffnet wurde.
+        $this->report->run($billingRun);
+
+        $grund = $this->sperrgrund($billingRun);
 
         if ($grund !== null) {
             return $this->withError($billingRun, WizardStep::VORSCHAU, 'vorschau', $grund);
@@ -89,6 +107,13 @@ class PreviewController extends WizardController
         // Grundlage. Der Protokolleintrag bleibt bestehen.
         $this->confirmation->reset($billingRun);
 
+        $this->statusmails->vorschauBereit(
+            $billingRun,
+            $this->user(),
+            $this->preview->statementCount($billingRun),
+            $this->prices->forBillingRun($billingRun)->totalGross->cents,
+        );
+
         return $this->back(
             $billingRun,
             WizardStep::VORSCHAU,
@@ -100,7 +125,8 @@ class PreviewController extends WizardController
     }
 
     /**
-     * Nutzerbestätigung vor dem Checkout.
+     * Nutzerbestätigung vor dem Checkout. Nach der Bestätigung geht es
+     * unmittelbar zur Zahlung weiter.
      */
     public function confirm(ConfirmPreviewRequest $request, BillingRun $billingRun): RedirectResponse
     {
@@ -124,10 +150,37 @@ class PreviewController extends WizardController
             $schaetzung->totalGross->cents,
         );
 
-        return $this->back(
-            $billingRun,
-            WizardStep::VORSCHAU,
-            'Ihre Bestätigung ist protokolliert. Sie können nun zur Zahlung fortfahren.'
-        );
+        return redirect()
+            ->route('portal.checkout.show', ['billingRun' => $billingRun->getKey()])
+            ->with('status', 'Ihre Bestätigung ist protokolliert. Sie können nun zur Zahlung fortfahren.');
+    }
+
+    /**
+     * Erster Grund, der die Erzeugung der Vorschau verhindert, oder null.
+     *
+     * Reihenfolge nach Ablauf: Kostenprüfung (Schritt 6), Vorauszahlungen
+     * (Schritt 7), Verteilerschlüssel (Schritt 8), Prüfbericht (Schritt 9).
+     */
+    private function sperrgrund(BillingRun $billingRun): ?string
+    {
+        $grund = $this->gate->reason($billingRun);
+
+        if ($grund !== null) {
+            return $grund;
+        }
+
+        $offen = $this->prepayments->openReasons($billingRun);
+
+        if ($offen !== []) {
+            return 'Schritt 7 ist noch nicht abgeschlossen. '.$offen[0];
+        }
+
+        $blockiert = $this->keys->blockingReasons($billingRun);
+
+        if ($blockiert !== []) {
+            return 'Schritt 8 ist noch nicht abgeschlossen. '.$blockiert[0];
+        }
+
+        return $this->report->blockingReason($billingRun);
     }
 }

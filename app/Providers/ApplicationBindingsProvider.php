@@ -8,6 +8,8 @@ use App\Application\Calculation\FinalDocumentViewsFromSnapshot;
 use App\Application\Payment\Contracts\FinalDocumentViews;
 use App\Application\Payment\Events\BillingRunFinalized;
 use App\Listeners\SendFinalizationMails;
+use App\Listeners\SendProcessingStatusMails;
+use App\Models\Document;
 use App\Services\Payment\Contracts\CheckoutClient;
 use App\Services\Payment\StripeGateway;
 use Illuminate\Support\Facades\Event;
@@ -75,6 +77,14 @@ final class ApplicationBindingsProvider extends ServiceProvider
         Event::listen(
             BillingRunFinalized::class,
             [SendFinalizationMails::class, 'versendeBestaetigungen'],
+        );
+
+        // Statusmails zur Dokumentverarbeitung haengen am Modellereignis des
+        // Dokuments. Auch hier ein eigener Methodenname, damit nichts doppelt
+        // registriert wird.
+        Event::listen(
+            'eloquent.updated: '.Document::class,
+            [SendProcessingStatusMails::class, 'dokumentAktualisiert'],
         );
     }
 }

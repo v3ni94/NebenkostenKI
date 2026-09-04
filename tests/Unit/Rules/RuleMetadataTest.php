@@ -156,7 +156,7 @@ final class RuleMetadataTest extends TestCase
             }
         }
 
-        $this->assertSame(['HEIZKOSTEN_FALL_B_UNVOLLSTAENDIG'], $notResolvable);
+        $this->assertSame(['GEWERBE_MIETVERHAELTNIS', 'HEIZKOSTEN_FALL_B_UNVOLLSTAENDIG'], $notResolvable);
     }
 
     /**

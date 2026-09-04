@@ -309,9 +309,18 @@ final class HappyPathTest extends EndToEndTestCase
             return true;
         });
 
-        // Jeder Versand ist protokolliert.
+        // Jeder Versand ist protokolliert. Neben den drei Bestaetigungsmails
+        // der Finalisierung liegen die Statusmails des Ablaufs (Auswertung,
+        // Pruefaufgaben, Vorschau) im Protokoll.
         self::assertSame(
-            ['finalabrechnungen-verfuegbar', 'hvm-rechnung-verfuegbar', 'zahlung-bestaetigt'],
+            [
+                'dokumentverarbeitung-abgeschlossen',
+                'finalabrechnungen-verfuegbar',
+                'hvm-rechnung-verfuegbar',
+                'pruefaufgaben-offen',
+                'vorschau-bereit',
+                'zahlung-bestaetigt',
+            ],
             EmailMessage::query()->orderBy('template')->pluck('template')->unique()->values()->all(),
         );
     }

@@ -94,8 +94,12 @@
     @if ($bestaetigungFehlt)
         <div class="mt-6">
             <x-hvm.alert variant="warning" title="Bestätigung fehlt noch">
-                Bitte bestätigen Sie zuerst auf der Übersicht der Abrechnung, dass Sie alle Werte, Umlageschlüssel
+                Bitte bestätigen Sie zuerst in der Vorschau (Schritt 10), dass Sie alle Werte, Umlageschlüssel
                 und Ergebnisse geprüft haben und als Vermieter für die Abrechnung verantwortlich sind.
+                <span class="mt-2 block">
+                    <a class="underline underline-offset-2"
+                       href="{{ route('portal.wizard.vorschau', ['billingRun' => $lauf->getKey()]) }}">Zur Vorschau</a>
+                </span>
             </x-hvm.alert>
         </div>
     @endif

@@ -8,6 +8,14 @@
         title="Automatische Analyse"
         lead="Ihre Unterlagen werden ausgelesen und den Kostenarten zugeordnet. Sie können die Seite verlassen und später fortfahren." />
 
+    <div class="mt-6">
+        @include('portal.wizard.partials.fortschritt', [
+            'fortschritt' => $schritte,
+            'billingRun' => $billingRun,
+            'wiedereinstieg' => $wiedereinstieg,
+        ])
+    </div>
+
     <x-hvm.card class="mt-8" title="Stand der Auswertung">
         <p class="text-sm">
             {{ $fortschritt->percent() }} Prozent der Unterlagen sind ausgewertet.
@@ -21,6 +29,14 @@
                 </li>
             @endforeach
         </ul>
+
+        @if (! $fortschritt->complete)
+            <p class="mt-4 text-sm text-hvm-anthrazit">
+                Die Auswertung läuft im Hintergrund in festen Abständen. Neu hochgeladene Unterlagen werden
+                spätestens nach {{ $intervallMinuten }} Minuten verarbeitet. Bitte laden Sie diese Seite neu, um den
+                aktuellen Stand zu sehen.
+            </p>
+        @endif
 
         @if ($fortschritt->blockingChecks > 0)
             <x-hvm.alert variant="warning" class="mt-6">
