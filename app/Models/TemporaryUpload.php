@@ -90,6 +90,10 @@ class TemporaryUpload extends Model
             'deleted_at' => 'datetime',
             'is_tombstone' => 'boolean',
             'provider' => AiProvider::class,
+            // Die Provider-Datei-ID liegt nur waehrend der Verarbeitung im
+            // Datensatz und ausschliesslich verschluesselt. Nach bestaetigter
+            // Loeschung wird sie entfernt.
+            'provider_file_id' => 'encrypted',
             'provider_file_deleted_at' => 'datetime',
             'provider_deletion_status' => DeletionStatus::class,
         ];

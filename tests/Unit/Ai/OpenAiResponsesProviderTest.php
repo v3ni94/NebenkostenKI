@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Ai;
 
+use App\Enums\AiCallStatus;
 use App\Enums\DeletionStatus;
 use App\Enums\DocumentType;
 use App\Services\Ai\Dto\AnalyzeContractRequest;
@@ -23,6 +24,7 @@ use App\Services\Ai\Providers\OpenAiResponsesProvider;
 use PHPUnit\Framework\TestCase;
 use Tests\Unit\Ai\Support\AiTestFactory;
 use Tests\Unit\Ai\Support\CollectingLogger;
+use Tests\Unit\Ai\Support\RecordingAiCallObserver;
 use Tests\Unit\Ai\Support\RecordingAiHttpClient;
 
 /**
@@ -205,6 +207,106 @@ final class OpenAiResponsesProviderTest extends TestCase
 
         $this->expectException(ProviderFileDeletionFailedException::class);
         $result->assertProviderFilesDeleted();
+    }
+
+    public function test_beobachter_erhaelt_heartbeat_vor_jedem_request_sowie_anlage_und_loeschung_der_providerdatei(): void
+    {
+        $http = (new RecordingAiHttpClient)
+            ->pushJson(['id' => 'file_beispiel_0004', 'object' => 'file'])
+            ->pushJson(AiTestFactory::openAiResponseBody(AiTestFactory::fixture('rechnung_bescheid_schemaverletzung.json')))
+            ->pushJson(AiTestFactory::openAiResponseBody(AiTestFactory::fixture('rechnung_bescheid.json')))
+            ->pushJson(['id' => 'file_beispiel_0004', 'deleted' => true, 'object' => 'file']);
+
+        $beobachter = new RecordingAiCallObserver;
+        $provider = AiTestFactory::openAiProvider($http, inlineMaxBytes: 10);
+
+        $result = $provider->extractStructuredData(new ExtractStructuredDataRequest(
+            AiTestFactory::pdfPayload(),
+            'rechnung_bescheid',
+            AiTestFactory::context()->withObserver($beobachter),
+        ));
+
+        self::assertTrue($result->isValidated());
+        self::assertSame(4, $http->callCount(), 'Upload, zwei Verarbeitungsrequests, Loeschung.');
+        self::assertSame(4, $beobachter->heartbeats, 'Vor jedem einzelnen Request wird das Lease verlaengert.');
+
+        self::assertSame([['provider' => 'openai', 'fileId' => 'file_beispiel_0004']], $beobachter->created);
+        self::assertCount(1, $beobachter->released);
+        self::assertSame('file_beispiel_0004', $beobachter->released[0]['fileId']);
+        self::assertSame(DeletionStatus::ERFOLGREICH, $beobachter->released[0]['outcome']->status);
+        self::assertSame([], $beobachter->aborted);
+    }
+
+    public function test_beobachter_erhaelt_fehlgeschlagene_loeschung_mit_der_datei_id(): void
+    {
+        $http = (new RecordingAiHttpClient)
+            ->pushJson(['id' => 'file_beispiel_0005', 'object' => 'file'])
+            ->pushJson(AiTestFactory::openAiResponseBody(AiTestFactory::fixture('rechnung_bescheid.json')))
+            ->pushJson(['error' => ['code' => 'server_error']], 500);
+
+        $beobachter = new RecordingAiCallObserver;
+        $provider = AiTestFactory::openAiProvider($http, inlineMaxBytes: 10);
+
+        $provider->extractStructuredData(new ExtractStructuredDataRequest(
+            AiTestFactory::pdfPayload(),
+            'rechnung_bescheid',
+            AiTestFactory::context()->withObserver($beobachter),
+        ));
+
+        self::assertCount(1, $beobachter->released);
+        self::assertSame('file_beispiel_0005', $beobachter->released[0]['fileId'], 'Die ID muss fuer die Wiederholung erhalten bleiben.');
+        self::assertSame(DeletionStatus::FEHLGESCHLAGEN, $beobachter->released[0]['outcome']->status);
+    }
+
+    public function test_abbruch_nach_teilversuchen_meldet_den_bisherigen_verbrauch(): void
+    {
+        $http = (new RecordingAiHttpClient)
+            ->pushJson(AiTestFactory::openAiResponseBody(AiTestFactory::fixture('rechnung_bescheid_schemaverletzung.json'), 8_000, 500))
+            ->pushJson(['error' => ['code' => 'rate_limit_exceeded']], 429, ['retry-after' => '30']);
+
+        $beobachter = new RecordingAiCallObserver;
+        $provider = AiTestFactory::openAiProvider($http);
+
+        try {
+            $provider->extractStructuredData(new ExtractStructuredDataRequest(
+                AiTestFactory::pdfPayload(),
+                'rechnung_bescheid',
+                AiTestFactory::context()->withObserver($beobachter),
+            ));
+            self::fail('Es wurde keine Ausnahme geworfen.');
+        } catch (RateLimitException) {
+            self::assertCount(1, $beobachter->aborted);
+
+            $metadata = $beobachter->aborted[0];
+
+            self::assertSame(AiCallStatus::RATE_LIMIT, $metadata->status);
+            self::assertSame(8_000, $metadata->inputTokens, 'Der Verbrauch des ersten Versuchs geht nicht verloren.');
+            self::assertSame(500, $metadata->outputTokens);
+            self::assertSame(2, $metadata->attempts);
+            self::assertSame('openai', $metadata->providerKey);
+        }
+    }
+
+    public function test_abbruch_vor_dem_ersten_request_meldet_keinen_verbrauch(): void
+    {
+        $http = (new RecordingAiHttpClient)->pushJson(['error' => ['code' => 'server_error']], 500);
+
+        $beobachter = new RecordingAiCallObserver;
+        $provider = AiTestFactory::openAiProvider($http, inlineMaxBytes: 10);
+
+        try {
+            $provider->extractStructuredData(new ExtractStructuredDataRequest(
+                AiTestFactory::pdfPayload(),
+                'rechnung_bescheid',
+                AiTestFactory::context()->withObserver($beobachter),
+            ));
+            self::fail('Es wurde keine Ausnahme geworfen.');
+        } catch (ProviderTransportException) {
+            // Der Upload selbst ist gescheitert: kein Verarbeitungsrequest,
+            // keine Providerdatei, nichts nachzuweisen.
+            self::assertSame([], $beobachter->aborted);
+            self::assertSame([], $beobachter->created);
+        }
     }
 
     public function test_loeschung_erfolgt_auch_bei_technischem_fehler(): void

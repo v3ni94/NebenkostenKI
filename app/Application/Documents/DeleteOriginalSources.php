@@ -161,7 +161,13 @@ final class DeleteOriginalSources
         $provider = $upload->getAttribute('provider');
 
         if (! is_string($providerFileId) || $providerFileId === '' || ! $provider instanceof AiProvider) {
-            return DeletionStatus::NICHT_ERFORDERLICH;
+            // Wurde eine Providerdatei bereits im Extraktionslauf bestaetigt
+            // geloescht, bleibt das im Nachweis als ERFOLGREICH stehen. Nur
+            // wenn nie eine Providerdatei angelegt wurde, ist die Loeschung
+            // nicht erforderlich.
+            return $upload->getAttribute('provider_deletion_status') === DeletionStatus::ERFOLGREICH
+                ? DeletionStatus::ERFOLGREICH
+                : DeletionStatus::NICHT_ERFORDERLICH;
         }
 
         try {
@@ -210,7 +216,9 @@ final class DeleteOriginalSources
             'storage_key' => null,
             'encryption_key_wrapped' => null,
             'provider_file_id' => null,
-            'provider_file_deleted_at' => $providerStatus === DeletionStatus::ERFOLGREICH ? $now : null,
+            'provider_file_deleted_at' => $providerStatus === DeletionStatus::ERFOLGREICH
+                ? ($upload->getAttribute('provider_file_deleted_at') ?? $now)
+                : null,
             'provider_deletion_status' => $providerStatus,
             'deleted_at' => $now,
             'is_tombstone' => true,

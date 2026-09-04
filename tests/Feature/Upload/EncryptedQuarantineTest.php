@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Upload;
 
+use App\Enums\DeletionStatus;
 use App\Enums\DocumentProcessingStatus;
+use App\Enums\ProcessingJobStatus;
 use App\Models\Document;
+use App\Models\ProcessingJob;
 use App\Models\TemporaryUpload;
 use App\Services\Ai\Integration\DocumentPayloadFactory;
 use App\Services\Storage\Crypto\TemporaryUploadKeyring;
 use App\Services\Storage\TemporaryUploadStorage;
+use App\Services\Storage\UploadErrorCode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Tests\Feature\Upload\Concerns\BuildsUploadWorld;
@@ -194,17 +198,26 @@ class EncryptedQuarantineTest extends TestCase
         $chiffrat[70] = chr(ord($chiffrat[70]) ^ 0x01);
         file_put_contents($pfad, $chiffrat);
 
-        $this->verarbeiteQueue();
+        $bericht = $this->verarbeiteQueue();
 
         $dokument = Document::query()->firstOrFail();
 
         $this->assertNull($dokument->getAttribute('fingerprint_hmac'));
-        $this->assertNotContains(
-            $dokument->getAttribute('processing_status'),
-            [DocumentProcessingStatus::KLASSIFIZIERUNG, DocumentProcessingStatus::ABGESCHLOSSEN],
-            'Ein manipulierter Abschnitt darf die Pruefkette nicht passieren.'
-        );
         $this->assertFalse($storage->exists($storage->originalKey($prefix)));
+
+        // Ein nicht lesbares Chiffrat ist ein endgueltiger Fehler: Fehlerstatus
+        // mit verstaendlicher Meldung, Job im Dead-Letter-Status und sofortige
+        // Loeschung aller Reste im Kurzzeitbereich, kein Warten auf die TTL.
+        $this->assertSame(DocumentProcessingStatus::FEHLGESCHLAGEN, $dokument->getAttribute('processing_status'));
+        $this->assertSame(UploadErrorCode::QUELLE_NICHT_LESBAR->value, $dokument->getAttribute('failure_code'));
+        $this->assertSame(1, $bericht->deadLettered);
+        $this->assertSame(
+            ProcessingJobStatus::DEAD_LETTER,
+            ProcessingJob::query()->where('document_id', $dokument->getKey())->firstOrFail()->getAttribute('status'),
+        );
+        $this->assertSame([], Storage::disk(TemporaryUploadStorage::DISK)->allFiles($prefix), 'Die Abschnitte muessen sofort geloescht sein.');
+        $this->assertTrue($upload->refresh()->getAttribute('is_tombstone'));
+        $this->assertSame(DeletionStatus::ERFOLGREICH, $dokument->getAttribute('deletion_status'));
     }
 
     public function test_wechsel_von_app_key_macht_laufende_uploads_unbrauchbar_statt_klartext_zu_liefern(): void
@@ -220,8 +233,10 @@ class EncryptedQuarantineTest extends TestCase
         $dokument = Document::query()->firstOrFail();
 
         $this->assertNull($dokument->getAttribute('fingerprint_hmac'));
-        $this->assertNotSame(DocumentProcessingStatus::ABGESCHLOSSEN, $dokument->getAttribute('processing_status'));
-        $this->assertFalse((new TemporaryUploadStorage)->exists((new TemporaryUploadStorage)->originalKey($prefix)));
+        $this->assertSame(DocumentProcessingStatus::FEHLGESCHLAGEN, $dokument->getAttribute('processing_status'));
+        $this->assertSame(UploadErrorCode::QUELLE_NICHT_LESBAR->value, $dokument->getAttribute('failure_code'));
+        $this->assertSame([], Storage::disk(TemporaryUploadStorage::DISK)->allFiles($prefix));
+        $this->assertTrue($upload->refresh()->getAttribute('is_tombstone'));
     }
 
     public function test_eine_30_mb_datei_wird_ohne_speicherlast_verarbeitet(): void

@@ -32,6 +32,10 @@ final class ExtractionResult
      * @param  array<string, ExtractedValue>  $fields  Flache Feldliste mit Quellenbezug, Schluessel ist der Schemapfad.
      * @param  list<SchemaViolation>  $violations  Nur bei Status FEHLGESCHLAGEN gefuellt.
      * @param  list<ProviderFileDeletionOutcome>  $providerFileDeletions
+     * @param  list<AiCallMetadata>  $precedingCalls  Metadaten vorangegangener Provideraufrufe desselben
+     *                                                Vorgangs, deren Ergebnis verworfen wurde (Fallback nach
+     *                                                wiederholter Schemaverletzung). Ihr Verbrauch ist
+     *                                                ebenfalls nachzuweisen.
      */
     public function __construct(
         public readonly AiResultStatus $status,
@@ -41,6 +45,7 @@ final class ExtractionResult
         public readonly array $violations = [],
         public readonly array $providerFileDeletions = [],
         public readonly ?ConflictReport $conflictReport = null,
+        public readonly array $precedingCalls = [],
     ) {}
 
     public function isValidated(): bool
@@ -153,6 +158,7 @@ final class ExtractionResult
             $this->violations,
             $outcomes,
             $this->conflictReport,
+            $this->precedingCalls,
         );
     }
 
@@ -169,6 +175,7 @@ final class ExtractionResult
             $this->violations,
             $this->providerFileDeletions,
             $this->conflictReport,
+            $this->precedingCalls,
         );
     }
 
@@ -182,6 +189,25 @@ final class ExtractionResult
             $this->violations,
             $this->providerFileDeletions,
             $this->conflictReport,
+            $this->precedingCalls,
+        );
+    }
+
+    /**
+     * Haengt die Metadaten eines vorangegangenen, verworfenen Provideraufrufs
+     * an, damit dessen Tokenverbrauch nachgewiesen werden kann.
+     */
+    public function withPrecedingCall(AiCallMetadata $metadata): self
+    {
+        return new self(
+            $this->status,
+            $this->data,
+            $this->fields,
+            $this->metadata,
+            $this->violations,
+            $this->providerFileDeletions,
+            $this->conflictReport,
+            [...$this->precedingCalls, $metadata],
         );
     }
 
@@ -195,6 +221,7 @@ final class ExtractionResult
             $this->violations,
             $this->providerFileDeletions,
             $report,
+            $this->precedingCalls,
         );
     }
 }

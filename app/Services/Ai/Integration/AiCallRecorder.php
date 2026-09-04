@@ -97,6 +97,26 @@ final class AiCallRecorder
     }
 
     /**
+     * Nachweise fuer vorangegangene Provideraufrufe desselben Vorgangs, deren
+     * Ergebnis verworfen wurde (Fallback nach wiederholter Schemaverletzung).
+     * Jeder dieser Aufrufe hat das Dokument uebertragen und Tokens verbraucht
+     * und erhaelt deshalb einen eigenen Datensatz.
+     *
+     * @param  list<AiCallMetadata>  $precedingCalls
+     */
+    public function recordPreceding(Document $document, array $precedingCalls, int $fileCount = 1): void
+    {
+        foreach ($precedingCalls as $metadata) {
+            $this->record(
+                $document,
+                $metadata,
+                $fileCount,
+                $metadata->status === AiCallStatus::ERFOLGREICH ? null : AiIntegrationErrorCode::SCHEMA_UNGUELTIG,
+            );
+        }
+    }
+
+    /**
      * Technische Request-ID des Providers. Sie ist eine Referenz fuer den
      * Providersupport und enthaelt keinen Inhalt. Fehlt sie, bleibt die Spalte
      * null; es wird nichts erfunden.

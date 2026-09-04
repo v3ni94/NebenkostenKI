@@ -11,6 +11,7 @@ use App\Services\Ai\CostEstimator;
 use App\Services\Ai\DailyCostLimiter;
 use App\Services\Ai\Dto\AiRequestContext;
 use App\Services\Ai\Dto\DocumentPayload;
+use App\Services\Ai\Http\AiHttpClientInterface;
 use App\Services\Ai\JsonSchemaValidator;
 use App\Services\Ai\Prompts\PromptRegistry;
 use App\Services\Ai\ProviderConfig;
@@ -151,7 +152,7 @@ final class AiTestFactory
     }
 
     public static function openAiProvider(
-        RecordingAiHttpClient $httpClient,
+        AiHttpClientInterface $httpClient,
         ?CollectingLogger $collector = null,
         int $maxRetries = 2,
         ?int $dailyLimitCent = null,
@@ -173,7 +174,7 @@ final class AiTestFactory
     }
 
     public static function anthropicProvider(
-        RecordingAiHttpClient $httpClient,
+        AiHttpClientInterface $httpClient,
         ?CollectingLogger $collector = null,
         int $maxRetries = 2,
         bool $useStructuredOutputs = false,

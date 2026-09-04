@@ -8,7 +8,9 @@ use App\Models\TemporaryUpload;
 use App\Services\Storage\Crypto\CipherIntegrityException;
 use App\Services\Storage\Crypto\SodiumSecretstreamCipher;
 use App\Services\Storage\Crypto\TemporaryUploadKeyring;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 /**
@@ -129,6 +131,27 @@ class TemporaryUploadKeyringTest extends TestCase
         $this->expectException(CipherIntegrityException::class);
 
         $this->keyring->fileKeyForReading($prefix);
+    }
+
+    public function test_datenbankfehler_beim_laden_des_schluessels_wird_beim_schreiben_nicht_verschluckt(): void
+    {
+        // Ohne erreichbare Datenbank darf kein Zufallsschluessel entstehen, der
+        // nirgends gespeichert wird: der Chunk waere fuer jeden anderen Prozess
+        // unlesbar. Fail closed heisst hier: der Fehler erreicht den Aufrufer.
+        Schema::drop('temporary_uploads');
+
+        $this->expectException(QueryException::class);
+
+        $this->keyring->fileKeyForWriting('quarantaene/ohne-datenbank');
+    }
+
+    public function test_datenbankfehler_beim_laden_des_schluessels_wird_beim_lesen_nicht_verschluckt(): void
+    {
+        Schema::drop('temporary_uploads');
+
+        $this->expectException(QueryException::class);
+
+        $this->keyring->fileKeyForReading('quarantaene/ohne-datenbank');
     }
 
     public function test_vergessen_entfernt_den_schluessel_aus_dem_prozess(): void

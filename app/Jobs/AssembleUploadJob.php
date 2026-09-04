@@ -15,9 +15,11 @@ use App\Models\ProcessingJob;
 use App\Services\Queue\JobContext;
 use App\Services\Queue\JobFailedException;
 use App\Services\Queue\ProcessingJobHandler;
+use App\Services\Storage\Crypto\CipherIntegrityException;
 use App\Services\Storage\Exceptions\UploadRejectedException;
 use App\Services\Storage\UploadErrorCode;
 use Illuminate\Support\Carbon;
+use Throwable;
 
 /**
  * Teiljob: Dateiabschnitte zusammensetzen und die Pruefkette durchlaufen.
@@ -61,6 +63,24 @@ final class AssembleUploadJob implements ProcessingJobHandler
             $result = ($this->assembleUpload)($document, $extension);
         } catch (UploadRejectedException $exception) {
             $this->rejectOrRetry($document, $exception, $context);
+        } catch (CipherIntegrityException) {
+            // Ein Abschnitt ist nicht entschluesselbar (Manipulation, verlorener
+            // Dateischluessel, gewechselter APP_KEY). Eine Wiederholung aendert
+            // daran nichts: endgueltiger Fehler mit sofortiger Loeschung.
+            ($this->failDocument)($document, UploadErrorCode::QUELLE_NICHT_LESBAR);
+
+            throw JobFailedException::permanent(UploadErrorCode::QUELLE_NICHT_LESBAR);
+        } catch (Throwable) {
+            // Unbekannter technischer Fehler, ohne Meldung weitergereicht. Nach
+            // dem letzten Versuch wird das Dokument gekennzeichnet und geloescht,
+            // statt bis zur TTL im Kurzzeitbereich zu liegen.
+            if ($context->isLastAttempt()) {
+                ($this->failDocument)($document, UploadErrorCode::UNERWARTETER_FEHLER);
+
+                throw JobFailedException::permanent(UploadErrorCode::UNERWARTETER_FEHLER);
+            }
+
+            throw JobFailedException::retryable(UploadErrorCode::UNERWARTETER_FEHLER);
         }
 
         if ($result->duplicate) {

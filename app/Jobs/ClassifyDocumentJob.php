@@ -6,6 +6,7 @@ namespace App\Jobs;
 
 use App\Application\Documents\ClassifyDocument;
 use App\Application\Documents\FailDocument;
+use App\Application\Documents\Support\ActiveJobHeartbeat;
 use App\Enums\DocumentProcessingStatus;
 use App\Jobs\Concerns\ResolvesDocumentFromPayload;
 use App\Models\Document;
@@ -48,12 +49,17 @@ final class ClassifyDocumentJob implements ProcessingJobHandler
             return;
         }
 
+        // Heartbeat fuer die KI-Anbindung, siehe ExtractDocumentJob.
+        ActiveJobHeartbeat::bind(static fn (): bool => $context->heartbeat());
+
         try {
             $outcome = ($this->classifyDocument)($document);
         } catch (UploadRejectedException $exception) {
             ($this->failDocument)($document, $exception->errorCode);
 
             throw JobFailedException::permanent($exception->errorCode);
+        } finally {
+            ActiveJobHeartbeat::release();
         }
 
         if ($outcome->documentType !== null) {

@@ -60,6 +60,13 @@ final class TemporaryUploadStorage
 
     private const COPY_BLOCK_BYTES = 1024 * 1024;
 
+    /**
+     * Endung der Zwischendatei eines laufenden Schreibvorgangs. Sie liegt im
+     * selben Verzeichnis wie das Ziel, damit rename() atomar bleibt, und wird
+     * von deletePrefix() und dem TTL-Cleanup mit entfernt.
+     */
+    private const STAGING_SUFFIX = 'schreibend';
+
     private readonly TemporaryUploadKeyring $keyring;
 
     public function __construct(?TemporaryUploadKeyring $keyring = null)
@@ -364,13 +371,24 @@ final class TemporaryUploadStorage
         $prefix = $this->prefixOf($key);
         $fileKey = $this->keyring->fileKeyForWriting($prefix);
 
-        // Die Datei wird zuerst leer angelegt, damit das Verzeichnis der Disk
-        // existiert und der Schreibzugriff ueber den absoluten Pfad moeglich ist.
-        $this->disk()->put($key, '');
+        // Geschrieben wird in eine zufaellig benannte Zwischendatei im selben
+        // Verzeichnis. Erst finish() verschiebt sie atomar auf den Zielpfad.
+        // Zwei gleichzeitige Schreibvorgaenge fuer denselben Schluessel, etwa
+        // eine Wiederholung des Browsers nach Zeitueberschreitung, koennen so
+        // nicht verschraenkt in dieselbe Datei schreiben; der zuletzt
+        // abgeschlossene Vorgang gewinnt vollstaendig.
+        $stagingKey = sprintf('%s.%s.%s', $key, Str::random(12), self::STAGING_SUFFIX);
 
-        $handle = fopen($this->absolutePath($key), 'w+b');
+        // Die Zwischendatei wird zuerst leer angelegt, damit das Verzeichnis der
+        // Disk existiert und der Schreibzugriff ueber den absoluten Pfad
+        // moeglich ist.
+        $this->disk()->put($stagingKey, '');
+
+        $handle = fopen($this->absolutePath($stagingKey), 'w+b');
 
         if ($handle === false) {
+            $this->disk()->delete($stagingKey);
+
             throw new RuntimeException('Die Zieldatei im Kurzzeitbereich konnte nicht geoeffnet werden.');
         }
 
@@ -378,7 +396,16 @@ final class TemporaryUploadStorage
 
         return new QuarantineFileWriter(
             $cipher->openWriter($handle, $fileKey),
-            fn () => $this->disk()->delete($key),
+            function () use ($stagingKey): void {
+                $this->disk()->delete($stagingKey);
+            },
+            function () use ($stagingKey, $key): void {
+                if (! @rename($this->absolutePath($stagingKey), $this->absolutePath($key))) {
+                    $this->disk()->delete($stagingKey);
+
+                    throw new RuntimeException('Die Zieldatei im Kurzzeitbereich konnte nicht abgeschlossen werden.');
+                }
+            },
         );
     }
 
@@ -487,19 +514,46 @@ final class TemporaryUploadStorage
         }
 
         try {
+            $expected = $this->size($key);
+            $copied = 0;
+
             $source = $this->readStream($key);
 
             try {
                 while (! feof($source)) {
                     $block = fread($source, self::COPY_BLOCK_BYTES);
 
-                    if ($block !== false && $block !== '') {
-                        fwrite($target, $block);
+                    if ($block === false) {
+                        throw new RuntimeException('Der Klartextstrom fuer die Arbeitskopie konnte nicht gelesen werden.');
                     }
+
+                    if ($block === '') {
+                        continue;
+                    }
+
+                    // Bei vollem Datentraeger oder erschoepftem Kontingent
+                    // schreibt fwrite weniger Bytes oder schlaegt fehl. Eine
+                    // abgeschnittene Kopie darf nicht als vollstaendige Datei
+                    // geprueft werden, sonst wuerde eine intakte Unterlage als
+                    // beschaedigt abgelehnt. Die PHP-Notiz wird unterdrueckt,
+                    // der Rueckgabewert ist die verbindliche Pruefung.
+                    if (@fwrite($target, $block) !== strlen($block)) {
+                        throw new RuntimeException('Die Arbeitskopie konnte nicht vollstaendig geschrieben werden, vermutlich fehlt Speicherplatz im Kurzzeitbereich.');
+                    }
+
+                    $copied += strlen($block);
+                }
+
+                if (fflush($target) === false) {
+                    throw new RuntimeException('Die Arbeitskopie konnte nicht vollstaendig geschrieben werden, vermutlich fehlt Speicherplatz im Kurzzeitbereich.');
                 }
             } finally {
                 fclose($source);
                 fclose($target);
+            }
+
+            if ($copied !== $expected) {
+                throw new RuntimeException('Die Arbeitskopie ist unvollstaendig und wird nicht zur Pruefung gegeben.');
             }
 
             return $callback($path);
