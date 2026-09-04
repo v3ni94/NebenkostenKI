@@ -87,14 +87,41 @@ final class SftpDeployer
     private ?SftpConnectionProvider $provider = null;
 
     /**
+     * Ausgabestrom fuer Meldungen, Standard STDOUT.
+     *
+     * @var resource
+     */
+    private $output;
+
+    /**
+     * Fehlerstrom, Standard STDERR. Im Test derselbe Strom wie $output.
+     *
+     * @var resource
+     */
+    private $errors;
+
+    /**
+     * Verbindung und Dateisystem sind ausschliesslich fuer den Verhaltenstest
+     * von aussen setzbar (tests/Unit/Install/DeploySftpScriptTest.php). Im
+     * Betrieb bleiben beide null und werden aus den Umgebungsvariablen gebaut.
+     *
      * @param  array<string, string>  $env
+     * @param  resource|null  $output
      */
     public function __construct(
         private readonly array $env,
         private readonly bool $dryRun,
         private readonly int $keep,
         private readonly ?string $smokeUrl,
-    ) {}
+        ?Filesystem $filesystem = null,
+        ?SFTP $connection = null,
+        $output = null,
+    ) {
+        $this->filesystem = $filesystem;
+        $this->connection = $connection;
+        $this->output = is_resource($output) ? $output : STDOUT;
+        $this->errors = is_resource($output) ? $output : STDERR;
+    }
 
     // ----------------------------------------------------------------------
     // Oeffentliche Abläufe
@@ -298,12 +325,15 @@ final class SftpDeployer
         $this->say(sprintf('%d Dateien uebertragen.', $uploaded));
 
         // --- Gemeinsame Dateien --------------------------------------------
-        // Das Linkziel bleibt relativ zum Release, damit ein Umbenennen von
-        // releases/<name> nach current den Link nicht bricht. Der Linkpfad
-        // selbst wird absolut angegeben, siehe absolutePath().
+        // Linkziel UND Linkpfad werden absolut angegeben, siehe absolutePath().
+        // Ein relatives Ziel wie ../../shared/.env wuerde nur unterhalb von
+        // releases/<name>/ stimmen: nach dem Umbenennen nach current/ liegt der
+        // Link eine Ebene hoeher und zeigte auf <root>/../shared, also ins
+        // Leere. Der SFTP-Server loest das Ziel nicht auf, phpseclib ebenfalls
+        // nicht (SFTP::symlink uebergibt $target unveraendert).
         if ($symlinks) {
-            if (! $this->connection()->symlink('../../shared/.env', $this->absolutePath($target.'/.env'))
-                || ! $this->connection()->symlink('../../shared/storage', $this->absolutePath($target.'/storage'))) {
+            if (! $this->connection()->symlink($this->absolutePath('shared/.env'), $this->absolutePath($target.'/.env'))
+                || ! $this->connection()->symlink($this->absolutePath('shared/storage'), $this->absolutePath($target.'/storage'))) {
                 return 'Die Verknuepfung von .env oder storage konnte nicht angelegt werden.';
             }
         } else {
@@ -659,12 +689,12 @@ final class SftpDeployer
 
     private function say(string $message): void
     {
-        fwrite(STDOUT, $message."\n");
+        fwrite($this->output, $message."\n");
     }
 
     private function fail(string $message): int
     {
-        fwrite(STDERR, 'FEHLER: '.$message."\n");
+        fwrite($this->errors, 'FEHLER: '.$message."\n");
 
         return 1;
     }
@@ -673,6 +703,13 @@ final class SftpDeployer
 // --------------------------------------------------------------------------
 // Argumente
 // --------------------------------------------------------------------------
+
+// Wird die Datei aus einem anderen Skript eingebunden (Verhaltenstest), ist
+// nur die Klasse gewuenscht; der Ablauf unten liest Argumente und beendet den
+// Prozess und darf dort nicht laufen.
+if (PHP_SAPI !== 'cli' || realpath((string) ($_SERVER['SCRIPT_FILENAME'] ?? '')) !== __FILE__) {
+    return;
+}
 
 $options = getopt('', ['source:', 'smoke-url::', 'keep::', 'dry-run', 'rollback:', 'list', 'help']);
 

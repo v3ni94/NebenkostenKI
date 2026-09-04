@@ -57,6 +57,23 @@
             </p>
         </x-hvm.card>
 
+        <x-hvm.card title="Zahlungsnachlauf">
+            @if ($zahlungsnachlauf['zahlungen_ohne_lauf'] > 0)
+                <x-hvm.alert variant="warning" label="Achtung" title="Zahlungseingang ohne Lauf">
+                    Zahlungen ohne freischaltbaren Abrechnungslauf: {{ $zahlungsnachlauf['zahlungen_ohne_lauf'] }}.
+                    Erstattung oder Zuordnung ist durch die Geschäftsführung zu entscheiden.
+                </x-hvm.alert>
+            @endif
+            <p class="{{ $zahlungsnachlauf['zahlungen_ohne_lauf'] > 0 ? 'mt-3' : '' }}">
+                Offene Fälle nach bestätigter Zahlung: <strong>{{ $zahlungsnachlauf['offene_faelle'] }}</strong>.
+            </p>
+            <p class="mt-4">
+                <x-hvm.button href="{{ route('admin.zahlungsnachlauf') }}" variant="secondary" size="sm">
+                    Zahlungsnachlauf öffnen
+                </x-hvm.button>
+            </p>
+        </x-hvm.card>
+
         <x-hvm.card title="Geschäftszahlen des laufenden Monats">
             <dl class="space-y-1 text-sm">
                 <div class="flex justify-between">

@@ -44,6 +44,7 @@ final class PaymentRecoveryController extends Controller
             'nicht_finalisiert' => $this->overview->unfinalizedPaidRuns(),
             'ohne_rechnung' => $this->overview->finalizedRunsWithoutInvoice(),
             'ohne_lauf' => $this->overview->paymentsWithoutRun(),
+            'liegen_geblieben' => $this->overview->staleReceivedEvents(),
             'betreiber' => $this->blocker->state(),
         ]);
     }

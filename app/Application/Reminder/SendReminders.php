@@ -159,7 +159,11 @@ class SendReminders
                 'recipient_email' => $adresse,
                 'deduplication_key' => $schluessel,
                 'status' => ReminderStatus::GEPLANT,
-                'scheduled_for' => $stichtag->utc(),
+                // In der Anwendungszeitzone Europe/Berlin (ADR-018), nicht in UTC:
+                // Eloquent speichert Zeitstempel in der Anwendungszeitzone, ein
+                // UTC-Wert wuerde in Anzeige und scopeDue um ein bis zwei
+                // Stunden verschoben gelesen.
+                'scheduled_for' => $stichtag,
             ]);
         } catch (QueryException) {
             // Zwei gleichzeitige Cronlaeufe. Der eindeutige Schluessel hat die

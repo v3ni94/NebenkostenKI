@@ -6,6 +6,7 @@ namespace Tests\Feature\Admin;
 
 use App\Application\Payment\Contracts\FinalDocumentViews;
 use App\Application\Payment\Dto\FinalViewBundle;
+use App\Application\Payment\HandleStripeEvent;
 use App\Enums\BillingMode;
 use App\Enums\BillingRunStatus;
 use App\Enums\CalculationSnapshotStatus;
@@ -14,16 +15,19 @@ use App\Enums\GeneratedDocumentStatus;
 use App\Enums\GeneratedDocumentVariant;
 use App\Enums\PaymentStatus;
 use App\Enums\UnitStatementStatus;
+use App\Enums\WebhookProcessingStatus;
 use App\Models\BillingRun;
 use App\Models\CalculationSnapshot;
 use App\Models\EmailMessage;
 use App\Models\GeneratedDocument;
 use App\Models\Invoice;
+use App\Models\Organization;
 use App\Models\Payment;
 use App\Models\Property;
 use App\Models\Tenancy;
 use App\Models\Unit;
 use App\Models\UnitStatement;
+use App\Models\WebhookEvent;
 use Illuminate\Support\Facades\Mail;
 use Tests\Feature\Payment\FakeFinalDocumentViews;
 use Tests\Feature\Pdf\PdfFixtures;
@@ -307,6 +311,78 @@ final class ZahlungsnachlaufTest extends AdminTestCase
         $antwort->assertSee('Zahlungseingang ohne freischaltbaren Lauf');
         $antwort->assertSee((string) $vorgang['zahlung']->getKey());
         $antwort->assertSee('ZAHLUNG_OHNE_LAUF');
+    }
+
+    public function test_die_uebersicht_zeigt_liegen_gebliebene_benachrichtigungen_des_anbieters(): void
+    {
+        WebhookEvent::factory()->create([
+            'provider_event_id' => 'evt_test_liegen_geblieben_admin',
+            'processing_status' => WebhookProcessingStatus::EMPFANGEN,
+            'processed_at' => null,
+            'received_at' => now()->subMinutes(HandleStripeEvent::STALE_RECEIVED_MINUTES + 1),
+            'attempts' => 1,
+        ]);
+
+        // Ein frisch empfangenes Ereignis ist noch in Verarbeitung und kein Fall.
+        WebhookEvent::factory()->create([
+            'provider_event_id' => 'evt_test_in_verarbeitung',
+            'processing_status' => WebhookProcessingStatus::EMPFANGEN,
+            'processed_at' => null,
+            'received_at' => now(),
+        ]);
+
+        $antwort = $this->actingAs($this->interneKennung())->get('/admin/zahlungsnachlauf');
+
+        $antwort->assertOk();
+        $antwort->assertSee('Liegen gebliebene Benachrichtigungen des Zahlungsanbieters');
+        $antwort->assertSee('evt_test_liegen_geblieben_admin');
+        $antwort->assertDontSee('evt_test_in_verarbeitung');
+    }
+
+    public function test_uebersicht_und_zahlungsseite_zeigen_die_anzahl_der_offenen_faelle(): void
+    {
+        $this->bezahlterLauf(BillingRunStatus::FAILED, 'FINALISIERUNG_FEHLGESCHLAGEN');
+
+        $ohneLauf = $this->bezahlterLauf(BillingRunStatus::CANCELLED);
+        $ohneLauf['zahlung']->forceFill(['failure_code' => 'ZAHLUNG_OHNE_LAUF'])->save();
+        $ohneLauf['lauf']->forceFill(['paid_at' => null])->save();
+
+        $uebersicht = $this->actingAs($this->interneKennung())->get('/admin');
+
+        $uebersicht->assertOk();
+        $uebersicht->assertSee('Zahlungsnachlauf');
+        $uebersicht->assertSee('Offene Fälle nach bestätigter Zahlung: <strong>2</strong>', false);
+        $uebersicht->assertSee('Zahlungen ohne freischaltbaren Abrechnungslauf: 1');
+
+        $zahlungen = $this->actingAs($this->interneKennung())->get('/admin/zahlungen');
+
+        $zahlungen->assertOk();
+        $zahlungen->assertSee('offene Fälle nach bestätigter Zahlung (2)');
+        $zahlungen->assertSee('Zahlungseingang ohne freischaltbaren Lauf');
+    }
+
+    public function test_ohne_rechnungsanschrift_des_kunden_wird_keine_rechnung_nachgeholt(): void
+    {
+        $this->bestaetigteBetreiberstammdaten();
+        Mail::fake();
+
+        $vorgang = $this->bezahlterLauf(BillingRunStatus::FINALIZED);
+
+        Organization::query()
+            ->whereKey($vorgang['lauf']->getAttribute('organization_id'))
+            ->update(['billing_address_line' => null, 'billing_postal_code' => null, 'billing_city' => null]);
+
+        $this->actingAs($this->interneKennung())
+            ->post('/admin/zahlungsnachlauf/'.$vorgang['lauf']->getKey().'/rechnung')
+            ->assertRedirect('/admin/zahlungsnachlauf')
+            ->assertSessionHas('hinweis', static fn (string $hinweis): bool => str_contains($hinweis, 'Rechnungsanschrift'));
+
+        self::assertSame(0, Invoice::query()->count());
+
+        // Der Fall bleibt sichtbar.
+        $this->actingAs($this->interneKennung())
+            ->get('/admin/zahlungsnachlauf')
+            ->assertSee((string) $vorgang['lauf']->getKey());
     }
 
     public function test_der_konsolenbefehl_holt_rechnung_und_finalisierung_nach(): void

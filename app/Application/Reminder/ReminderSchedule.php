@@ -22,7 +22,8 @@ use Illuminate\Support\Carbon;
  * durch den Standardwert ersetzt. Sonst koennte ein Tippfehler im Adminbereich
  * eine Erinnerung in ein falsches Quartal verschieben.
  *
- * Zeitzone ist verbindlich Europe/Berlin. Gespeichert wird in UTC.
+ * Zeitzone ist verbindlich Europe/Berlin. Gespeichert wird in der
+ * Anwendungszeitzone Europe/Berlin (ADR-018).
  *
  * Das relevante Abrechnungsjahr ist immer das Vorjahr des Kalenderjahres, in
  * dem die Erinnerung faellig wird. Am 01.12.2026 wird also an die Abrechnung

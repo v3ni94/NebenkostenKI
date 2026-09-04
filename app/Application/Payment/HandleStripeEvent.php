@@ -7,6 +7,7 @@ namespace App\Application\Payment;
 use App\Application\Account\AuditRecorder;
 use App\Application\BillingRun\BillingRunStateMachine;
 use App\Application\BillingRun\IllegalStatusTransitionException;
+use App\Application\Payment\Exceptions\WebhookStillProcessingException;
 use App\Enums\BillingRunStatus;
 use App\Enums\PaymentProvider;
 use App\Enums\PaymentStatus;
@@ -33,7 +34,9 @@ use Throwable;
  *  2. Die Event-ID wird eindeutig gespeichert. Eine erneut zugestellte
  *     Benachrichtigung wird erkannt und nicht zweimal verarbeitet. Ist die
  *     erste Verarbeitung gescheitert, wird die Wiederzustellung erneut
- *     verarbeitet; erst ein abgeschlossener Datensatz gilt als Duplikat.
+ *     verarbeitet; erst ein abgeschlossener Datensatz gilt als Duplikat. Ein
+ *     Datensatz in EMPFANGEN ohne processed_at ist nicht abgeschlossen und
+ *     wird nie mit 200 quittiert (WebhookStillProcessingException).
  *  3. Vor der Freischaltung werden Betrag, Waehrung und Abrechnungslauf
  *     verglichen. Bei einer Abweichung wird NICHT freigeschaltet; die
  *     Benachrichtigung wird als ignoriert mit Fehlercode vermerkt.
@@ -80,8 +83,11 @@ final class HandleStripeEvent
     /**
      * Nach dieser Zeit gilt ein noch als EMPFANGEN gespeicherter Datensatz als
      * liegen geblieben und wird bei erneuter Zustellung erneut verarbeitet.
+     * Davor wird eine Wiederzustellung mit einer Ausnahme (Antwort 500)
+     * beantwortet, nie mit 200: ein EMPFANGEN ohne processed_at ist kein
+     * abgeschlossenes Ereignis.
      */
-    private const int STALE_RECEIVED_MINUTES = 5;
+    public const int STALE_RECEIVED_MINUTES = 5;
 
     public function __construct(
         private readonly BillingRunStateMachine $stateMachine,
@@ -540,7 +546,20 @@ final class HandleStripeEvent
                 'attempts' => (int) $existing->getAttribute('attempts') + 1,
             ])->save();
 
-            return $this->isRetryable($existing) ? $this->reopen($existing) : null;
+            if ($this->isRetryable($existing)) {
+                return $this->reopen($existing);
+            }
+
+            if ($this->isStillInProgress($existing)) {
+                // Die erste Zustellung ist noch nicht abgeschlossen oder
+                // ohne Ergebnis abgebrochen. Ein 200 wuerde die Zustellkette
+                // des Anbieters beenden, obwohl nichts verarbeitet wurde.
+                // Die Ausnahme fuehrt zu 500; der Anbieter stellt erneut zu,
+                // und nach STALE_RECEIVED_MINUTES wird erneut verarbeitet.
+                throw WebhookStillProcessingException::forEvent($event->eventId);
+            }
+
+            return null;
         }
     }
 
@@ -560,6 +579,17 @@ final class HandleStripeEvent
 
         return ! $received instanceof Carbon
             || $received->lt(now()->subMinutes(self::STALE_RECEIVED_MINUTES));
+    }
+
+    /**
+     * EMPFANGEN ohne Abschluss: die Verarbeitung laeuft noch oder wurde vor
+     * dem Commit hart abgebrochen. Ein solcher Datensatz gilt nie als
+     * abschliessend verarbeitet.
+     */
+    private function isStillInProgress(WebhookEvent $existing): bool
+    {
+        return $existing->getAttribute('processing_status') === WebhookProcessingStatus::EMPFANGEN
+            && $existing->getAttribute('processed_at') === null;
     }
 
     private function reopen(WebhookEvent $existing): WebhookEvent

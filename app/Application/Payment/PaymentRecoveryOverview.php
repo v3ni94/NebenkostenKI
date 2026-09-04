@@ -6,9 +6,11 @@ namespace App\Application\Payment;
 
 use App\Enums\BillingRunStatus;
 use App\Enums\PaymentStatus;
+use App\Enums\WebhookProcessingStatus;
 use App\Models\BillingRun;
 use App\Models\Invoice;
 use App\Models\Payment;
+use App\Models\WebhookEvent;
 use Illuminate\Support\Carbon;
 
 /**
@@ -25,6 +27,8 @@ use Illuminate\Support\Carbon;
  *     bestaetigt sind.
  *  3. Welche bestaetigten Zahlungen gehoeren zu keinem freischaltbaren Lauf
  *     (Zahlung ohne Lauf)? Sie sind kaufmaennisch zu klaeren.
+ *  4. Welche Providerbenachrichtigungen sind in EMPFANGEN liegen geblieben
+ *     (harter Abbruch vor dem Commit)? Sie sind beim Anbieter zu pruefen.
  */
 final class PaymentRecoveryOverview
 {
@@ -109,11 +113,38 @@ final class PaymentRecoveryOverview
         return $payments;
     }
 
+    /**
+     * Providerbenachrichtigungen, die laenger als die Wartezeit in EMPFANGEN
+     * stehen, ohne abgeschlossen zu sein: die Verarbeitung ist hart
+     * abgebrochen, und der Anbieter hat noch nicht erneut zugestellt. Der Fall
+     * ist im Zahlungsnachlauf zu pruefen (Zahlungsstatus beim Anbieter).
+     *
+     * @return list<WebhookEvent>
+     */
+    public function staleReceivedEvents(int $limit = 100): array
+    {
+        /** @var list<WebhookEvent> $events */
+        $events = WebhookEvent::query()
+            ->where('processing_status', WebhookProcessingStatus::EMPFANGEN->value)
+            ->whereNull('processed_at')
+            ->where('received_at', '<', Carbon::now()->subMinutes(HandleStripeEvent::STALE_RECEIVED_MINUTES))
+            ->orderBy('received_at')
+            ->limit($limit)
+            ->get()
+            ->all();
+
+        return $events;
+    }
+
+    /**
+     * Anzahl aller offenen Faelle fuer Uebersicht und Zaehler.
+     */
     public function openCaseCount(): int
     {
         return count($this->unfinalizedPaidRuns())
             + count($this->finalizedRunsWithoutInvoice())
-            + count($this->paymentsWithoutRun());
+            + count($this->paymentsWithoutRun())
+            + count($this->staleReceivedEvents());
     }
 
     public function hasInvoice(BillingRun $billingRun): bool

@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Application\Admin\PaymentOverview;
 use App\Application\Payment\OperatorInvoiceBlocker;
+use App\Application\Payment\PaymentRecoveryOverview;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Carbon;
 use Illuminate\View\View;
@@ -19,6 +20,7 @@ final class PaymentController extends Controller
     public function __construct(
         private readonly PaymentOverview $overview,
         private readonly OperatorInvoiceBlocker $blocker,
+        private readonly PaymentRecoveryOverview $recovery,
     ) {}
 
     public function index(): View
@@ -35,6 +37,8 @@ final class PaymentController extends Controller
             'nummernkreis' => $this->overview->numberRange(),
             'umsatz_cent' => $this->overview->revenueCent($monatsbeginn, Carbon::now()),
             'betreiber' => $this->blocker->state(),
+            'nachlauf_offen' => $this->recovery->openCaseCount(),
+            'zahlungen_ohne_lauf' => count($this->recovery->paymentsWithoutRun()),
         ]);
     }
 }

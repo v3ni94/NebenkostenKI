@@ -18,9 +18,10 @@ use Illuminate\Support\Facades\Schema;
 | Subqueries und keine generierten Spalten mit JSON-Extraktion verwendet.
 |
 | Primaerschluessel sind ULIDs (char 26). Fortlaufende, oeffentlich erratbare
-| IDs werden nicht verwendet. Alle Zeitstempel werden in UTC gespeichert.
-| Anzeige und fachliche Fristen laufen in Europe/Berlin und sind Sache der
-| Anwendungsschicht.
+| IDs werden nicht verwendet. Alle Zeitstempel werden in der Anwendungszeitzone
+| gespeichert, die nach ADR-018 Europe/Berlin ist (config app.timezone).
+| Fachliche Fristen und Tagesgrenzen bildet die Anwendungsschicht ueber
+| App\Support\BusinessTimezone.
 |
 | Fachliche Zeitpunkte werden als DATETIME angelegt, nicht als TIMESTAMP. Damit
 | entfaellt auf MariaDB jede Abhaengigkeit von explicit_defaults_for_timestamp,

@@ -9,8 +9,8 @@ use App\Application\BillingRun\BillingRunStateMachine;
 use App\Application\Payment\Contracts\FinalDocumentViews;
 use App\Application\Payment\Dto\FinalizationResult;
 use App\Application\Payment\Dto\PriceQuote;
-use App\Application\Payment\Dto\VatDecomposition;
 use App\Application\Payment\Events\BillingRunFinalized;
+use App\Application\Payment\Exceptions\CustomerAddressMissingException;
 use App\Application\Payment\Exceptions\FinalizationFailedException;
 use App\Application\Payment\Exceptions\OperatorMasterdataMissingException;
 use App\Enums\BillingRunStatus;
@@ -35,6 +35,7 @@ use App\Services\Storage\ArtifactStorage;
 use App\Services\Storage\ArtifactType;
 use DateTimeImmutable;
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Support\Facades\DB;
 use Throwable;
 
 /**
@@ -70,7 +71,9 @@ use Throwable;
  * Kunde hat bezahlt, und ein Zurueckhalten der Leistung waere weder fachlich
  * noch kaufmaennisch vertretbar. Der Blockerzustand wird protokolliert und ist
  * ueber OperatorInvoiceBlocker abfragbar; die Rechnung ist nach Ergaenzung der
- * Angaben nachzuholen.
+ * Angaben nachzuholen. Dasselbe gilt fuer eine fehlende Rechnungsanschrift des
+ * Kunden (CustomerAddressMissingException): keine Rechnung, keine Nummer, der
+ * Lauf erscheint im Zahlungsnachlauf unter "ohne Rechnung".
  */
 final class FinalizeBillingRun
 {
@@ -94,7 +97,7 @@ final class FinalizeBillingRun
         $payment = $this->confirmedPayment($billingRun);
         $snapshot = $this->lockedSnapshot($billingRun);
 
-        $this->stateMachine->transitionTo($billingRun, BillingRunStatus::FINALIZING, $actor);
+        $this->claim($billingRun, $actor);
 
         try {
             $result = $this->produce($billingRun, $payment, $snapshot, $actor);
@@ -129,6 +132,39 @@ final class FinalizeBillingRun
         ));
 
         return $result;
+    }
+
+    /**
+     * Beansprucht den Lauf atomar fuer genau einen Finalisierer.
+     *
+     * Admin-POST, Zeitplan und Webhook koennen denselben bezahlten Lauf
+     * gleichzeitig finalisieren wollen. Der Lauf wird deshalb in einer
+     * Transaktion mit Zeilensperre neu geladen, sein tatsaechlicher Stand
+     * geprueft und der Uebergang nach FINALIZING in derselben Transaktion
+     * gesetzt. Der zweite Aufrufer wartet an der Sperre, liest danach
+     * FINALIZING und erhaelt "bereits in Bearbeitung", ohne ein zweites Mal
+     * Dokumente zu erzeugen.
+     *
+     * @throws FinalizationFailedException
+     */
+    private function claim(BillingRun $billingRun, ?User $actor): void
+    {
+        DB::transaction(function () use ($billingRun, $actor): void {
+            /** @var BillingRun $locked */
+            $locked = BillingRun::query()
+                ->whereKey($billingRun->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($locked->getAttribute('status') === BillingRunStatus::FINALIZING) {
+                throw FinalizationFailedException::alreadyInProgress();
+            }
+
+            $this->stateMachine->transitionTo($locked, BillingRunStatus::FINALIZING, $actor);
+        });
+
+        // Der uebergebene Lauf uebernimmt den festgeschriebenen Stand.
+        $billingRun->refresh();
     }
 
     /**
@@ -188,8 +224,10 @@ final class FinalizeBillingRun
 
         try {
             $invoice = ($this->invoices)($billingRun, $payment, $this->paidQuote($payment), $actor);
-        } catch (OperatorMasterdataMissingException $exception) {
-            $blockers = $this->blocker->missingFields();
+        } catch (OperatorMasterdataMissingException|CustomerAddressMissingException $exception) {
+            $blockers = $exception instanceof CustomerAddressMissingException
+                ? [CustomerAddressMissingException::BLOCKER]
+                : $this->blocker->missingFields();
 
             $this->audit->record(
                 action: 'invoice.blocked',
@@ -253,18 +291,33 @@ final class FinalizeBillingRun
         }
 
         // Der gespeicherte Einzelpreis passt nicht zum bezahlten Betrag
-        // (Altdaten). Massgeblich ist der bezahlte Bruttobetrag; Netto und
-        // Steuer werden dann aus der Summe zurueckgerechnet.
-        $vat = VatDecomposition::fromGross($gross, $rate);
+        // (Altdaten). Massgeblich ist der bezahlte Bruttobetrag. Der
+        // Einzelpreis wird aus ihm abgeleitet und die Zerlegung wieder je
+        // Einzelpreis gebildet (ADR-010), damit auf der Rechnung Anzahl mal
+        // Nettoeinzelpreis den Positionsnettobetrag ergibt. Bleibt ein
+        // Cent-Rest, der sich nicht auf die Einzelpreise verteilen laesst,
+        // liegt er ausschliesslich in der Steuerzeile.
+        $unit = intdiv(max(0, $gross - $base), $count);
+        $quote = PriceQuote::fromGrossComponents(
+            $count,
+            $unit,
+            $base,
+            $rate,
+            strtolower((string) $payment->getAttribute('currency')),
+        );
+
+        if ($quote->grossCent === $gross) {
+            return $quote;
+        }
 
         return new PriceQuote(
             $count,
             $unit,
             $base,
             $gross,
-            $vat->netCent,
-            $vat->taxCent,
-            $rate,
+            $quote->netCent,
+            $gross - $quote->netCent,
+            $quote->vatRatePercent,
             strtolower((string) $payment->getAttribute('currency')),
         );
     }

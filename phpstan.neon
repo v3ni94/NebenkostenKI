@@ -11,6 +11,10 @@ parameters:
         - tests
     excludePaths:
         - app/Http/Controllers/Controller.php
+    # Das eigenstaendige Deployskript wird nicht analysiert, seine Klasse
+    # SftpDeployer aber fuer den Verhaltenstest bekannt gemacht.
+    scanFiles:
+        - bin/deploy-sftp.php
     treatPhpDocTypesAsCertain: false
 
     # Larastan leitet Attributtypen aus den Migrationen ab und beruecksichtigt

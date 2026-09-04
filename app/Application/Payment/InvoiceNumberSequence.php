@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Application\Payment;
 
+use App\Support\BusinessTimezone;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -14,7 +15,8 @@ use RuntimeException;
  *
  * FORMAT: NK-2026-000001, zusammengesetzt aus
  *   config('smartabrechnen.invoicing.number_prefix')  Standard NK
- *   dem Kalenderjahr des Rechnungsdatums
+ *   dem Kalenderjahr des Rechnungsdatums in der fachlichen Zeitzone
+ *   (App\Support\BusinessTimezone, Europe/Berlin, ADR-018)
  *   der laufenden Nummer mit number_padding Stellen, Standard 6
  *
  * VERGABE, verbindlich:
@@ -46,7 +48,7 @@ final class InvoiceNumberSequence
      */
     public function next(?int $year = null): string
     {
-        $year ??= (int) now()->format('Y');
+        $year ??= BusinessTimezone::currentYear();
         $prefix = $this->prefix();
 
         $value = DB::transaction(function () use ($prefix, $year): int {
@@ -80,7 +82,7 @@ final class InvoiceNumberSequence
      */
     public function lastValue(?int $year = null): int
     {
-        $year ??= (int) now()->format('Y');
+        $year ??= BusinessTimezone::currentYear();
 
         $value = DB::table(self::TABLE)
             ->where('prefix', $this->prefix())

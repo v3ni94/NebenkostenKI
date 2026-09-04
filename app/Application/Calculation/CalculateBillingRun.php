@@ -251,6 +251,16 @@ final class CalculateBillingRun
 
             $this->writeLines($assembled, $statementResult, $statement, $organizationId);
         }
+
+        // Abrechnungen frueherer Staende, deren Mietverhaeltnis im neuen
+        // Ergebnis nicht mehr vorkommt, wurden in der Schleife nicht ersetzt.
+        // Sie gehoeren nicht zum aktiven Stand und gelten als ersetzt, sonst
+        // zaehlt scopeCurrent sie weiter als gueltige Abrechnung.
+        UnitStatement::query()
+            ->where('billing_run_id', $billingRun->getKey())
+            ->where('calculation_snapshot_id', '!=', $snapshot->getKey())
+            ->whereNotIn('status', [UnitStatementStatus::ERSETZT->value, UnitStatementStatus::FINAL->value])
+            ->update(['status' => UnitStatementStatus::ERSETZT->value]);
     }
 
     private function heatingTotal(AssembledCalculationInput $assembled, UnitStatementResult $statement): int

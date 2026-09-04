@@ -64,6 +64,7 @@
                                 <th class="px-3 py-2">Status</th>
                                 <th class="px-3 py-2">Fehlercode</th>
                                 <th class="px-3 py-2">Versuche</th>
+                                <th class="px-3 py-2">Handlung</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -74,6 +75,17 @@
                                     <td class="px-3 py-2">{{ $nachricht->getAttribute('status')->label() }}</td>
                                     <td class="px-3 py-2">{{ $nachricht->getAttribute('error_code') ?? 'ohne Angabe' }}</td>
                                     <td class="px-3 py-2">{{ $nachricht->getAttribute('attempts') }}</td>
+                                    <td class="px-3 py-2">
+                                        @if ($wiederholbar($nachricht))
+                                            {{-- Zeitweiliger Fehler: erneuter Versand aus dem verschluesselten Wiederholungspuffer. --}}
+                                            <form method="POST" action="{{ route('admin.kommunikation.nachricht.erneut', $nachricht) }}">
+                                                @csrf
+                                                <x-hvm.button type="submit" variant="secondary" size="sm">Erneut senden</x-hvm.button>
+                                            </form>
+                                        @else
+                                            <span class="text-xs text-hvm-anthrazit">keine Wiederholung</span>
+                                        @endif
+                                    </td>
                                 </tr>
                             @endforeach
                         </tbody>
