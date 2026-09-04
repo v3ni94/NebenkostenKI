@@ -120,12 +120,14 @@
                     <li>die Bildung der Gesamtkosten je Kostenart aus Ihren Belegen</li>
                     <li>die Verteilung auf alle Mietverhältnisse nach den bestätigten Schlüsseln</li>
                     <li>taggenaue Zeitanteile bei Mieterwechsel, Einzug, Auszug und Leerstand</li>
-                    <li>den Abgleich von Belegsummen, Vorjahreswerten und Prüfsummen</li>
+                    <li>den Abgleich von Belegsummen und Prüfsummen</li>
                 </ul>
 
                 <p class="mt-4">
                     Leerstandsanteile bleiben beim Eigentümer und werden in der Eigentümerübersicht getrennt
-                    dargestellt.
+                    dargestellt. Für Zeiten ohne Mietverhältnis liegen keine Personenangaben vor; der Schlüssel
+                    Personentage ist deshalb bei Leerstand nicht verwendbar, das Portal weist darauf hin und
+                    schätzt nichts.
                 </p>
             </x-hvm.card>
         </div>

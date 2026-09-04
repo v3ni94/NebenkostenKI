@@ -79,6 +79,18 @@ final class CalculationInputException extends RuntimeException
         ));
     }
 
+    public static function readingsExceedUnitTotal(string $unitLabel, string $readingsSum, string $unitTotal): self
+    {
+        return new self(sprintf(
+            'Für die Einheit %s ergeben die Zwischenablesungen zusammen %s, der erfasste Jahresverbrauch der '
+            .'Einheit beträgt jedoch nur %s. Bitte prüfen Sie die Ablesewerte und den Jahresverbrauch in '
+            .'Schritt 8. Es wird kein Rest angenommen und nichts umverteilt.',
+            $unitLabel,
+            $readingsSum,
+            $unitTotal
+        ));
+    }
+
     public static function missingPersonSegments(string $keyLabel, string $tenantLabel): self
     {
         return new self(sprintf(

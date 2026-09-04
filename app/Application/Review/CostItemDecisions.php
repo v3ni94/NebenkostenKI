@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace App\Application\Review;
 
+use App\Application\Account\AuditRecorder;
 use App\Application\Wizard\PreviewBuilder;
 use App\Application\Wizard\ReviewConfirmation;
 use App\Enums\ApportionmentStatus;
+use App\Enums\BillingRunStatus;
 use App\Enums\CostItemSource;
 use App\Enums\CostItemStatus;
 use App\Enums\Paragraph35aType;
 use App\Models\BillingRun;
 use App\Models\CostCategory;
 use App\Models\CostItem;
+use App\Models\ManualOverride;
 use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Support\Carbon;
@@ -39,9 +42,12 @@ use Illuminate\Support\Carbon;
  */
 final class CostItemDecisions
 {
+    public const string AUDIT_DIRECT_UNIT_REMOVED = 'cost_item.direct_unit_removed';
+
     public function __construct(
         private readonly PreviewBuilder $preview,
         private readonly ReviewConfirmation $confirmation,
+        private readonly AuditRecorder $audit,
     ) {}
 
     public function confirm(BillingRun $billingRun, CostItem $item, User $user): CostItem
@@ -183,6 +189,86 @@ final class CostItemDecisions
         $this->invalidatePreview($billingRun);
 
         return $item;
+    }
+
+    /**
+     * Die Zieleinheit einer Direktzuordnung wurde entfernt (Befund R5).
+     *
+     * Ohne diesen Schritt bliebe die Position auf eine nicht mehr vorhandene
+     * Einheit gerichtet und fiele nach dem endgueltigen Entfernen der Einheit
+     * (direct_unit_id wird von der Datenbank auf null gesetzt) still auf den
+     * Kategorieschluessel zurueck. Stattdessen wird die Zuordnung geloest, die
+     * Position wieder pruefpflichtig gesetzt (Status VORGESCHLAGEN) und der
+     * Vorgang als ManualOverride und im Revisionsprotokoll festgehalten.
+     * Laeufe, deren Berechnungsstand gesperrt ist (bezahlt, in Finalisierung,
+     * finalisiert, abgebrochen), bleiben unangetastet.
+     *
+     * @return int Anzahl der gekennzeichneten Positionen
+     */
+    public function markDirectUnitRemoved(Unit $unit, ?User $user = null): int
+    {
+        /** @var list<CostItem> $items */
+        $items = CostItem::query()
+            ->where('direct_unit_id', $unit->getKey())
+            ->whereHas('billingRun', static function ($query): void {
+                $query->whereNotIn('status', [
+                    BillingRunStatus::PAID->value,
+                    BillingRunStatus::FINALIZING->value,
+                    BillingRunStatus::FINALIZED->value,
+                    BillingRunStatus::CANCELLED->value,
+                ]);
+            })
+            ->with('billingRun')
+            ->get()
+            ->all();
+
+        $reason = sprintf(
+            'Die Zieleinheit %s der Direktzuordnung wurde entfernt. Die Position ist erneut zu pruefen; '
+            .'sie wird nicht auf den Schluessel der Kostenart umverteilt.',
+            $unit->label
+        );
+
+        $touchedRuns = [];
+
+        foreach ($items as $item) {
+            $item->forceFill([
+                'direct_unit_id' => null,
+                'status' => CostItemStatus::VORGESCHLAGEN,
+                'confirmed_by_user_id' => null,
+                'confirmed_at' => null,
+            ])->save();
+
+            ManualOverride::query()->create([
+                'organization_id' => $item->organization_id,
+                'billing_run_id' => $item->billing_run_id,
+                'user_id' => $user?->getKey(),
+                'subject_type' => CostItem::class,
+                'subject_id' => $item->getKey(),
+                'field' => 'direct_unit_id',
+                'old_value' => ['einheit' => (string) $unit->getKey(), 'bezeichnung' => $unit->label],
+                'new_value' => null,
+                'reason' => $reason,
+                'occurred_at' => Carbon::now(),
+            ]);
+
+            $this->audit->record(
+                action: self::AUDIT_DIRECT_UNIT_REMOVED,
+                subject: $item,
+                actor: $user,
+                organization: $item->organization_id,
+                metadata: ['einheit' => (string) $unit->getKey(), 'position' => $item->description],
+                reason: $reason,
+            );
+
+            $run = $item->billingRun;
+            $touchedRuns[(string) $run->getKey()] = $run;
+        }
+
+        foreach ($touchedRuns as $run) {
+            $this->invalidatePreview($run);
+        }
+
+        return count($items);
     }
 
     /**

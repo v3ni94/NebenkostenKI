@@ -178,7 +178,9 @@ final class PrepaymentWorkspace
      *
      *  - Eine bestätigte Annahme Ist gleich Soll bezog sich auf den alten
      *    Sollwert. Die Zeile wird auf offen gesetzt (keine Annahme, kein
-     *    Ist-Wert, keine Bestätigung) und muss erneut bestätigt werden.
+     *    Ist-Wert, keine Bestätigung) und muss erneut bestätigt werden. Das
+     *    gilt je Zeile: Eine zweite Zeile desselben Mietverhältnisses mit
+     *    erfasstem Ist-Wert wird dadurch nicht mit geöffnet.
      *  - Ein erfasster Ist-Wert ist eine Tatsache und bleibt bestehen; nur der
      *    Sollwert wird neu abgeleitet. Bei getrennten Zeilen je Kostenart
      *    erhält die Heizkostenzeile den Heizkostenanteil und die
@@ -256,11 +258,9 @@ final class PrepaymentWorkspace
         $target = $this->target($monthlyOperating, $monthlyHeating, $tenancy->heating_prepayment_separate, $usage);
 
         $storedTarget = 0;
-        $assumed = false;
 
         foreach ($rows as $row) {
             $storedTarget += $row->target_cent;
-            $assumed = $assumed || $row->assumed_equal_to_target;
         }
 
         if ($storedTarget === $target->cents) {
@@ -268,17 +268,19 @@ final class PrepaymentWorkspace
         }
 
         $anteile = $this->targetShares($rows, $target, $monthlyHeating, $tenancy, $usage);
+        $duplicateKinds = $this->hasDuplicateKinds($rows);
 
-        if ($assumed) {
-            foreach ($rows as $index => $row) {
+        // Je Zeile entscheidet ihr eigener Zustand (Befund R6): Nur eine Zeile
+        // mit Annahme Ist gleich Soll wird wieder geoeffnet. Eine Zeile mit
+        // erfasstem Ist-Wert behaelt ihn und erhaelt nur den neuen Sollanteil.
+        foreach ($rows as $index => $row) {
+            if ($row->assumed_equal_to_target) {
                 $this->reopen($row, $anteile[$index]);
+
+                continue;
             }
 
-            return true;
-        }
-
-        if ($this->hasDuplicateKinds($rows)) {
-            foreach ($rows as $row) {
+            if ($duplicateKinds) {
                 $row->forceFill([
                     'assumed_equal_to_target' => false,
                     'confirmed_by_user_id' => null,
@@ -286,12 +288,10 @@ final class PrepaymentWorkspace
                     'note' => 'Die Vertragsdaten haben sich geändert. Bitte prüfen Sie Soll- und Ist-Wert dieser '
                         .'Zeile erneut.',
                 ])->save();
+
+                continue;
             }
 
-            return true;
-        }
-
-        foreach ($rows as $index => $row) {
             if ($row->target_cent !== $anteile[$index]) {
                 $row->forceFill(['target_cent' => $anteile[$index]])->save();
             }

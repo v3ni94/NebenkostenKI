@@ -6,6 +6,7 @@ namespace App\Application\Wizard;
 
 use App\Application\Account\AuditRecorder;
 use App\Application\Calculation\BillingRunInputAssembler;
+use App\Application\Calculation\CalculationInputException;
 use App\Application\Heating\EuroAmountInput;
 use App\Application\Wizard\Dto\AllocationKeyRow;
 use App\Application\Wizard\Dto\AllocationValueRow;
@@ -147,12 +148,14 @@ final class AllocationKeyWorkspace
         $scope = BillingRunInputAssembler::scopeOf($type);
         $isUnitScope = $scope === AllocationKeyScope::UNIT;
         $needsSubstitute = false;
+        $conflicts = [];
 
         if ($type === AllocationKeyType::VERBRAUCH) {
             $consumption = $this->consumptionValues($billingRun, $record);
             $values = $consumption['rows'];
             $sum = $consumption['sum'];
             $needsSubstitute = $consumption['unconfirmedUnits'] !== [];
+            $conflicts = $consumption['conflicts'];
         } else {
             $values = $isUnitScope
                 ? $this->unitValues($billingRun, $record, $type)
@@ -182,6 +185,7 @@ final class AllocationKeyWorkspace
                 : null,
             $record?->measurement_unit,
             $needsSubstitute,
+            $conflicts,
         );
     }
 
@@ -326,9 +330,11 @@ final class AllocationKeyWorkspace
      * für jedes Mietverhältnis eine Zwischenablesung vorliegt. Bei
      * Nutzerwechsel ohne vollständige Zwischenablesungen wird der
      * Jahresverbrauch nur mit ausdrücklich bestätigter Ersatzverteilung
-     * aufgeteilt.
+     * aufgeteilt. Ergeben die vorhandenen Zwischenablesungen mehr als der
+     * Jahresverbrauch der Einheit, ist das ein Widerspruch, der den Schritt
+     * blockiert (Befund R1); es wird kein Rest angenommen.
      *
-     * @return array{rows: list<AllocationValueRow>, sum: BigDecimal, unconfirmedUnits: list<Unit>}
+     * @return array{rows: list<AllocationValueRow>, sum: BigDecimal, unconfirmedUnits: list<Unit>, conflicts: list<string>}
      */
     private function consumptionValues(BillingRun $billingRun, ?AllocationKey $record): array
     {
@@ -339,6 +345,7 @@ final class AllocationKeyWorkspace
         $rows = [];
         $sum = BigDecimal::zero();
         $unconfirmed = [];
+        $conflicts = [];
 
         foreach ($this->units($billingRun) as $unit) {
             $unitId = (string) $unit->getKey();
@@ -415,7 +422,19 @@ final class AllocationKeyWorkspace
             }
 
             if ($unitValue !== null && $unitValue !== '') {
-                $sum = $sum->plus(BigDecimal::of($this->normalize($unitValue)));
+                $unitTotal = BigDecimal::of($this->normalize($unitValue));
+                $sum = $sum->plus($unitTotal);
+
+                if ($readingSum->isGreaterThan($unitTotal)) {
+                    $conflicts[] = sprintf(
+                        'Für die Einheit %s ergeben die Zwischenablesungen zusammen %s, der erfasste Jahresverbrauch '
+                        .'der Einheit beträgt jedoch nur %s. Bitte prüfen Sie die Ablesewerte und den '
+                        .'Jahresverbrauch. Es wird kein Rest angenommen und nichts umverteilt.',
+                        $unit->label,
+                        GermanNumberFormatter::decimal($readingSum, 3),
+                        GermanNumberFormatter::decimal($unitTotal, 3)
+                    );
+                }
             }
 
             if (! in_array($unitId, $confirmed, true)) {
@@ -423,7 +442,7 @@ final class AllocationKeyWorkspace
             }
         }
 
-        return ['rows' => $rows, 'sum' => $sum, 'unconfirmedUnits' => $unconfirmed];
+        return ['rows' => $rows, 'sum' => $sum, 'unconfirmedUnits' => $unconfirmed, 'conflicts' => $conflicts];
     }
 
     /**
@@ -691,10 +710,27 @@ final class AllocationKeyWorkspace
                     continue;
                 }
 
-                if ($type === AllocationKeyType::DIREKT && ! EuroAmountInput::isValid($wert)) {
+                if ($type !== AllocationKeyType::DIREKT) {
+                    continue;
+                }
+
+                if (! EuroAmountInput::isValid($wert)) {
                     $errors[sprintf('kostenarten.%s.werte.%s', $row->categoryId, $participantId)] = sprintf(
                         'Kostenart %s: Der Betrag %s ist kein gültiger Eurobetrag mit höchstens zwei '
                         .'Nachkommastellen. Es wurde nichts gespeichert.',
+                        $row->categoryLabel,
+                        $wert
+                    );
+
+                    continue;
+                }
+
+                // Ein negativer Betrag lässt sich keiner Einheit zuordnen und
+                // führte im Aufbau zu einem technischen Fehler (Befund R2).
+                if (EuroAmountInput::parseOrZero($wert)->cents < 0) {
+                    $errors[sprintf('kostenarten.%s.werte.%s', $row->categoryId, $participantId)] = sprintf(
+                        'Kostenart %s: Der Betrag %s ist negativ. Bei der Direktzuordnung sind nur Beträge ab '
+                        .'0,00 EUR zulässig. Es wurde nichts gespeichert.',
                         $row->categoryLabel,
                         $wert
                     );
@@ -826,6 +862,23 @@ final class AllocationKeyWorkspace
                 );
             }
 
+            foreach ($row->consumptionConflicts as $conflict) {
+                $reasons[] = sprintf('Kostenart %s: %s', $row->categoryLabel, $conflict);
+            }
+
+            // Personentage verlangen eine durchgehende Vermietung jeder Einheit.
+            // Der Blocker erscheint bereits hier und nicht erst in Schritt 10
+            // (Befund R13), mit derselben Begründung wie beim Aufbau.
+            if ($row->keyType === AllocationKeyType::PERSONENTAGE) {
+                foreach ($this->unitsNotFullyLet($billingRun) as $unit) {
+                    $reasons[] = sprintf(
+                        'Kostenart %s: %s',
+                        $row->categoryLabel,
+                        CalculationInputException::personDaysWithVacancy($row->keyType->label(), $unit->label)->getMessage()
+                    );
+                }
+            }
+
             $record = $this->storedKey($billingRun, $row->categoryId);
 
             if ($record instanceof AllocationKey
@@ -954,6 +1007,43 @@ final class AllocationKeyWorkspace
         }
 
         return $tenancies;
+    }
+
+    /**
+     * Einheiten, die im Abrechnungszeitraum nicht durchgehend vermietet sind:
+     * mit erfasstem Leerstand oder mit Tagen ohne Mietverhältnis. Spiegelt
+     * die Prüfung des Aufbaus für den Schlüssel Personentage
+     * (BillingRunInputAssembler::allPersonSegments), damit Schritt 8 denselben
+     * Fall meldet wie Schritt 10.
+     *
+     * @return list<Unit>
+     */
+    private function unitsNotFullyLet(BillingRun $billingRun): array
+    {
+        $period = $this->period($billingRun);
+        $units = [];
+
+        foreach ($this->units($billingRun) as $unit) {
+            if ($this->overlappingVacancyCount($unit, $period) > 0) {
+                $units[] = $unit;
+
+                continue;
+            }
+
+            $coveredDays = 0;
+
+            foreach ($this->overlappingTenancies($unit, $period) as $tenancy) {
+                $end = $tenancy->ends_on instanceof Carbon ? $tenancy->ends_on : $period->end;
+                $clipped = $period->intersect(new DatePeriodRange($tenancy->starts_on, $end));
+                $coveredDays += $clipped instanceof DatePeriodRange ? $clipped->days() : 0;
+            }
+
+            if ($coveredDays < $period->days()) {
+                $units[] = $unit;
+            }
+        }
+
+        return $units;
     }
 
     /**

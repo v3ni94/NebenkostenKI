@@ -105,14 +105,21 @@
                     </select>
                 </label>
 
+                @php
+                    $direktzuordnung = $zeile->keyType === \App\Enums\AllocationKeyType::DIREKT;
+                    $wertspalte = $direktzuordnung ? 'Betrag in EUR' : 'Zähler';
+                @endphp
+
                 <div class="mt-3 grid gap-3 sm:grid-cols-2">
-                    <label class="block">
-                        <span class="text-sm font-semibold">Nenner, optional abweichend</span>
-                        <input type="text" inputmode="decimal"
-                               name="kostenarten[{{ $zeile->categoryId }}][nenner]"
-                               value="{{ $zeile->denominator }}"
-                               class="mt-1 block w-full rounded border border-hvm-mittelgrau p-2">
-                    </label>
+                    @unless ($direktzuordnung)
+                        <label class="block">
+                            <span class="text-sm font-semibold">Nenner, optional abweichend</span>
+                            <input type="text" inputmode="decimal"
+                                   name="kostenarten[{{ $zeile->categoryId }}][nenner]"
+                                   value="{{ $zeile->denominator }}"
+                                   class="mt-1 block w-full rounded border border-hvm-mittelgrau p-2">
+                        </label>
+                    @endunless
 
                     <label class="block">
                         <span class="text-sm font-semibold">Maßeinheit, optional</span>
@@ -122,13 +129,22 @@
                     </label>
                 </div>
 
+                @if ($direktzuordnung)
+                    <p class="mt-3 text-sm text-hvm-anthrazit">
+                        Bei der Direktzuordnung tragen Sie je Mietverhältnis den Betrag in Euro ein, zum Beispiel
+                        300,50. Die Summe der Beträge darf den Positionsbetrag der Kostenart nicht übersteigen; ein
+                        nicht zugeordneter Rest verbleibt beim Eigentümer. Der Nenner ergibt sich aus dem
+                        Positionsbetrag und wird nicht eingegeben.
+                    </p>
+                @endif
+
                 <div class="mt-4 overflow-x-auto">
                     <table class="w-full border-collapse text-sm">
                         <caption class="sr-only">Werte je {{ $zeile->isUnitScope ? 'Einheit' : 'Mietverhältnis' }}</caption>
                         <thead>
                             <tr class="border-b border-hvm-mittelgrau text-left">
                                 <th scope="col" class="p-2">{{ $zeile->isUnitScope ? 'Einheit' : 'Mietverhältnis' }}</th>
-                                <th scope="col" class="p-2">Zähler</th>
+                                <th scope="col" class="p-2">{{ $wertspalte }}</th>
                                 <th scope="col" class="p-2">Herkunft</th>
                             </tr>
                         </thead>
@@ -138,7 +154,7 @@
                                     <td class="p-2">{{ $wert->label }}</td>
                                     <td class="p-2">
                                         <label class="block">
-                                            <span class="sr-only">Zähler für {{ $wert->label }}</span>
+                                            <span class="sr-only">{{ $wertspalte }} für {{ $wert->label }}</span>
                                             <input type="text" inputmode="decimal"
                                                    name="kostenarten[{{ $zeile->categoryId }}][werte][{{ $wert->participantId }}]"
                                                    value="{{ $wert->value }}"

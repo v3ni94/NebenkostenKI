@@ -37,6 +37,8 @@ final readonly class AllocationKeyRow
         public ?string $defaultWarning = null,
         public ?string $measurementUnit = null,
         public bool $consumptionNeedsSubstitute = false,
+        /** @var list<string> Widersprüche zwischen Zwischenablesungen und Jahresverbrauch je Einheit */
+        public array $consumptionConflicts = [],
     ) {}
 
     public function sourceBadge(): string
