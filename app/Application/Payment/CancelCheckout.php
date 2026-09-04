@@ -39,7 +39,17 @@ final class CancelCheckout
         private readonly AuditRecorder $audit,
     ) {}
 
-    public function __invoke(BillingRun $billingRun, ?User $actor = null): bool
+    /**
+     * Grund, wenn der Abbruch nicht vom Nutzer, sondern von einer
+     * abrechnungsrelevanten Aenderung ausgeht (PreviewInvalidator): Die
+     * bestaetigte Vorschau ist entfallen, ein offener Zahlungsvorgang darf
+     * den alten Berechnungsstand nicht mehr bezahlen.
+     */
+    public const string VORSCHAU_UNGUELTIG = 'VORSCHAU_UNGUELTIG';
+
+    public const string ABBRUCH_DURCH_NUTZER = 'ABBRUCH_DURCH_NUTZER';
+
+    public function __invoke(BillingRun $billingRun, ?User $actor = null, string $grund = self::ABBRUCH_DURCH_NUTZER): bool
     {
         /** @var list<Payment> $payments */
         $payments = Payment::query()
@@ -58,7 +68,7 @@ final class CancelCheckout
 
             $payment->forceFill([
                 'status' => PaymentStatus::ABGEBROCHEN,
-                'failure_code' => 'ABBRUCH_DURCH_NUTZER',
+                'failure_code' => $grund,
             ])->save();
 
             $this->audit->record(
@@ -68,7 +78,7 @@ final class CancelCheckout
                 organization: is_string($billingRun->getAttribute('organization_id'))
                     ? (string) $billingRun->getAttribute('organization_id')
                     : null,
-                metadata: ['abrechnungslauf' => (string) $billingRun->getKey()],
+                metadata: ['abrechnungslauf' => (string) $billingRun->getKey(), 'grund' => $grund],
             );
         }
 
@@ -78,7 +88,7 @@ final class CancelCheckout
 
         try {
             $this->stateMachine->transitionTo($billingRun, BillingRunStatus::PREVIEW_READY, $actor, [
-                'grund' => 'ABBRUCH_DURCH_NUTZER',
+                'grund' => $grund,
             ]);
         } catch (IllegalStatusTransitionException) {
             return false;

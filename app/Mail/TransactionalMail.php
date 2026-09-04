@@ -76,6 +76,18 @@ abstract class TransactionalMail extends Mailable
         return [];
     }
 
+    /**
+     * Fassung der Nachricht fuer einen erneuten Versand aus dem
+     * Wiederholungspuffer. Zeitlich begrenzte Bestandteile, insbesondere
+     * signierte Downloadlinks, sind zu diesem Zeitpunkt moeglicherweise
+     * abgelaufen und werden hier neu erzeugt. Eine Nachricht ohne solche
+     * Bestandteile wird unveraendert zurueckgegeben.
+     */
+    public function fuerErneutenVersand(): static
+    {
+        return $this;
+    }
+
     public function envelope(): Envelope
     {
         return new Envelope(subject: $this->betreff());

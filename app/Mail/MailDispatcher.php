@@ -127,6 +127,8 @@ class MailDispatcher
      * innerhalb von WIEDERHOLUNGSFENSTER_STUNDEN. Eine dauerhaft unzustellbare
      * (BOUNCED) oder unterdrueckte Nachricht wird nie wiederholt. Eine
      * inzwischen gesperrte Adresse erhaelt keine gewoehnliche Nachricht mehr.
+     * Zeitlich begrenzte Downloadlinks werden vor dem Versand neu signiert
+     * (TransactionalMail::fuerErneutenVersand).
      *
      * @param  User|null  $akteur  Handelnde Person bei manueller Wiederholung,
      *                             null im Zeitplan.
@@ -150,6 +152,12 @@ class MailDispatcher
                 'Der Wiederholungspuffer der Nachricht ist nicht lesbar. Die Nachricht wird nicht erneut versendet.'
             );
         }
+
+        // Zeitlich begrenzte Bestandteile (signierte Downloadlinks) werden vor
+        // dem erneuten Versand erneuert; die Anhangregel gilt auch auf dem
+        // Wiederholungsweg.
+        $mail = $mail->fuerErneutenVersand();
+        $this->assertZulaessigeAnhaenge($mail);
 
         $adresse = (string) $protokoll->getAttribute('recipient_email');
         $organizationId = $protokoll->getAttribute('organization_id');
@@ -340,6 +348,15 @@ class MailDispatcher
     private const EMPFAENGERMERKMALE = '/Recipient|User unknown|Unknown user|No such user|does not exist|mailbox|Empf(ä|ae)nger|Postfach|\b5\.(1\.[1-6]|2\.\d+)\b/iu';
 
     /**
+     * Wortlaute, die trotz 5xx-Code den Absender, den einliefernden Host, das
+     * Relay, die Anmeldung oder die Nachrichtengroesse betreffen. Postfix
+     * nennt dabei regelmaessig auch die Empfaengeradresse ("554 5.7.1
+     * <empfaenger>: Relay access denied"). Solche Meldungen sind zeitweilig und
+     * sperren die Adresse nie, auch wenn sie die Adresse enthalten.
+     */
+    private const ABSENDERSEITIGE_MERKMALE = '/Relay access denied|Sender address rejected|Client host|Service unavailable|message size|not authenticated|Authentication required|Authentication credentials/i';
+
+    /**
      * Ein dauerhafter Zustellfehler ist ausschliesslich eine Antwort der
      * Gegenstelle auf RCPT oder DATA mit einem Code aus
      * DAUERHAFTE_EMPFAENGERCODES, deren Wortlaut erkennbar den Empfaenger
@@ -386,6 +403,10 @@ class MailDispatcher
         }
 
         if (! in_array((int) $treffer[1], self::DAUERHAFTE_EMPFAENGERCODES, true)) {
+            return false;
+        }
+
+        if (preg_match(self::ABSENDERSEITIGE_MERKMALE, $meldung) === 1) {
             return false;
         }
 

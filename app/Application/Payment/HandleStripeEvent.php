@@ -8,6 +8,8 @@ use App\Application\Account\AuditRecorder;
 use App\Application\BillingRun\BillingRunStateMachine;
 use App\Application\BillingRun\IllegalStatusTransitionException;
 use App\Application\Payment\Exceptions\WebhookStillProcessingException;
+use App\Application\Wizard\PreviewBuilder;
+use App\Application\Wizard\ReviewConfirmation;
 use App\Enums\BillingRunStatus;
 use App\Enums\PaymentProvider;
 use App\Enums\PaymentStatus;
@@ -81,6 +83,14 @@ final class HandleStripeEvent
     public const string ZAHLUNG_OHNE_LAUF = 'ZAHLUNG_OHNE_LAUF';
 
     /**
+     * Fehlercode einer bestaetigten Zahlung, deren Lauf keine gueltige und
+     * vom Nutzer bestaetigte Vorschau mehr traegt. Der bezahlte Stand
+     * entspricht nicht der bestaetigten Vorschau; es wird nicht finalisiert,
+     * der Fall ist im Zahlungsnachlauf zu klaeren.
+     */
+    public const string VORSCHAU_UNGUELTIG = 'VORSCHAU_UNGUELTIG';
+
+    /**
      * Nach dieser Zeit gilt ein noch als EMPFANGEN gespeicherter Datensatz als
      * liegen geblieben und wird bei erneuter Zustellung erneut verarbeitet.
      * Davor wird eine Wiederzustellung mit einer Ausnahme (Antwort 500)
@@ -95,6 +105,8 @@ final class HandleStripeEvent
         private readonly RefundHandling $refunds,
         private readonly AuditRecorder $audit,
         private readonly CalculatePrice $prices,
+        private readonly PreviewBuilder $preview,
+        private readonly ReviewConfirmation $confirmation,
     ) {}
 
     /**
@@ -277,6 +289,15 @@ final class HandleStripeEvent
 
         if ($billingRun->getAttribute('active_calculation_snapshot_id') === null) {
             return 'BERECHNUNGSSTAND_FEHLT';
+        }
+
+        // Zweite Verteidigungslinie neben PreviewInvalidator: Freigeschaltet
+        // wird nur ein Stand mit gueltiger Vorschau und bestehender
+        // Nutzerbestaetigung. Wurde die Vorschau nach dem Start des Checkouts
+        // ungueltig (Stammdatenaenderung), passt die Zahlung nicht mehr zur
+        // bestaetigten Leistung.
+        if (! $this->preview->isValid($billingRun) || ! $this->confirmation->isConfirmed($billingRun)) {
+            return self::VORSCHAU_UNGUELTIG;
         }
 
         // Der bezahlte Stand muss dem aktuellen Berechnungsstand entsprechen.

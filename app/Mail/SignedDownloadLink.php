@@ -40,4 +40,19 @@ class SignedDownloadLink
             ['generatedDocument' => $dokument->getKey()],
         );
     }
+
+    /**
+     * Frisch signierter Link auf die kontogebundene Route
+     * portal.downloads.signed, wie ihn die Bestaetigungsmail nach der
+     * Finalisierung traegt. Wird beim erneuten Versand einer Nachricht aus dem
+     * Wiederholungspuffer benutzt, damit kein abgelaufener Link versendet wird.
+     */
+    public function signiert(string $generatedDocumentId): string
+    {
+        return URL::temporarySignedRoute(
+            'portal.downloads.signed',
+            Carbon::now()->addMinutes($this->gueltigkeitMinuten()),
+            ['generatedDocument' => $generatedDocumentId],
+        );
+    }
 }

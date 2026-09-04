@@ -100,8 +100,9 @@
         <x-hvm.card title="Zahlungseingang ohne freischaltbaren Lauf">
             <p class="text-sm text-hvm-anthrazit">
                 Der Betrag ist beim Zahlungsanbieter vereinnahmt, der Abrechnungslauf war zu diesem Zeitpunkt
-                abgebrochen, gelöscht oder verändert. Erstattung oder Zuordnung ist kaufmännisch zu entscheiden und
-                durch die Geschäftsführung freizugeben.
+                abgebrochen, gelöscht oder verändert, oder seine Vorschau war nicht mehr gültig und bestätigt
+                (Grund VORSCHAU_UNGUELTIG). Es wurde nicht finalisiert. Erstattung oder Zuordnung ist kaufmännisch
+                zu entscheiden und durch die Geschäftsführung freizugeben.
             </p>
             @if ($ohne_lauf === [])
                 <p class="mt-3">Kein Eintrag.</p>

@@ -298,6 +298,24 @@ final class MailVersandProtokollTest extends TestCase
             'Nachricht zu gross, Code 552' => [
                 'Expected response code "250" but got code "552", with message "552 5.3.4 Message size exceeds fixed maximum message size".',
             ],
+            // Postfix nennt die Empfaengeradresse auch bei Relay- und
+            // Absenderablehnungen. Die Adresse im Wortlaut macht die Meldung
+            // nicht zu einer Empfaengerablehnung (Befund R8).
+            'Relay verweigert mit Empfaengeradresse, Code 554' => [
+                'Expected response code "250" but got code "554", with message "554 5.7.1 <vermieter@beispiel.invalid>: Relay access denied".',
+            ],
+            'Absenderadresse abgelehnt mit Empfaengeradresse, Code 550' => [
+                'Expected response code "250" but got code "550", with message "550 5.7.1 <vermieter@beispiel.invalid>: Sender address rejected: Access denied".',
+            ],
+            'einliefernder Host gesperrt mit Empfaengeradresse, Code 554' => [
+                'Expected response code "250" but got code "554", with message "554 5.7.1 <vermieter@beispiel.invalid>: Client host rejected: Access denied".',
+            ],
+            'nicht angemeldet mit Empfaengeradresse, Code 550' => [
+                'Expected response code "250" but got code "550", with message "550 5.7.1 <vermieter@beispiel.invalid>: Recipient address rejected: Authentication required, not authenticated".',
+            ],
+            'Nachricht zu gross mit Empfaengeradresse, Code 552' => [
+                'Expected response code "250" but got code "552", with message "552 5.3.4 <vermieter@beispiel.invalid>: message size exceeds fixed maximum message size".',
+            ],
         ];
     }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Application\Wizard;
 
+use App\Application\Payment\CancelCheckout;
 use App\Enums\BillingRunStatus;
 use App\Models\BillingRun;
 use App\Models\Landlord;
@@ -22,6 +23,12 @@ use Illuminate\Support\Carbon;
  * werden die Vorschaudokumente auf UNGUELTIG gesetzt, die Nutzerbestaetigung
  * zurueckgenommen und veraltete Sollwerte der Vorauszahlungen bereinigt.
  *
+ * Ein Lauf in CHECKOUT_PENDING verliert zusaetzlich seinen offenen
+ * Zahlungsvorgang: Die Zahlungsseite beim Anbieter wird beendet, die Zahlungen
+ * werden abgebrochen und der Lauf kehrt ueber die Statusmaschine nach
+ * PREVIEW_READY zurueck. Ein Kunde darf niemals einen Berechnungsstand
+ * bezahlen und erhalten, der nicht der bestaetigten Vorschau entspricht.
+ *
  * Bezahlte und finalisierte Laeufe bleiben unangetastet: Ihr Berechnungsstand
  * ist gesperrt, eine nachtraegliche Aenderung der Stammdaten wirkt dort nicht.
  */
@@ -31,6 +38,7 @@ final class PreviewInvalidator
         private readonly PreviewBuilder $preview,
         private readonly ReviewConfirmation $confirmation,
         private readonly PrepaymentWorkspace $prepayments,
+        private readonly CancelCheckout $cancelCheckout,
     ) {}
 
     /**
@@ -110,6 +118,10 @@ final class PreviewInvalidator
     private function invalidate(array $runs, ?User $actor): int
     {
         foreach ($runs as $run) {
+            if ($run->getAttribute('status') === BillingRunStatus::CHECKOUT_PENDING) {
+                ($this->cancelCheckout)($run, $actor, CancelCheckout::VORSCHAU_UNGUELTIG);
+            }
+
             $this->preview->invalidate($run);
             $this->confirmation->reset($run);
             $this->prepayments->refreshStoredTargets($run, $actor);
