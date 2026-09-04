@@ -27,6 +27,7 @@ class SchedulerRegistrationTest extends TestCase
             'smartabrechnen:queue-slice',
             'smartabrechnen:cleanup-temporary-uploads',
             'smartabrechnen:retry-failed-deletions',
+            'smartabrechnen:retry-finalization',
         ] as $befehl) {
             $this->assertTrue(
                 $this->enthaelt($befehle, $befehl),

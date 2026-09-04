@@ -102,6 +102,7 @@ abstract class AdminTestCase extends TestCase
             '/admin/verarbeitung',
             '/admin/ki',
             '/admin/zahlungen',
+            '/admin/zahlungsnachlauf',
             '/admin/preise',
             '/admin/nutzer',
             '/admin/organisationen',

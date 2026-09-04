@@ -49,10 +49,16 @@ class CheckoutReturnController extends Controller
             return redirect()->route('portal.abschluss.show', ['billingRun' => $lauf->getKey()]);
         }
 
+        $bezahlt = $lauf->getAttribute('paid_at') !== null
+            || ($status instanceof BillingRunStatus && $status->isPaid());
+
         return view('portal.checkout.warten', [
             'lauf' => $lauf,
             'objekt' => $lauf->getRelationValue('property'),
-            'bezahlt' => $status instanceof BillingRunStatus && $status->isPaid(),
+            'bezahlt' => $bezahlt,
+            // Zahlung bestaetigt, Erstellung gescheitert: der Betrieb holt sie
+            // nach. Dem Kunden wird das ehrlich gesagt.
+            'verzoegert' => $bezahlt && $status === BillingRunStatus::FAILED,
         ]);
     }
 

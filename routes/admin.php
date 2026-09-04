@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\LaunchBlockerController;
 use App\Http\Controllers\Admin\MetricsController;
 use App\Http\Controllers\Admin\OrganizationController;
 use App\Http\Controllers\Admin\PaymentController;
+use App\Http\Controllers\Admin\PaymentRecoveryController;
 use App\Http\Controllers\Admin\PricingController;
 use App\Http\Controllers\Admin\PrivacyController;
 use App\Http\Controllers\Admin\ProcessingController;
@@ -113,4 +114,16 @@ Route::middleware(RequireAdminTwoFactor::class)->group(function (): void {
     Route::get('/technik', [HealthController::class, 'index'])->name('technik');
     Route::get('/kennzahlen', [MetricsController::class, 'index'])->name('kennzahlen');
     Route::get('/protokoll', [AuditLogController::class, 'index'])->name('protokoll');
+});
+
+// --- Zahlungsnachlauf ----------------------------------------------------------
+// Bezahlte Laeufe ohne Finalisierung oder ohne Rechnung nachholen und
+// Zahlungseingaenge ohne freischaltbaren Lauf sichtbar machen.
+
+Route::middleware(RequireAdminTwoFactor::class)->group(function (): void {
+    Route::get('/zahlungsnachlauf', [PaymentRecoveryController::class, 'index'])->name('zahlungsnachlauf');
+    Route::post('/zahlungsnachlauf/{billingRun}/finalisieren', [PaymentRecoveryController::class, 'finalize'])
+        ->name('zahlungsnachlauf.finalisieren');
+    Route::post('/zahlungsnachlauf/{billingRun}/rechnung', [PaymentRecoveryController::class, 'issueInvoice'])
+        ->name('zahlungsnachlauf.rechnung');
 });

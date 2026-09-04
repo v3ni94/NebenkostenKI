@@ -27,8 +27,10 @@ use App\Models\User;
 use App\Services\Payment\Contracts\CheckoutClient;
 use App\Services\Payment\StripeConfiguration;
 use App\Services\Payment\StripeWebhookVerifier;
+use App\Services\Storage\ArtifactStorage;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Symfony\Component\HttpFoundation\Response;
@@ -258,6 +260,27 @@ abstract class PaymentTestCase extends PortalTestCase
     protected function bindeFinalDocumentViews(FinalViewBundle $bundle): void
     {
         $this->app->instance(FinalDocumentViews::class, new FakeFinalDocumentViews($bundle));
+    }
+
+    /**
+     * Macht die Artefaktablage kurzzeitig unbenutzbar. Produktiv liegt sie auf
+     * SFTP; ein kurzzeitiger Ausfall im Moment des Webhooks ist dort ein
+     * realer Fall (Abschnitt 23.4).
+     */
+    protected function stoereArtefaktspeicher(): void
+    {
+        config()->set('filesystems.disks.local.root', '/dev/null/artefakte-nicht-erreichbar');
+
+        Storage::forgetDisk('local');
+        $this->app->forgetInstance(ArtifactStorage::class);
+    }
+
+    protected function stelleArtefaktspeicherWiederHer(): void
+    {
+        config()->set('filesystems.disks.local.root', $this->artefaktverzeichnis);
+
+        Storage::forgetDisk('local');
+        $this->app->forgetInstance(ArtifactStorage::class);
     }
 
     /**

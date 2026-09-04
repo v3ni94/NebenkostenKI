@@ -201,10 +201,16 @@
     </tr>
 </table>
 
-<p>
-    Der Betrag wurde über die angegebene Zahlungsart bereits vollständig entrichtet. Eine
-    gesonderte Überweisung ist nicht erforderlich.
-</p>
+@if ($view->isCancellation())
+    <p>
+        Diese Stornorechnung hebt die genannte Rechnung auf. Eine etwaige Erstattung erfolgt gesondert.
+    </p>
+@else
+    <p>
+        Der Betrag wurde über die angegebene Zahlungsart bereits vollständig entrichtet. Eine
+        gesonderte Überweisung ist nicht erforderlich.
+    </p>
+@endif
 
 <div class="pflichtangaben">
     {{ $operator->legalName() }} | {{ $operator->addressLine() }} | {{ $operator->cityLine() }}<br>

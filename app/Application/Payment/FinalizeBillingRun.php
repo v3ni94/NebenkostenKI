@@ -223,9 +223,12 @@ final class FinalizeBillingRun
      * Die Rechnung stellt genau den bezahlten Betrag, nicht den derzeit
      * konfigurierten Preis. Aendert der Betreiber den Preis zwischen Zahlung und
      * Finalisierung, bleibt die Rechnung damit richtig. Netto und Steuer werden
-     * aus dem bezahlten Bruttobetrag zurueckgerechnet (ADR-010).
+     * je Einzelpreis aus dem bezahlten Brutto zurueckgerechnet (ADR-010).
+     *
+     * Oeffentlich, damit eine nachgeholte Rechnung (IssueMissingInvoice)
+     * denselben Preisstand verwendet wie die Finalisierung.
      */
-    private function paidQuote(Payment $payment): PriceQuote
+    public function paidQuote(Payment $payment): PriceQuote
     {
         $gross = (int) $payment->getAttribute('amount_cent');
         $count = max(1, (int) $payment->getAttribute('statement_count'));
@@ -237,6 +240,21 @@ final class FinalizeBillingRun
         }
 
         $rate = $this->vatRatePercent($payment);
+        $quote = PriceQuote::fromGrossComponents(
+            $count,
+            $unit,
+            $base,
+            $rate,
+            strtolower((string) $payment->getAttribute('currency')),
+        );
+
+        if ($quote->grossCent === $gross) {
+            return $quote;
+        }
+
+        // Der gespeicherte Einzelpreis passt nicht zum bezahlten Betrag
+        // (Altdaten). Massgeblich ist der bezahlte Bruttobetrag; Netto und
+        // Steuer werden dann aus der Summe zurueckgerechnet.
         $vat = VatDecomposition::fromGross($gross, $rate);
 
         return new PriceQuote(
@@ -341,6 +359,11 @@ final class FinalizeBillingRun
     }
 
     /**
+     * Aktive Final-Dokumente des Laufs OHNE die Rechnungsbelege. Die Rechnung
+     * der Hausverwaltung wird bei einer erneuten Finalisierung nicht neu
+     * erzeugt (IssueOperatorInvoice ist idempotent) und darf deshalb nicht als
+     * ersetzt markiert werden; sie ist ein aufzubewahrender Beleg.
+     *
      * @return list<GeneratedDocument>
      */
     private function activeFinalDocuments(BillingRun $billingRun): array
@@ -350,6 +373,7 @@ final class FinalizeBillingRun
             ->where('billing_run_id', $billingRun->getKey())
             ->where('variant', GeneratedDocumentVariant::FINAL->value)
             ->where('status', GeneratedDocumentStatus::AKTIV->value)
+            ->whereNull('invoice_id')
             ->get()
             ->all();
 
@@ -373,10 +397,25 @@ final class FinalizeBillingRun
         }
     }
 
+    /**
+     * FINAL wird ausschliesslich der bezahlte Berechnungsstand. Abrechnungen
+     * frueherer Staende, die beim Neurechnen nicht ersetzt wurden, weil ihr
+     * Mietverhaeltnis im Ergebnis nicht mehr vorkommt, gelten als ersetzt: sie
+     * wurden weder bezahlt noch ausgeliefert.
+     */
     private function markStatementsFinal(BillingRun $billingRun): void
     {
+        $snapshotId = (string) $billingRun->getAttribute('active_calculation_snapshot_id');
+
         UnitStatement::query()
             ->where('billing_run_id', $billingRun->getKey())
+            ->where('calculation_snapshot_id', '!=', $snapshotId)
+            ->whereNotIn('status', [UnitStatementStatus::ERSETZT->value, UnitStatementStatus::FINAL->value])
+            ->update(['status' => UnitStatementStatus::ERSETZT->value]);
+
+        UnitStatement::query()
+            ->where('billing_run_id', $billingRun->getKey())
+            ->where('calculation_snapshot_id', $snapshotId)
             ->where('status', '!=', UnitStatementStatus::ERSETZT->value)
             ->update(['status' => UnitStatementStatus::FINAL->value]);
     }

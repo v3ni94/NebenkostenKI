@@ -167,5 +167,17 @@ class OperatorInvoicePdfTest extends TestCase
         $this->assertStringContainsString('Storniert Rechnung', $text);
         $this->assertStringContainsString('NK-2026-000001', $text);
         $this->assertStringContainsString('-99,60 EUR', $text);
+
+        // Auf der Stornorechnung wurde kein negativer Betrag entrichtet.
+        $this->assertStringNotContainsString('bereits vollständig entrichtet', $text);
+        $this->assertStringContainsString('Erstattung erfolgt gesondert', $text);
+    }
+
+    public function test_die_rechnung_weist_den_betrag_als_bereits_entrichtet_aus(): void
+    {
+        $text = PdfTextExtractor::text($this->renderer->render(PdfFixtures::invoiceView())->contents);
+
+        $this->assertStringContainsString('bereits vollständig entrichtet', $text);
+        $this->assertStringNotContainsString('Erstattung erfolgt gesondert', $text);
     }
 }

@@ -12,6 +12,13 @@ use Illuminate\Support\Carbon;
 /**
  * Preisregel fuer Korrekturen nach der Zahlung (Abschnitt 11.5).
  *
+ * STAND ZUM START: VORBEREITUNG, NICHT VERDRAHTET. Die Korrektur eines
+ * bezahlten Laufs ist zum Start nicht verfuegbar; Korrekturen erfolgen ueber
+ * einen neuen Abrechnungslauf. Diese Klasse wird produktiv von keiner Route
+ * aufgerufen, die Einstellung PRICE_CORRECTION_FREE_DAYS hat keine Wirkung
+ * und wird im Adminbereich und in .env.example ausdruecklich so ausgewiesen.
+ * Die Klasse bleibt als Vorbereitung einer spaeteren Ausbaustufe erhalten.
+ *
  * VERBINDLICHE REGELN
  *
  *  1. Ein finalisiertes PDF wird niemals ueberschrieben. Eine Korrektur erzeugt

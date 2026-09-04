@@ -8,6 +8,9 @@
     Mieterabrechnungen gebildet.
 
     Beide Kaestchen sind Pflicht und NICHT vorangekreuzt.
+
+    Liegt der konfigurierte Preis ausserhalb des Korridors, wird keine
+    Zahlungsschaltflaeche angeboten, sondern eine verstaendliche Meldung.
 --}}
 @extends('layouts.portal')
 
@@ -30,6 +33,14 @@
             <x-hvm.alert variant="error" title="Die Zahlung wurde nicht eingeleitet">{{ $message }}</x-hvm.alert>
         </div>
     @enderror
+
+    @if ($preisfehler !== null)
+        <div class="mt-6">
+            <x-hvm.alert variant="error" title="Die Zahlung ist derzeit nicht möglich">
+                {{ $preisfehler }} Bitte wenden Sie sich an den Support.
+            </x-hvm.alert>
+        </div>
+    @endif
 
     <div class="mt-8 grid gap-6 lg:grid-cols-2">
         <x-hvm.card title="Ihre Abrechnung" accent>
@@ -56,39 +67,41 @@
             </p>
         </x-hvm.card>
 
-        <x-hvm.card title="Preis">
-            <dl class="space-y-2 text-sm">
-                <div class="flex justify-between gap-4">
-                    <dt>{{ $anzahl }} Mieterabrechnungen zu je {{ $preis->unitGross()->format() }} brutto</dt>
-                    <dd class="text-right">{{ $preis->gross()->format() }}</dd>
-                </div>
-
-                @if ($preis->hasBaseAmount())
+        @if ($preis !== null)
+            <x-hvm.card title="Preis">
+                <dl class="space-y-2 text-sm">
                     <div class="flex justify-between gap-4">
-                        <dt>Grundpreis je Abrechnungslauf</dt>
-                        <dd class="text-right">{{ $preis->base()->format() }}</dd>
+                        <dt>{{ $anzahl }} Mieterabrechnungen zu je {{ $preis->unitGross()->format() }} brutto</dt>
+                        <dd class="text-right">{{ $preis->gross()->format() }}</dd>
                     </div>
-                @endif
 
-                <div class="flex justify-between gap-4 border-t border-hvm-hellgrau pt-2">
-                    <dt>Netto</dt>
-                    <dd class="text-right">{{ $preis->net()->format() }}</dd>
-                </div>
-                <div class="flex justify-between gap-4">
-                    <dt>Umsatzsteuer {{ $preis->vatRatePercent }} Prozent</dt>
-                    <dd class="text-right">{{ $preis->tax()->format() }}</dd>
-                </div>
-                <div class="flex justify-between gap-4 border-t border-hvm-mittelgrau pt-2 text-base font-bold">
-                    <dt>Gesamtbetrag brutto</dt>
-                    <dd class="text-right">{{ $preis->gross()->format() }}</dd>
-                </div>
-            </dl>
+                    @if ($preis->hasBaseAmount())
+                        <div class="flex justify-between gap-4">
+                            <dt>Grundpreis je Abrechnungslauf</dt>
+                            <dd class="text-right">{{ $preis->base()->format() }}</dd>
+                        </div>
+                    @endif
 
-            <p class="mt-4 text-sm text-hvm-anthrazit">
-                Der Betrag wird unmittelbar vor der Zahlung erneut serverseitig aus der tatsächlichen Anzahl Ihrer
-                Abrechnungen berechnet.
-            </p>
-        </x-hvm.card>
+                    <div class="flex justify-between gap-4 border-t border-hvm-hellgrau pt-2">
+                        <dt>Netto</dt>
+                        <dd class="text-right">{{ $preis->net()->format() }}</dd>
+                    </div>
+                    <div class="flex justify-between gap-4">
+                        <dt>Umsatzsteuer {{ $preis->vatRatePercent }} Prozent</dt>
+                        <dd class="text-right">{{ $preis->tax()->format() }}</dd>
+                    </div>
+                    <div class="flex justify-between gap-4 border-t border-hvm-mittelgrau pt-2 text-base font-bold">
+                        <dt>Gesamtbetrag brutto</dt>
+                        <dd class="text-right">{{ $preis->gross()->format() }}</dd>
+                    </div>
+                </dl>
+
+                <p class="mt-4 text-sm text-hvm-anthrazit">
+                    Der Betrag wird unmittelbar vor der Zahlung erneut serverseitig aus der tatsächlichen Anzahl Ihrer
+                    Abrechnungen berechnet.
+                </p>
+            </x-hvm.card>
+        @endif
     </div>
 
     @if ($bestaetigungFehlt)
@@ -100,62 +113,82 @@
         </div>
     @endif
 
-    {{--
-        VOR LIVEGANG DURCH RECHTSANWALT PRÜFEN UND FREIGEBEN
+    @if ($anschriftFehlt)
+        <div class="mt-6">
+            <x-hvm.alert variant="warning" title="Rechnungsanschrift fehlt noch">
+                Für die Rechnung der Hausverwaltung Müller GmbH benötigen wir Ihre vollständige Rechnungsanschrift
+                (Straße und Hausnummer, Postleitzahl, Ort). Bitte ergänzen Sie sie unter
+                <a href="{{ route('portal.konto.edit') }}" class="font-semibold underline">Konto</a>, bevor Sie die
+                Zahlung einleiten. Eine festgeschriebene Rechnung kann nachträglich nicht geändert werden.
+            </x-hvm.alert>
+        </div>
+    @endif
 
-        Die folgenden beiden Texte sind Platzhalterfassungen. Sie stehen in
-        App\Application\Payment\CheckoutTexts, damit genau der angezeigte
-        Wortlaut protokolliert und gehasht wird (Abschnitt 2.3). Die gesonderte
-        Zustimmung zur sofortigen Vertragsausfuehrung ist NICHT vorangekreuzt.
-    --}}
-    <x-hvm.card class="mt-8" title="Ihre Zustimmungen">
-        <x-hvm.legal-placeholder-banner />
+    @if ($preis !== null)
+        {{--
+            VOR LIVEGANG DURCH RECHTSANWALT PRÜFEN UND FREIGEBEN
 
-        <form method="POST" action="{{ route('portal.checkout.store', ['billingRun' => $lauf->getKey()]) }}"
-              class="mt-6 space-y-5">
-            @csrf
+            Die folgenden beiden Texte sind Platzhalterfassungen. Sie stehen in
+            App\Application\Payment\CheckoutTexts, damit genau der angezeigte
+            Wortlaut protokolliert und gehasht wird (Abschnitt 2.3). Die gesonderte
+            Zustimmung zur sofortigen Vertragsausfuehrung ist NICHT vorangekreuzt.
+        --}}
+        <x-hvm.card class="mt-8" title="Ihre Zustimmungen">
+            <x-hvm.legal-placeholder-banner />
 
-            <div class="flex items-start gap-3">
-                <input id="sofortige_ausfuehrung" name="sofortige_ausfuehrung" type="checkbox" value="1"
-                       class="mt-1 h-5 w-5 rounded border-hvm-mittelgrau">
-                <label for="sofortige_ausfuehrung" class="text-sm text-hvm-textschwarz">
-                    {{ $textSofortigeAusfuehrung }}
-                </label>
-            </div>
+            <form method="POST" action="{{ route('portal.checkout.store', ['billingRun' => $lauf->getKey()]) }}"
+                  class="mt-6 space-y-5">
+                @csrf
 
-            @error('sofortige_ausfuehrung')
-                <p class="text-sm font-semibold text-status-error">{{ $message }}</p>
-            @enderror
+                <div class="flex items-start gap-3">
+                    <input id="sofortige_ausfuehrung" name="sofortige_ausfuehrung" type="checkbox" value="1"
+                           class="mt-1 h-5 w-5 rounded border-hvm-mittelgrau">
+                    <label for="sofortige_ausfuehrung" class="text-sm text-hvm-textschwarz">
+                        {{ $textSofortigeAusfuehrung }}
+                    </label>
+                </div>
 
-            <div class="flex items-start gap-3">
-                <input id="vertragsgrundlagen" name="vertragsgrundlagen" type="checkbox" value="1"
-                       class="mt-1 h-5 w-5 rounded border-hvm-mittelgrau">
-                <label for="vertragsgrundlagen" class="text-sm text-hvm-textschwarz">
-                    {{ $textVertragsgrundlagen }}
-                </label>
-            </div>
+                @error('sofortige_ausfuehrung')
+                    <p class="text-sm font-semibold text-status-error">{{ $message }}</p>
+                @enderror
 
-            @error('vertragsgrundlagen')
-                <p class="text-sm font-semibold text-status-error">{{ $message }}</p>
-            @enderror
+                <div class="flex items-start gap-3">
+                    <input id="vertragsgrundlagen" name="vertragsgrundlagen" type="checkbox" value="1"
+                           class="mt-1 h-5 w-5 rounded border-hvm-mittelgrau">
+                    <label for="vertragsgrundlagen" class="text-sm text-hvm-textschwarz">
+                        {{ $textVertragsgrundlagen }}
+                    </label>
+                </div>
 
-            <p class="text-xs text-hvm-anthrazit">
-                Textfassung {{ $textfassung }}. Ihre Zustimmung wird mit Zeitpunkt, gekürzter IP-Adresse und
-                gehashtem Browserkennzeichen protokolliert.
-            </p>
+                @error('vertragsgrundlagen')
+                    <p class="text-sm font-semibold text-status-error">{{ $message }}</p>
+                @enderror
 
-            <div class="flex flex-wrap gap-3">
-                <x-hvm.button type="submit" variant="primary" size="lg">
-                    Kostenpflichtig zahlen: {{ $preis->gross()->format() }}
-                </x-hvm.button>
+                <p class="text-xs text-hvm-anthrazit">
+                    Textfassung {{ $textfassung }}. Ihre Zustimmung wird mit Zeitpunkt, gekürzter IP-Adresse und
+                    gehashtem Browserkennzeichen protokolliert.
+                </p>
 
-                <x-hvm.button href="{{ route('portal.abrechnungen.show', ['billingRun' => $lauf->getKey()]) }}"
-                              variant="secondary">
-                    Zurück zur Abrechnung
-                </x-hvm.button>
-            </div>
-        </form>
-    </x-hvm.card>
+                <div class="flex flex-wrap gap-3">
+                    <x-hvm.button type="submit" variant="primary" size="lg">
+                        Kostenpflichtig zahlen: {{ $preis->gross()->format() }}
+                    </x-hvm.button>
+
+                    <x-hvm.button href="{{ route('portal.abrechnungen.show', ['billingRun' => $lauf->getKey()]) }}"
+                                  variant="secondary">
+                        Zurück zur Abrechnung
+                    </x-hvm.button>
+                </div>
+            </form>
+        </x-hvm.card>
+    @else
+        <div class="mt-8">
+            <x-hvm.button href="{{ route('portal.abrechnungen.show', ['billingRun' => $lauf->getKey()]) }}"
+                          variant="secondary">
+                Zurück zur Abrechnung
+            </x-hvm.button>
+        </div>
+    @endif
 
     <p class="mt-8 text-sm text-hvm-anthrazit">
         Die Zahlung läuft über die gehostete Zahlungsseite von Stripe. An den Zahlungsanbieter werden ausschließlich
@@ -165,14 +198,13 @@
 
     @if ($rechnungsblocker['blockiert'])
         {{--
-            Sichtbarer Hinweis fuer den internen Betrieb. Solange
-            Pflichtangaben fehlen, wird keine produktive Rechnung erzeugt
-            (Abschnitt 15.2).
+            Kundenansicht. Die fehlenden Betreiberangaben selbst werden hier
+            nicht genannt; sie sind eine interne Angabe des Betriebs und im
+            Adminbereich sichtbar (Abschnitt 15.2).
         --}}
-        <div class="mt-6">
-            <x-hvm.alert variant="warning" title="Hinweis zur Rechnungsstellung">
-                {{ $rechnungsblocker['hinweis'] }}
-            </x-hvm.alert>
-        </div>
+        <p class="mt-4 text-sm text-hvm-anthrazit">
+            Die Rechnung der Hausverwaltung Müller GmbH zu Ihrer Zahlung wird Ihnen nachgereicht und im
+            Abschlussbereich Ihres Kontos bereitgestellt.
+        </p>
     @endif
 @endsection

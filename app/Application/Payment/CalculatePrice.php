@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Application\Payment;
 
 use App\Application\Payment\Dto\PriceQuote;
-use App\Application\Payment\Dto\VatDecomposition;
 use App\Application\Payment\Exceptions\PriceNotPayableException;
 use App\Enums\UnitStatementStatus;
 use App\Models\BillingRun;
@@ -28,8 +27,10 @@ use App\Models\UnitStatement;
  *     zulaessige Korridor der Adminkonfiguration wird geprueft; ein Preis
  *     ausserhalb des Korridors wird als Konfigurationsfehler gemeldet und
  *     nicht stillschweigend abgerundet.
- *  4. Angezeigt wird der Bruttopreis. Netto und Umsatzsteuer werden aus dem
- *     Brutto zurueckgerechnet, siehe VatDecomposition.
+ *  4. Angezeigt wird der Bruttopreis. Netto und Umsatzsteuer werden je
+ *     Einzelpreis aus dem Brutto zurueckgerechnet und aufsummiert, siehe
+ *     PriceQuote::fromGrossComponents() und VatDecomposition. Anzahl mal
+ *     Nettoeinzelpreis ergibt damit exakt den Positionsnettobetrag.
  *
  * Der berechnete Stand wird auf dem Lauf vermerkt (price_* Spalten), damit der
  * Webhook spaeter Betrag und Anzahl gegen den Lauf pruefen kann.
@@ -63,11 +64,23 @@ final class CalculatePrice
 
     /**
      * Anzahl der tatsaechlich erzeugten Mieterabrechnungen des Laufs.
+     *
+     * Gezaehlt wird ausschliesslich der AKTIVE Berechnungsstand
+     * (active_calculation_snapshot_id). Abrechnungen frueherer Staende, deren
+     * Mietverhaeltnis im aktuellen Ergebnis nicht mehr vorkommt, zaehlen nicht;
+     * sie werden auch nicht ausgeliefert. Ohne aktiven Stand ist die Anzahl 0.
      */
     public function statementCount(BillingRun $billingRun): int
     {
+        $snapshotId = $billingRun->getAttribute('active_calculation_snapshot_id');
+
+        if (! is_string($snapshotId) || $snapshotId === '') {
+            return 0;
+        }
+
         return UnitStatement::query()
             ->where('billing_run_id', $billingRun->getKey())
+            ->where('calculation_snapshot_id', $snapshotId)
             ->where('status', '!=', UnitStatementStatus::ERSETZT->value)
             ->count();
     }
@@ -101,19 +114,7 @@ final class CalculatePrice
 
         $this->assertWithinAdminRange($unit);
 
-        $gross = $count * $unit + $base;
-        $vat = VatDecomposition::fromGross($gross, $rate);
-
-        return new PriceQuote(
-            $count,
-            $unit,
-            $base,
-            $gross,
-            $vat->netCent,
-            $vat->taxCent,
-            $rate,
-            $this->currency(),
-        );
+        return PriceQuote::fromGrossComponents($count, $unit, $base, $rate, $this->currency());
     }
 
     /**

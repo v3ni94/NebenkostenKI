@@ -16,8 +16,12 @@ use App\Domain\Money\Money;
  *     Wohnung. Bei einem Mieterwechsel entstehen je Einheit mehrere.
  *  2. Der Verbraucherpreis ist der Bruttopreis. Netto, Umsatzsteuer und Brutto
  *     werden getrennt ausgewiesen.
- *  3. Gerechnet wird aus dem Brutto zurueck. Netto plus Steuer ergibt daher
- *     immer exakt den Bruttobetrag; eine Rundungsdifferenz liegt in der Steuer.
+ *  3. Gerechnet wird aus dem Brutto zurueck, und zwar je Einzelpreis: der
+ *     Nettoeinzelpreis wird aus dem Bruttoeinzelpreis gebildet, der
+ *     Positionsnettobetrag ist Anzahl mal Nettoeinzelpreis, die Steuer ist die
+ *     Differenz zum Brutto. Netto plus Steuer ergibt daher immer exakt den
+ *     Bruttobetrag, und die Rechnungsposition ist rechnerisch nachvollziehbar;
+ *     eine Rundungsdifferenz liegt ausschliesslich in der Steuer.
  *  4. Die Werte stammen ausschliesslich aus der Datenbank und der
  *     Konfiguration, niemals aus einem Formular.
  */
@@ -33,6 +37,39 @@ final readonly class PriceQuote
         public string $vatRatePercent,
         public string $currency,
     ) {}
+
+    /**
+     * Zerlegung aus Anzahl, Bruttoeinzelpreis und Bruttogrundpreis.
+     *
+     * Netto = Anzahl mal netto(Einzelpreis) plus netto(Grundpreis),
+     * Steuer = Brutto minus Netto.
+     */
+    public static function fromGrossComponents(
+        int $statementCount,
+        int $unitGrossCent,
+        int $baseGrossCent,
+        string $vatRatePercent,
+        string $currency,
+    ): self {
+        $count = max(0, $statementCount);
+        $base = max(0, $baseGrossCent);
+        $gross = $count * $unitGrossCent + $base;
+
+        $unitNet = VatDecomposition::netOf($unitGrossCent, $vatRatePercent);
+        $baseNet = $base === 0 ? 0 : VatDecomposition::netOf($base, $vatRatePercent);
+        $net = $count * $unitNet + $baseNet;
+
+        return new self(
+            $count,
+            $unitGrossCent,
+            $base,
+            $gross,
+            $net,
+            $gross - $net,
+            VatDecomposition::fromGross(0, $vatRatePercent)->ratePercent,
+            $currency,
+        );
+    }
 
     public function gross(): Money
     {
@@ -60,11 +97,9 @@ final readonly class PriceQuote
     }
 
     /**
-     * Nettoeinzelpreis je Abrechnung fuer die Rechnungsposition.
-     *
-     * Der Wert wird ausschliesslich fuer die Positionsdarstellung gebildet. Die
-     * Summen der Rechnung stammen aus netCent, taxCent und grossCent, damit die
-     * Rechnung in jedem Fall aufgeht.
+     * Nettoeinzelpreis je Abrechnung fuer die Rechnungsposition, aus dem
+     * Bruttoeinzelpreis zurueckgerechnet. Anzahl mal diesem Wert ergibt den
+     * Positionsnettobetrag netCent minus baseNetCent().
      */
     public function unitNetCent(): int
     {
@@ -72,7 +107,7 @@ final readonly class PriceQuote
             return 0;
         }
 
-        return intdiv($this->netCent - $this->baseNetCent(), $this->statementCount);
+        return VatDecomposition::netOf($this->unitGrossCent, $this->vatRatePercent);
     }
 
     /**
@@ -98,6 +133,7 @@ final readonly class PriceQuote
     public function isConsistent(): bool
     {
         return $this->netCent + $this->taxCent === $this->grossCent
-            && $this->statementCount * $this->unitGrossCent + $this->baseGrossCent === $this->grossCent;
+            && $this->statementCount * $this->unitGrossCent + $this->baseGrossCent === $this->grossCent
+            && $this->statementCount * $this->unitNetCent() + $this->baseNetCent() === $this->netCent;
     }
 }

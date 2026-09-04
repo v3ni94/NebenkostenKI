@@ -138,3 +138,17 @@ Schedule::command('smartabrechnen:enforce-retention')
     ->withoutOverlapping(60)
     ->runInBackground()
     ->description('Setzt die Aufbewahrungsfristen für Extraktionsdaten und erzeugte PDFs durch.');
+
+// --- Nachlauf nach bestaetigter Zahlung --------------------------------------
+//
+// Ein Kunde, der bezahlt hat, muss seine Leistung erhalten. Scheitert die
+// Finalisierung im Webhook (etwa Artefaktspeicher nicht erreichbar), bleibt
+// der Lauf bezahlt in FAILED; fehlen die Betreiberstammdaten, bleibt ein
+// finalisierter Lauf ohne Rechnung. Beides wird hier regelmaessig nachgeholt.
+// Der Lauf ist idempotent; offene Faelle bleiben im Adminbereich sichtbar.
+
+Schedule::command('smartabrechnen:retry-finalization', ['--batch=25'])
+    ->everyFifteenMinutes()
+    ->withoutOverlapping(15)
+    ->runInBackground()
+    ->description('Holt Finalisierung und Rechnung für bezahlte Abrechnungsläufe nach.');

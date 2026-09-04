@@ -127,6 +127,14 @@
         </x-hvm.card>
     @endif
 
+    <x-hvm.card class="mt-6" title="Korrektur nach Zahlung">
+        <p class="text-sm text-hvm-textschwarz">
+            Ein abgeschlossener Abrechnungslauf wird nicht mehr verändert. Stellen Sie nach der Zahlung einen Fehler
+            fest, legen Sie bitte einen neuen Abrechnungslauf für dasselbe Objekt und denselben Zeitraum an. Er wird
+            regulär berechnet und bezahlt; die hier bereitgestellten Dateien bleiben unverändert erhalten.
+        </p>
+    </x-hvm.card>
+
     <p class="mt-8 text-sm text-hvm-anthrazit">
         Bitte bewahren Sie Ihre Originalrechnungen, Bescheide und Mietverträge selbst auf. Sie werden für eine
         mögliche Belegeinsicht Ihrer Mieter benötigt und liegen nicht in diesem Konto.

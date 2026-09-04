@@ -256,7 +256,6 @@ Checkliste, auch für das, was technisch nicht selbst erkennbar ist.
 | blockierend | Uploads | `MALWARE_SCANNER_DRIVER=disabled`; zu entscheiden ist `clamav`, `external` oder eine schriftliche Risikobewertung | Betreiber |
 | blockierend | Recht | Impressum, Datenschutzerklärung, AGB und Widerrufsbelehrung sind Platzhalterfassungen | Betreiber über die beauftragte Kanzlei |
 | blockierend | Gestaltung | in `public/ci` fehlt `Logo_HVM.svg` oder `Logo_HVM.jpg` | Betreiber; es wird kein Logo erzeugt oder nachgezeichnet |
-| Entscheidung | Preis | `PRICE_CORRECTION_FREE_DAYS` ist nicht gesetzt, es gilt der Standard von null Tagen kostenfreier Korrektur | Geschäftsführung, kaufmännische Entscheidung |
 
 Nicht als Blocker erkennbar, weil erst am Zielsystem prüfbar, dafür im
 Admin-Healthcheck sichtbar: MariaDB-Serverversion, Schreibbarkeit der
@@ -299,8 +298,9 @@ die Abnahme anonymisierter Musterabrechnungen.
       Ergebnis-PDFs; Kurzzeit-TTL für Originaluploads höchstens 120 Minuten
 - [ ] Entscheidung zum Malware-Scanner (`clamav`, `external` oder bewusst
       `disabled` mit dokumentierter Risikobewertung)
-- [ ] Entscheidung zur kostenfreien Korrekturfrist nach der Zahlung
-      (`PRICE_CORRECTION_FREE_DAYS`); ohne Entscheidung gilt null Tage
+- [x] Korrektur nach Zahlung: zum Start nicht verfügbar, Korrekturen erfolgen
+      über einen neuen Abrechnungslauf (`PRICE_CORRECTION_FREE_DAYS` ist ohne
+      Wirkung und als Vorbereitung im Code belassen)
 
 ### Gestaltung und Abnahme
 
