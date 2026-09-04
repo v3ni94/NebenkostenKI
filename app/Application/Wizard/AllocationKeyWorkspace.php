@@ -25,10 +25,12 @@ use App\Models\ManualOverride;
 use App\Models\Tenancy;
 use App\Models\Unit;
 use App\Models\User;
+use App\Models\VacancyPeriod;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Schritt 8 des geführten Ablaufs: Verteilerschlüssel und Verbrauch.
@@ -44,16 +46,26 @@ use Illuminate\Support\Facades\DB;
  *     stillschweigenden Gleichlauf. WEG-Schlüssel und mietvertraglicher
  *     Umlageschlüssel werden nicht gleichgesetzt.
  *  4. Verbrauch bei Nutzerwechsel ohne Zwischenablesung: keine stille
- *     Schätzung. Eine Ersatzverteilung ist ausdrücklich zu bestätigen und wird
- *     protokolliert.
+ *     Schätzung. Der Verbrauch wird je Einheit als Jahreswert erfasst; je
+ *     Mietverhältnis kann zusätzlich eine Zwischenablesung eingetragen
+ *     werden. Liegen bei Nutzerwechsel nicht für alle Mietverhältnisse
+ *     Zwischenablesungen vor, ist eine Ersatzverteilung ausdrücklich zu
+ *     bestätigen und wird protokolliert.
  *  5. Dezimalwerte werden als Zeichenkette geführt und mit brick/math
  *     gerechnet, niemals als float (ADR-004).
+ *  6. Gespeichert werden nur Werte für Einheiten und Mietverhältnisse dieses
+ *     Objekts. Ein aus dem Vorjahr übernommener Schlüssel gilt erst nach
+ *     erneuter Bestätigung, also nach dem Speichern dieses Schritts.
  */
 final class AllocationKeyWorkspace
 {
     public const string AUDIT_ACTION = 'billing_run.allocation_keys_saved';
 
     public const string AUDIT_SUBSTITUTE = 'billing_run.substitute_distribution_confirmed';
+
+    private const string PARTICIPANT_UNIT = 'unit';
+
+    private const string PARTICIPANT_TENANCY = 'tenancy';
 
     public function __construct(private readonly AuditRecorder $audit) {}
 
@@ -64,6 +76,7 @@ final class AllocationKeyWorkspace
     {
         $billingRun->loadMissing([
             'property.units.tenancies',
+            'property.units.vacancyPeriods',
             'costItems.costCategory',
             'allocationKeys.values',
         ]);
@@ -130,12 +143,20 @@ final class AllocationKeyWorkspace
 
         $scope = BillingRunInputAssembler::scopeOf($type);
         $isUnitScope = $scope === AllocationKeyScope::UNIT;
+        $needsSubstitute = false;
 
-        $values = $isUnitScope
-            ? $this->unitValues($billingRun, $record, $type)
-            : $this->occupancyValues($billingRun, $record);
+        if ($type === AllocationKeyType::VERBRAUCH) {
+            $consumption = $this->consumptionValues($billingRun, $record);
+            $values = $consumption['rows'];
+            $sum = $consumption['sum'];
+            $needsSubstitute = $consumption['unconfirmedUnits'] !== [];
+        } else {
+            $values = $isUnitScope
+                ? $this->unitValues($billingRun, $record, $type)
+                : $this->occupancyValues($billingRun, $record);
+            $sum = $this->sum($values);
+        }
 
-        $sum = $this->sum($values);
         $denominator = $this->denominator($record, $sum);
 
         return new AllocationKeyRow(
@@ -157,7 +178,7 @@ final class AllocationKeyWorkspace
                 )
                 : null,
             $record?->measurement_unit,
-            $type === AllocationKeyType::VERBRAUCH && $this->needsSubstituteConfirmation($billingRun),
+            $needsSubstitute,
         );
     }
 
@@ -244,15 +265,7 @@ final class AllocationKeyWorkspace
      */
     private function unitValues(BillingRun $billingRun, ?AllocationKey $record, AllocationKeyType $type): array
     {
-        $stored = [];
-
-        if ($record instanceof AllocationKey) {
-            foreach ($record->values as $value) {
-                if ($value->unit_id !== null) {
-                    $stored[$value->unit_id] = [$value->numerator, $value->source->label()];
-                }
-            }
-        }
+        $stored = $this->storedValues($record)[self::PARTICIPANT_UNIT];
 
         $rows = [];
 
@@ -278,25 +291,12 @@ final class AllocationKeyWorkspace
      */
     private function occupancyValues(BillingRun $billingRun, ?AllocationKey $record): array
     {
-        $stored = [];
-
-        if ($record instanceof AllocationKey) {
-            foreach ($record->values as $value) {
-                if ($value->tenancy_id !== null) {
-                    $stored[$value->tenancy_id] = [$value->numerator, $value->source->label()];
-                }
-            }
-        }
-
-        $period = new DatePeriodRange($billingRun->period_start, $billingRun->period_end);
+        $stored = $this->storedValues($record)[self::PARTICIPANT_TENANCY];
+        $period = $this->period($billingRun);
         $rows = [];
 
         foreach ($this->units($billingRun) as $unit) {
-            foreach ($unit->tenancies as $tenancy) {
-                if (! $this->overlaps($tenancy, $period)) {
-                    continue;
-                }
-
+            foreach ($this->overlappingTenancies($unit, $period) as $tenancy) {
                 $tenancyId = (string) $tenancy->getKey();
                 $entry = $stored[$tenancyId] ?? null;
 
@@ -311,6 +311,142 @@ final class AllocationKeyWorkspace
         }
 
         return $rows;
+    }
+
+    /**
+     * Verbrauchsschlüssel: je Einheit der Jahresverbrauch, bei Nutzerwechsel
+     * (mehr als ein Nutzungszeitraum aus Mietverhältnissen und erfassten
+     * Leerständen) zusätzlich je Mietverhältnis eine optionale
+     * Zwischenablesung.
+     *
+     * Vollständig ist eine Einheit, wenn ihr Jahresverbrauch erfasst ist oder
+     * für jedes Mietverhältnis eine Zwischenablesung vorliegt. Bei
+     * Nutzerwechsel ohne vollständige Zwischenablesungen wird der
+     * Jahresverbrauch nur mit ausdrücklich bestätigter Ersatzverteilung
+     * aufgeteilt.
+     *
+     * @return array{rows: list<AllocationValueRow>, sum: BigDecimal, unconfirmedUnits: list<Unit>}
+     */
+    private function consumptionValues(BillingRun $billingRun, ?AllocationKey $record): array
+    {
+        $stored = $this->storedValues($record);
+        $period = $this->period($billingRun);
+        $confirmed = $this->confirmedSubstituteUnits($billingRun);
+
+        $rows = [];
+        $sum = BigDecimal::zero();
+        $unconfirmed = [];
+
+        foreach ($this->units($billingRun) as $unit) {
+            $unitId = (string) $unit->getKey();
+            $tenancies = $this->overlappingTenancies($unit, $period);
+            $participants = count($tenancies) + $this->overlappingVacancyCount($unit, $period);
+
+            $unitEntry = $stored[self::PARTICIPANT_UNIT][$unitId] ?? null;
+            $unitValue = is_string($unitEntry[0] ?? null) ? trim((string) $unitEntry[0]) : null;
+
+            $tenancyRows = [];
+            $readingsComplete = $tenancies !== [];
+            $readingSum = BigDecimal::zero();
+
+            foreach ($tenancies as $tenancy) {
+                $tenancyId = (string) $tenancy->getKey();
+                $entry = $stored[self::PARTICIPANT_TENANCY][$tenancyId] ?? null;
+                $value = is_string($entry[0] ?? null) ? trim((string) $entry[0]) : null;
+
+                if ($value === null || $value === '') {
+                    $readingsComplete = false;
+                } else {
+                    $readingSum = $readingSum->plus(BigDecimal::of($this->normalize($value)));
+                }
+
+                $tenancyRows[] = new AllocationValueRow(
+                    $tenancyId,
+                    sprintf('%s, %s, Zwischenablesung', $unit->label, $tenancy->tenant_display_name),
+                    $value === '' ? null : $value,
+                    false,
+                    $entry[1] ?? null,
+                    true,
+                );
+            }
+
+            if ($participants <= 1) {
+                // Kein Nutzerwechsel: ein Wert je Einheit. Ein bereits für das
+                // einzige Mietverhältnis gespeicherter Wert gilt weiter.
+                $single = $tenancyRows[0] ?? null;
+                $value = $unitValue !== null && $unitValue !== '' ? $unitValue : $single?->value;
+                $herkunft = $unitValue !== null && $unitValue !== '' ? ($unitEntry[1] ?? null) : $single?->herkunft;
+
+                $rows[] = new AllocationValueRow(
+                    $unitId,
+                    sprintf('%s, Verbrauch der Einheit', $unit->label),
+                    $value,
+                    true,
+                    $herkunft,
+                );
+
+                if ($value !== null) {
+                    $sum = $sum->plus(BigDecimal::of($this->normalize($value)));
+                }
+
+                continue;
+            }
+
+            $rows[] = new AllocationValueRow(
+                $unitId,
+                sprintf('%s, Jahresverbrauch der Einheit', $unit->label),
+                $unitValue === '' ? null : $unitValue,
+                true,
+                $unitEntry[1] ?? null,
+                $readingsComplete,
+            );
+
+            foreach ($tenancyRows as $tenancyRow) {
+                $rows[] = $tenancyRow;
+            }
+
+            if ($readingsComplete) {
+                $sum = $sum->plus($readingSum);
+
+                continue;
+            }
+
+            if ($unitValue !== null && $unitValue !== '') {
+                $sum = $sum->plus(BigDecimal::of($this->normalize($unitValue)));
+            }
+
+            if (! in_array($unitId, $confirmed, true)) {
+                $unconfirmed[] = $unit;
+            }
+        }
+
+        return ['rows' => $rows, 'sum' => $sum, 'unconfirmedUnits' => $unconfirmed];
+    }
+
+    /**
+     * Gespeicherte Zähler je Einheit und je Mietverhältnis mit Herkunft.
+     *
+     * @return array{unit: array<string, array{0: string|null, 1: string}>, tenancy: array<string, array{0: string|null, 1: string}>}
+     */
+    private function storedValues(?AllocationKey $record): array
+    {
+        $stored = [self::PARTICIPANT_UNIT => [], self::PARTICIPANT_TENANCY => []];
+
+        if (! $record instanceof AllocationKey) {
+            return $stored;
+        }
+
+        foreach ($record->values as $value) {
+            if ($value->unit_id !== null) {
+                $stored[self::PARTICIPANT_UNIT][$value->unit_id] = [$value->numerator, $value->source->label()];
+            }
+
+            if ($value->tenancy_id !== null) {
+                $stored[self::PARTICIPANT_TENANCY][$value->tenancy_id] = [$value->numerator, $value->source->label()];
+            }
+        }
+
+        return $stored;
     }
 
     private function masterValue(Unit $unit, AllocationKeyType $type): ?string
@@ -334,14 +470,23 @@ final class AllocationKeyWorkspace
     /**
      * Speichert die Auswahl und die Werte je Beteiligtem.
      *
+     * Beteiligte, die nicht zu diesem Abrechnungslauf gehören, führen zu einem
+     * Validierungsfehler; es wird nichts gespeichert. Werte für Beteiligte
+     * des Laufs, die zur Bezugsebene des gewählten Schlüssels nicht passen
+     * (zum Beispiel Werte je Einheit nach Wechsel auf einen Schlüssel je
+     * Mietverhältnis), werden nicht übernommen.
+     *
      * @param  array<string, array{key_type?: string, nenner?: string|null, masseinheit?: string|null, werte?: array<string, string|null>}>  $eingaben
      */
     public function save(BillingRun $billingRun, User $actor, array $eingaben): int
     {
         $rows = $this->rows($billingRun);
+        $participants = $this->participants($billingRun);
+        $this->assertKnownParticipants($rows, $eingaben, $participants);
+
         $gespeichert = 0;
 
-        DB::transaction(function () use ($billingRun, $actor, $eingaben, $rows, &$gespeichert): void {
+        DB::transaction(function () use ($billingRun, $actor, $eingaben, $rows, $participants, &$gespeichert): void {
             foreach ($rows as $row) {
                 $eingabe = $eingaben[$row->categoryId] ?? null;
 
@@ -377,18 +522,22 @@ final class AllocationKeyWorkspace
                         : null,
                 ]);
 
-                $isUnitScope = BillingRunInputAssembler::scopeOf($type) === AllocationKeyScope::UNIT;
-
                 foreach ($eingabe['werte'] ?? [] as $participantId => $wert) {
                     if (! is_string($wert) || trim($wert) === '') {
+                        continue;
+                    }
+
+                    $kind = $this->participantKind($type, $participants[(string) $participantId] ?? null);
+
+                    if ($kind === null) {
                         continue;
                     }
 
                     AllocationKeyValue::query()->create([
                         'organization_id' => $billingRun->getAttribute('organization_id'),
                         'allocation_key_id' => $key->getKey(),
-                        'unit_id' => $isUnitScope ? (string) $participantId : null,
-                        'tenancy_id' => $isUnitScope ? null : (string) $participantId,
+                        'unit_id' => $kind === self::PARTICIPANT_UNIT ? (string) $participantId : null,
+                        'tenancy_id' => $kind === self::PARTICIPANT_TENANCY ? (string) $participantId : null,
                         'numerator' => $this->normalize($wert),
                         'source' => ValueSource::MANUELL,
                     ]);
@@ -409,6 +558,84 @@ final class AllocationKeyWorkspace
         );
 
         return $gespeichert;
+    }
+
+    /**
+     * Einheiten und Mietverhältnisse des Objekts als zulässige Beteiligte.
+     *
+     * @return array<string, string> Kennung => Art des Beteiligten
+     */
+    private function participants(BillingRun $billingRun): array
+    {
+        $participants = [];
+
+        foreach ($this->units($billingRun) as $unit) {
+            $participants[(string) $unit->getKey()] = self::PARTICIPANT_UNIT;
+
+            foreach ($unit->tenancies as $tenancy) {
+                $participants[(string) $tenancy->getKey()] = self::PARTICIPANT_TENANCY;
+            }
+        }
+
+        return $participants;
+    }
+
+    /**
+     * Art des Beteiligten, sofern sie zur Bezugsebene des Schlüssels passt.
+     */
+    private function participantKind(AllocationKeyType $type, ?string $kind): ?string
+    {
+        if ($kind === null) {
+            return null;
+        }
+
+        if ($type === AllocationKeyType::VERBRAUCH) {
+            return $kind;
+        }
+
+        $expected = BillingRunInputAssembler::scopeOf($type) === AllocationKeyScope::UNIT
+            ? self::PARTICIPANT_UNIT
+            : self::PARTICIPANT_TENANCY;
+
+        return $kind === $expected ? $kind : null;
+    }
+
+    /**
+     * @param  list<AllocationKeyRow>  $rows
+     * @param  array<string, array{key_type?: string, nenner?: string|null, masseinheit?: string|null, werte?: array<string, string|null>}>  $eingaben
+     * @param  array<string, string>  $participants
+     *
+     * @throws ValidationException
+     */
+    private function assertKnownParticipants(array $rows, array $eingaben, array $participants): void
+    {
+        $errors = [];
+
+        foreach ($rows as $row) {
+            $eingabe = $eingaben[$row->categoryId] ?? null;
+
+            if ($eingabe === null) {
+                continue;
+            }
+
+            foreach ($eingabe['werte'] ?? [] as $participantId => $wert) {
+                if (! is_string($wert) || trim($wert) === '') {
+                    continue;
+                }
+
+                if (! array_key_exists((string) $participantId, $participants)) {
+                    $errors[sprintf('kostenarten.%s.werte.%s', $row->categoryId, $participantId)] = sprintf(
+                        'Kostenart %s: Der Beteiligte gehört nicht zu diesem Abrechnungslauf. Es wurde nichts '
+                        .'gespeichert.',
+                        $row->categoryLabel
+                    );
+                }
+            }
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
     }
 
     /**
@@ -442,17 +669,48 @@ final class AllocationKeyWorkspace
     }
 
     /**
-     * Einheiten mit mehr als einem Nutzungszeitraum, für die noch keine
-     * Bestätigung vorliegt.
+     * Einheiten mit Nutzerwechsel, für die ein Verbrauchsschlüssel ohne
+     * vollständige Zwischenablesungen gilt und noch keine Bestätigung der
+     * Ersatzverteilung vorliegt.
      *
      * @return list<Unit>
      */
     public function unitsNeedingSubstituteConfirmation(BillingRun $billingRun): array
     {
-        $billingRun->loadMissing('property.units.tenancies');
+        $billingRun->loadMissing([
+            'property.units.tenancies',
+            'property.units.vacancyPeriods',
+            'costItems.costCategory',
+            'allocationKeys.values',
+        ]);
 
-        $period = new DatePeriodRange($billingRun->period_start, $billingRun->period_end);
+        /** @var array<string, Unit> $units */
+        $units = [];
 
+        foreach ($this->categories($billingRun) as $category) {
+            $categoryId = (string) $category->getKey();
+            $record = $this->storedKey($billingRun, $categoryId);
+            $type = $record instanceof AllocationKey
+                ? $record->key_type
+                : $this->suggest($billingRun, $category, $this->contractKeyType($billingRun, $categoryId))[0];
+
+            if ($type !== AllocationKeyType::VERBRAUCH) {
+                continue;
+            }
+
+            foreach ($this->consumptionValues($billingRun, $record)['unconfirmedUnits'] as $unit) {
+                $units[(string) $unit->getKey()] = $unit;
+            }
+        }
+
+        return array_values($units);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function confirmedSubstituteUnits(BillingRun $billingRun): array
+    {
         /** @var list<string> $confirmed */
         $confirmed = ManualOverride::query()
             ->where('billing_run_id', $billingRun->getKey())
@@ -460,30 +718,11 @@ final class AllocationKeyWorkspace
             ->where('field', BillingRunInputAssembler::SUBSTITUTE_FIELD)
             ->pluck('subject_id')
             ->map(static fn (mixed $id): string => is_string($id) ? $id : '')
+            ->filter(static fn (string $id): bool => $id !== '')
+            ->values()
             ->all();
 
-        $units = [];
-
-        foreach ($this->units($billingRun) as $unit) {
-            $count = 0;
-
-            foreach ($unit->tenancies as $tenancy) {
-                if ($this->overlaps($tenancy, $period)) {
-                    $count++;
-                }
-            }
-
-            if ($count > 1 && ! in_array((string) $unit->getKey(), $confirmed, true)) {
-                $units[] = $unit;
-            }
-        }
-
-        return $units;
-    }
-
-    private function needsSubstituteConfirmation(BillingRun $billingRun): bool
-    {
-        return $this->unitsNeedingSubstituteConfirmation($billingRun) !== [];
+        return $confirmed;
     }
 
     /**
@@ -514,6 +753,18 @@ final class AllocationKeyWorkspace
                 $reasons[] = sprintf(
                     'Kostenart %s: Für eine Einheit mit Nutzerwechsel liegt keine Zwischenablesung vor. Bitte '
                     .'bestätigen Sie die Ersatzverteilung ausdrücklich.',
+                    $row->categoryLabel
+                );
+            }
+
+            $record = $this->storedKey($billingRun, $row->categoryId);
+
+            if ($record instanceof AllocationKey
+                && $record->source === AllocationKeySource::VORJAHR
+                && ! $record->confirmed_at instanceof Carbon) {
+                $reasons[] = sprintf(
+                    'Kostenart %s: Der Verteilerschlüssel ist aus dem Vorjahr übernommen und noch nicht bestätigt. '
+                    .'Bitte prüfen Sie Schlüssel und Werte und speichern Sie die Verteilerschlüssel.',
                     $row->categoryLabel
                 );
             }
@@ -559,7 +810,7 @@ final class AllocationKeyWorkspace
         $sum = BigDecimal::zero();
 
         foreach ($values as $value) {
-            if ($value->isMissing()) {
+            if (! $value->hasValue()) {
                 continue;
             }
 
@@ -604,6 +855,11 @@ final class AllocationKeyWorkspace
         return str_replace(',', '.', trim($value));
     }
 
+    private function period(BillingRun $billingRun): DatePeriodRange
+    {
+        return new DatePeriodRange($billingRun->period_start, $billingRun->period_end);
+    }
+
     private function overlaps(Tenancy $tenancy, DatePeriodRange $period): bool
     {
         $end = $tenancy->ends_on instanceof Carbon ? $tenancy->ends_on : $period->end;
@@ -613,6 +869,45 @@ final class AllocationKeyWorkspace
         }
 
         return $period->intersect(new DatePeriodRange($tenancy->starts_on, $end)) instanceof DatePeriodRange;
+    }
+
+    /**
+     * @return list<Tenancy>
+     */
+    private function overlappingTenancies(Unit $unit, DatePeriodRange $period): array
+    {
+        $tenancies = [];
+
+        foreach ($unit->tenancies as $tenancy) {
+            if ($this->overlaps($tenancy, $period)) {
+                $tenancies[] = $tenancy;
+            }
+        }
+
+        return $tenancies;
+    }
+
+    /**
+     * Erfasste Leerstände der Einheit im Abrechnungszeitraum. Sie sind
+     * Nutzungszeiträume des Eigentümers und zählen beim Nutzerwechsel mit.
+     */
+    private function overlappingVacancyCount(Unit $unit, DatePeriodRange $period): int
+    {
+        $count = 0;
+
+        foreach ($unit->vacancyPeriods as $vacancy) {
+            if (! $vacancy instanceof VacancyPeriod) {
+                continue;
+            }
+
+            $range = new DatePeriodRange($vacancy->starts_on, $vacancy->ends_on);
+
+            if ($period->intersect($range) instanceof DatePeriodRange) {
+                $count++;
+            }
+        }
+
+        return $count;
     }
 
     /**

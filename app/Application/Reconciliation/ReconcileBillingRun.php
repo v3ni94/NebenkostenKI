@@ -119,6 +119,23 @@ final class ReconcileBillingRun
             $categoryCodes = array_merge($categoryCodes, $this->categoryCodes($result));
         }
 
+        // Externe Heizkostenabrechnung (Fall A): die Einzelbetraege je Einheit
+        // werden als Heizkostenpositionen vorgeschlagen, weil die
+        // WEG-Summenposition in diesem Fall ausgeschlossen ist. Wie in der
+        // Matrix zaehlt die erste externe Abrechnung.
+        foreach ($documents as $document) {
+            if ($document->getAttribute('document_type') !== DocumentType::HEIZKOSTENABRECHNUNG) {
+                continue;
+            }
+
+            $result = $this->heating->proposals($billingRun, $document);
+
+            $created += count($this->writer->write($billingRun, $result));
+            $categoryCodes = array_merge($categoryCodes, $this->categoryCodes($result));
+
+            break;
+        }
+
         $propertyTaxOutcome = null;
 
         foreach ($documents as $document) {

@@ -11,6 +11,7 @@ use App\Domain\Allocation\ConsumptionKey;
 use App\Domain\Allocation\IndividualKey;
 use App\Domain\Allocation\PersonDaysKey;
 use App\Domain\Calculation\OccupancyKind;
+use App\Domain\Calculation\StatementCalculator;
 use App\Domain\Money\Money;
 use App\Enums\AllocationKeySource;
 use App\Enums\AllocationKeyType;
@@ -254,6 +255,118 @@ final class BillingRunInputAssemblerTest extends CalculationTestCase
         self::assertInstanceOf(PersonDaysKey::class, $schluessel);
         self::assertSame('1095', (string) $schluessel->numeratorFor((string) $szenario['tenancies'][0]->getKey()));
         self::assertSame('1825', (string) $schluessel->denominator());
+    }
+
+    public function test_personentage_ohne_personenangabe_eines_mietverhaeltnisses_brechen_ab(): void
+    {
+        $szenario = $this->szenario();
+
+        // Nur Mietpartei B hat einen Belegungszeitraum. Vorher erhielt A
+        // stillschweigend das Gewicht null und B trug 100 Prozent.
+        OccupancyPeriod::factory()->create([
+            'organization_id' => $szenario['organization']->getKey(),
+            'tenancy_id' => $szenario['tenancies'][1]->getKey(),
+            'starts_on' => '2025-01-01',
+            'ends_on' => '2025-12-31',
+            'person_count' => 2,
+        ]);
+
+        $szenario['key']->forceFill(['key_type' => AllocationKeyType::PERSONENTAGE, 'denominator' => null])->save();
+
+        $this->expectException(CalculationInputException::class);
+        $this->expectExceptionMessage('fehlen die Personenangaben des Mietverhältnisses Mietpartei A');
+
+        app(BillingRunInputAssembler::class)->assemble($szenario['billingRun']->refresh());
+    }
+
+    public function test_personentage_mit_luecke_im_belegungszeitraum_brechen_ab(): void
+    {
+        $szenario = $this->szenario();
+
+        foreach ($szenario['tenancies'] as $index => $mietverhaeltnis) {
+            OccupancyPeriod::factory()->create([
+                'organization_id' => $szenario['organization']->getKey(),
+                'tenancy_id' => $mietverhaeltnis->getKey(),
+                'starts_on' => '2025-01-01',
+                // Mietpartei A ist nur bis Ende Juni erfasst.
+                'ends_on' => $index === 0 ? '2025-06-30' : '2025-12-31',
+                'person_count' => 2,
+            ]);
+        }
+
+        $szenario['key']->forceFill(['key_type' => AllocationKeyType::PERSONENTAGE, 'denominator' => null])->save();
+
+        $this->expectException(CalculationInputException::class);
+        $this->expectExceptionMessage('Mietpartei A');
+
+        app(BillingRunInputAssembler::class)->assemble($szenario['billingRun']->refresh());
+    }
+
+    public function test_verbrauch_mit_erfasstem_leerstand_ohne_ablesewert_bricht_nicht_ab(): void
+    {
+        $szenario = $this->szenario();
+
+        // Wohnung A: Mieter bis 31.08.2025, danach erfasster Leerstand.
+        Tenancy::query()
+            ->whereKey($szenario['tenancies'][0]->getKey())
+            ->update(['ends_on' => '2025-08-31']);
+
+        VacancyPeriod::factory()->create([
+            'organization_id' => $szenario['organization']->getKey(),
+            'unit_id' => $szenario['units'][0]->getKey(),
+            'starts_on' => '2025-09-01',
+            'ends_on' => '2025-12-31',
+        ]);
+
+        $szenario['key']->forceFill([
+            'key_type' => AllocationKeyType::VERBRAUCH,
+            'source' => AllocationKeySource::MANUELL,
+            'measurement_unit' => 'm3',
+            'denominator' => null,
+        ])->save();
+
+        $this->schluesselwert($szenario['key'], '80.000', null, $szenario['tenancies'][0]);
+        $this->schluesselwert($szenario['key'], '30.000', null, $szenario['tenancies'][1]);
+
+        $eingabe = app(BillingRunInputAssembler::class)->assemble($szenario['billingRun']->refresh())->input;
+        $schluessel = array_values($eingabe->allocationKeys)[0];
+
+        self::assertInstanceOf(ConsumptionKey::class, $schluessel);
+        self::assertSame(0, $schluessel->numeratorFor((string) $szenario['tenancies'][0]->getKey())->compareTo('80'));
+        self::assertSame(0, $schluessel->denominator()->compareTo('110'));
+        self::assertSame([], $schluessel->substituteParticipants());
+    }
+
+    public function test_verbrauch_einer_einheit_ohne_nutzung_bleibt_beim_eigentuemer(): void
+    {
+        $szenario = $this->szenario();
+
+        // Wohnung B ist eigengenutzt: kein Mietverhältnis, kein Leerstand.
+        Tenancy::query()->whereKey($szenario['tenancies'][1]->getKey())->delete();
+
+        $szenario['key']->forceFill([
+            'key_type' => AllocationKeyType::VERBRAUCH,
+            'source' => AllocationKeySource::MANUELL,
+            'measurement_unit' => 'm3',
+            'denominator' => null,
+        ])->save();
+
+        $this->schluesselwert($szenario['key'], '80.000', null, $szenario['tenancies'][0]);
+        $this->schluesselwert($szenario['key'], '30.000', $szenario['units'][1]);
+
+        $eingabe = app(BillingRunInputAssembler::class)->assemble($szenario['billingRun']->refresh())->input;
+        $schluessel = array_values($eingabe->allocationKeys)[0];
+
+        // 80 von 110 m³ gehen an Mieter A, 30 m³ verbleiben als Restanteil
+        // beim Eigentümer: 1.200,00 EUR × 80/110 = 872,73 EUR.
+        self::assertInstanceOf(ConsumptionKey::class, $schluessel);
+        self::assertSame(0, $schluessel->denominator()->compareTo('110'));
+
+        $ergebnis = app(StatementCalculator::class)->calculate($eingabe);
+
+        self::assertSame(87273, $ergebnis->statements[0]->allocableTotal->cents);
+        self::assertSame(32727, $ergebnis->ownerOverview->residualTotal->cents);
+        self::assertTrue($ergebnis->ownerOverview->isBalanced());
     }
 
     public function test_individueller_schluessel_nutzt_den_stammwert_der_einheit(): void

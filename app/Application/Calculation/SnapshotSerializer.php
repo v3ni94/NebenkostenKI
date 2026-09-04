@@ -430,7 +430,7 @@ final class SnapshotSerializer
                 'UNITS' => new UnitCountKey($numerators, $denominator),
                 'PERSON_DAYS' => PersonDaysKey::fromSegments($this->segmentsOf($occupancies), $period),
                 'CONSUMPTION' => ConsumptionKey::create($numerators, $measurementUnit, $substitute, $denominator),
-                'DIRECT_ASSIGNMENT' => DirectAssignmentKey::fromCentValues($numerators),
+                'DIRECT_ASSIGNMENT' => DirectAssignmentKey::fromCentValues($numerators, $denominator),
                 default => new IndividualKey(
                     (int) substr($type, -1),
                     $numerators,

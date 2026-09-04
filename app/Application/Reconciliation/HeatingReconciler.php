@@ -7,18 +7,24 @@ namespace App\Application\Reconciliation;
 use App\Application\Reconciliation\Dto\HeatingMatrix;
 use App\Application\Reconciliation\Dto\HeatingMatrixRow;
 use App\Application\Reconciliation\Dto\HeatingSourceKind;
+use App\Application\Reconciliation\Dto\MappingOutcome;
 use App\Application\Reconciliation\Dto\MissingRequirement;
+use App\Application\Reconciliation\Dto\ProposedCostItem;
 use App\Application\Reconciliation\Support\ExtractedFieldBag;
 use App\Domain\Calculation\Heating\Co2AllocationStatus;
 use App\Domain\Calculation\Heating\ExternalHeatingReconciler;
 use App\Domain\Calculation\Heating\ExternalHeatingStatementInput;
 use App\Domain\Money\Money;
 use App\Domain\Period\DatePeriodRange;
+use App\Enums\ApportionmentStatus;
 use App\Enums\BillingMode;
+use App\Enums\CostItemSource;
 use App\Enums\DocumentType;
+use App\Enums\Paragraph35aType;
 use App\Models\BillingRun;
 use App\Models\Document;
 use App\Models\HeatingStatement;
+use App\Models\Unit;
 use Illuminate\Support\Carbon;
 
 /**
@@ -45,7 +51,12 @@ use Illuminate\Support\Carbon;
  */
 final class HeatingReconciler
 {
-    public function __construct(private readonly ExternalHeatingReconciler $reconciler) {}
+    private const string CATEGORY_HEATING = 'HEIZUNG';
+
+    public function __construct(
+        private readonly ExternalHeatingReconciler $reconciler,
+        private readonly CategoryResolver $categories,
+    ) {}
 
     public static function toleranceCent(): int
     {
@@ -364,6 +375,153 @@ final class HeatingReconciler
     public function externalStatementPresent(array $documents): bool
     {
         return $this->firstOfType($documents, DocumentType::HEIZKOSTENABRECHNUNG) instanceof Document;
+    }
+
+    /**
+     * Vorgeschlagene Kostenpositionen aus der externen Heizkostenabrechnung
+     * (Fall A): je ausgelesenem Einheitenanteil eine Heizkostenposition mit
+     * dem Mieteranteil. Ohne diese Uebernahme stuenden die Heizkosten in der
+     * Mieterabrechnung mit null, obwohl die WEG-Summenposition wegen der
+     * externen Abrechnung ausgeschlossen wird.
+     *
+     * Die Einheit wird ueber die ausgelesene Bezeichnung zugeordnet; bei
+     * genau einer Einheit und genau einem Anteil ist die Zuordnung eindeutig.
+     * Laesst sich keine Einheit eindeutig bestimmen, bleibt die Position
+     * pruefpflichtig und es entsteht eine Pruefaufgabe zur Zuordnung. Es wird
+     * nichts geraten und nichts automatisch bestaetigt.
+     */
+    public function proposals(BillingRun $billingRun, Document $external, ?ExtractedFieldBag $bag = null): MappingOutcome
+    {
+        $bag ??= ExtractedFieldBag::forDocument($external);
+
+        $documentId = (string) $external->getKey();
+        $sourceLabel = $bag->text('abrechnungsdienst', 190) ?? $this->sourceLabel($external);
+        $period = $this->period($bag, $billingRun);
+        $units = $this->unitsByLabel($billingRun);
+        $indexes = $bag->listIndexes('einheiten');
+
+        $category = $this->categories->byCode($billingRun, self::CATEGORY_HEATING);
+        $status = $category?->getAttribute('apportionment_status');
+        $apportionment = $status instanceof ApportionmentStatus ? $status : ApportionmentStatus::PRUEFPFLICHTIG;
+
+        $proposals = [];
+        $missing = [];
+
+        foreach ($indexes as $index) {
+            $prefix = sprintf('einheiten[%d]', $index);
+            $amount = $bag->integer($prefix.'.summe_cent');
+
+            if ($amount === null) {
+                continue;
+            }
+
+            $unitLabel = $bag->text($prefix.'.einheitsbezeichnung', 120);
+            $unitId = $this->matchUnit($unitLabel, $units, count($indexes));
+
+            $description = sprintf(
+                'Heizkosten laut Heizkostenabrechnung %s, %s',
+                $sourceLabel,
+                $unitLabel ?? sprintf('Einheit %d', $index + 1)
+            );
+
+            if ($unitId === null) {
+                $missing[] = new MissingRequirement(
+                    'Zuordnung der Heizkosten zur Einheit',
+                    sprintf(
+                        'Der Anteil "%s" über %s aus %s ließ sich keiner Einheit des Objekts eindeutig zuordnen. '
+                        .'Bitte ordnen Sie die Position in der Kostenprüfung der richtigen Einheit zu. Ohne '
+                        .'Zuordnung würde der Betrag nach dem Schlüssel der Kostenart verteilt.',
+                        $unitLabel ?? sprintf('Einheit %d', $index + 1),
+                        Money::fromCents($amount)->format(),
+                        $sourceLabel
+                    ),
+                    $documentId,
+                );
+            }
+
+            $start = $bag->date($prefix.'.nutzungszeitraum_von');
+            $end = $bag->date($prefix.'.nutzungszeitraum_bis');
+
+            $proposals[] = new ProposedCostItem(
+                sprintf('%s#heizung-%d', $documentId, $index),
+                mb_substr($description, 0, 190),
+                $amount,
+                $documentId,
+                $sourceLabel,
+                $bag->text('abrechnungsnummer', 80),
+                null,
+                $start instanceof Carbon && $end instanceof Carbon && $start <= $end ? $start : Carbon::instance($period->start),
+                $start instanceof Carbon && $end instanceof Carbon && $start <= $end ? $end : Carbon::instance($period->end),
+                self::CATEGORY_HEATING,
+                $unitId === null ? ApportionmentStatus::PRUEFPFLICHTIG : $apportionment,
+                false,
+                Paragraph35aType::NONE,
+                null,
+                $bag->lowestConfidence($prefix.'.summe_cent', $prefix.'.einheitsbezeichnung'),
+                $bag->firstPage($prefix.'.summe_cent', $prefix.'.einheitsbezeichnung'),
+                $bag->firstExcerpt($prefix.'.summe_cent', $prefix.'.einheitsbezeichnung'),
+                true,
+                false,
+                $unitId,
+                CostItemSource::KI_EXTRAKTION,
+                $this->sourceLabel($external),
+            );
+        }
+
+        return new MappingOutcome($proposals, $missing);
+    }
+
+    /**
+     * Einheiten des Objekts nach normalisierter Bezeichnung.
+     *
+     * @return array<string, list<string>> Bezeichnung => Kennungen
+     */
+    private function unitsByLabel(BillingRun $billingRun): array
+    {
+        $units = [];
+
+        $rows = Unit::query()
+            ->where('property_id', $billingRun->getAttribute('property_id'))
+            ->orderBy('label')
+            ->get();
+
+        foreach ($rows as $unit) {
+            $label = $this->normalizeLabel((string) $unit->getAttribute('label'));
+            $units[$label][] = (string) $unit->getKey();
+        }
+
+        return $units;
+    }
+
+    /**
+     * Eindeutige Einheit zu einer ausgelesenen Bezeichnung. Bei genau einer
+     * Einheit im Objekt und genau einem Anteil in der Abrechnung ist die
+     * Zuordnung ohne Bezeichnung eindeutig.
+     *
+     * @param  array<string, list<string>>  $units
+     */
+    private function matchUnit(?string $label, array $units, int $shareCount): ?string
+    {
+        $allIds = array_merge(...array_values($units));
+
+        if (count($allIds) === 1 && $shareCount === 1) {
+            return $allIds[0];
+        }
+
+        if ($label === null) {
+            return null;
+        }
+
+        $candidates = $units[$this->normalizeLabel($label)] ?? [];
+
+        return count($candidates) === 1 ? $candidates[0] : null;
+    }
+
+    private function normalizeLabel(string $label): string
+    {
+        $normalized = mb_strtolower(trim($label));
+
+        return preg_replace('/\s+/u', ' ', $normalized) ?? $normalized;
     }
 
     private function co2Status(?string $value): Co2AllocationStatus

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Application\Heating;
 
 use App\Application\Account\AuditRecorder;
+use App\Application\Calculation\BillingRunInputAssembler;
 use App\Application\Reconciliation\CategoryResolver;
 use App\Application\Reconciliation\IssueRecorder;
 use App\Application\Reconciliation\RuleCode;
@@ -13,6 +14,7 @@ use App\Domain\Calculation\Heating\ManualHeatingInput;
 use App\Domain\Calculation\Heating\ManualHeatingReconciler;
 use App\Domain\Calculation\Heating\ManualHeatingResult;
 use App\Domain\Money\Money;
+use App\Domain\Period\DatePeriodRange;
 use App\Enums\AllocationKeySource;
 use App\Enums\AllocationKeyType;
 use App\Enums\ApportionmentStatus;
@@ -28,8 +30,10 @@ use App\Models\CostCategory;
 use App\Models\CostItem;
 use App\Models\HeatingStatement;
 use App\Models\HeatingStatementLine;
+use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Uebernahme der manuell erfassten Heizkosten (Fall B).
@@ -43,6 +47,16 @@ use Illuminate\Support\Facades\DB;
  * zeitanteilig nach Nutzungstagen verteilt. Gerechnet wird ausschliesslich
  * ueber die vorhandene Domainlogik (ManualHeatingReconciler mit dem
  * Largest-Remainder-Verfahren), niemals ueber einen float-Zwischenschritt.
+ *
+ * LEERSTAND: Tage einer Einheit ohne Mietverhaeltnis sind ein eigener
+ * Beteiligter der Aufteilung. Ihr Anteil und der Betrag einer ganz
+ * unbelegten Einheit gehen in den Positionsbetrag ein, aber nicht in den
+ * Verteilerschluessel; die Berechnung weist sie als Restanteil beim
+ * Eigentuemer aus. Sie werden niemals auf die uebrigen Mieter verteilt.
+ *
+ * NEGATIVE BETRAEGE je Einheit werden abgelehnt: Ein negativer Zaehler ist in
+ * der Direktzuordnung nicht darstellbar. Eine Gutschrift wird als eigene
+ * Kostenposition in der Kostenpruefung erfasst.
  *
  * DOPPELZAEHLUNG: Liegt fuer denselben Zeitraum zusaetzlich eine externe
  * Heizkostenabrechnung oder eine WEG-Summenposition vor, wird NICHT addiert.
@@ -60,6 +74,17 @@ final class StoreManualHeatingEntries
     private const string CATEGORY_WARM_WATER = 'WARMWASSER';
 
     private const string AUDIT_ACTION = 'heizkosten.manuell.erfasst';
+
+    /**
+     * @var list<string>
+     */
+    private const array AMOUNT_FIELDS = ['heizung', 'warmwasser', 'co2_vermieter', 'co2_mieter', 'sonstige'];
+
+    /**
+     * Interner Beteiligtenschluessel der Leerstandstage einer Einheit bei der
+     * zeitanteiligen Aufteilung. Er wird nie als Schluesselwert gespeichert.
+     */
+    private const string VACANCY_PREFIX = BillingRunInputAssembler::VACANCY_PREFIX;
 
     public function __construct(
         private readonly ManualHeatingWorkspace $workspace,
@@ -134,20 +159,37 @@ final class StoreManualHeatingEntries
         ?string $calculationOrigin,
     ): ManualHeatingInput {
         $entries = [];
+        $errors = [];
 
         foreach ($this->workspace->units($billingRun) as $unit) {
             $unitId = (string) $unit->getKey();
             $values = $amountsByUnit[$unitId] ?? [];
+            $amounts = [];
+
+            foreach (self::AMOUNT_FIELDS as $field) {
+                $amount = EuroAmountInput::parseOrZero($values[$field] ?? null);
+
+                if ($amount->isNegative()) {
+                    $errors[sprintf('einheiten.%s.%s', $unitId, $field)] = 'Negative Beträge sind je Einheit nicht '
+                        .'zulässig. Eine Gutschrift erfassen Sie bitte als eigene Kostenposition in der Kostenprüfung.';
+                }
+
+                $amounts[$field] = $amount;
+            }
 
             $entries[$unitId] = new ManualHeatingEntry(
                 $unitId,
                 (string) $unit->getAttribute('label'),
-                EuroAmountInput::parseOrZero($values['heizung'] ?? null),
-                EuroAmountInput::parseOrZero($values['warmwasser'] ?? null),
-                EuroAmountInput::parseOrZero($values['co2_vermieter'] ?? null),
-                EuroAmountInput::parseOrZero($values['co2_mieter'] ?? null),
-                EuroAmountInput::parseOrZero($values['sonstige'] ?? null),
+                $amounts['heizung'],
+                $amounts['warmwasser'],
+                $amounts['co2_vermieter'],
+                $amounts['co2_mieter'],
+                $amounts['sonstige'],
             );
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
         }
 
         $origin = $calculationOrigin === null ? null : trim($calculationOrigin);
@@ -211,8 +253,44 @@ final class StoreManualHeatingEntries
     }
 
     /**
+     * Nutzungstage je Beteiligtem einer Einheit: je Mietverhaeltnis seine Tage
+     * und, sofern die Einheit nicht den ganzen Zeitraum belegt ist, die
+     * Leerstandstage unter einem internen Schluessel. Ohne Mietverhaeltnis
+     * bleibt die Liste leer.
+     *
+     * @return array<string, int>
+     */
+    private function usageDays(Unit $unit, DatePeriodRange $period): array
+    {
+        $days = [];
+
+        foreach ($this->workspace->occupancies($unit, $period) as $occupancy) {
+            $days[$occupancy->tenancyId] = $occupancy->days;
+        }
+
+        if ($days === []) {
+            return [];
+        }
+
+        $vacancyDays = $period->days() - array_sum($days);
+
+        if ($vacancyDays > 0) {
+            $days[self::VACANCY_PREFIX.$unit->getKey()] = $vacancyDays;
+        }
+
+        return $days;
+    }
+
+    private function isVacancyKey(string $participantKey): bool
+    {
+        return str_starts_with($participantKey, self::VACANCY_PREFIX);
+    }
+
+    /**
      * Eine Zeile je Einheit und Nutzungszeitraum. Bei Mieterwechsel wird der
-     * Betrag der Einheit zeitanteilig nach Nutzungstagen verteilt.
+     * Betrag der Einheit zeitanteilig nach Nutzungstagen verteilt; auf
+     * Leerstandstage entfallende Anteile erhalten eine eigene Zeile ohne
+     * Mietverhaeltnis.
      */
     private function writeLines(BillingRun $billingRun, HeatingStatement $statement, ManualHeatingInput $input): void
     {
@@ -231,11 +309,7 @@ final class StoreManualHeatingEntries
             }
 
             $occupancies = $this->workspace->occupancies($unit, $period);
-            $days = [];
-
-            foreach ($occupancies as $occupancy) {
-                $days[$occupancy->tenancyId] = $occupancy->days;
-            }
+            $days = $this->usageDays($unit, $period);
 
             $splits = [
                 'share_heating_cent' => $this->reconciler->splitByUsageDays($entry->heating, $days),
@@ -276,6 +350,32 @@ final class StoreManualHeatingEntries
                     $values,
                     $occupancy->days,
                     $occupancy->periodLabel,
+                );
+            }
+
+            foreach ($days as $participantKey => $participantDays) {
+                if (! $this->isVacancyKey((string) $participantKey)) {
+                    continue;
+                }
+
+                $values = [];
+
+                foreach ($splits as $column => $shares) {
+                    $share = $shares[$participantKey] ?? Money::zero();
+                    $values[$column] = $share->cents;
+                }
+
+                // Leerstandsanteil: bleibt der Einheit zugeordnet und wird
+                // nicht auf Mieter verteilt.
+                $this->line(
+                    $billingRun,
+                    $statement,
+                    $unitId,
+                    (string) $unit->getAttribute('label'),
+                    null,
+                    $values,
+                    $participantDays,
+                    'Nicht belegt',
                 );
             }
         }
@@ -424,6 +524,12 @@ final class StoreManualHeatingEntries
     /**
      * Direktzuordnung je Nutzungszeitraum, technisch derselbe Weg wie Fall A.
      *
+     * Der Schluessel enthaelt nur die Anteile der Mietverhaeltnisse. Anteile
+     * fuer Leerstandstage und Betraege unbelegter Einheiten bleiben im
+     * Positionsbetrag und werden von der Berechnung als Restanteil beim
+     * Eigentuemer ausgewiesen (Nenner der Direktzuordnung ist der
+     * Positionsbetrag).
+     *
      * @param  array<string, Money>  $amountsByUnit
      */
     private function writeAllocationKey(BillingRun $billingRun, CostItem $item, array $amountsByUnit): void
@@ -439,18 +545,18 @@ final class StoreManualHeatingEntries
                 continue;
             }
 
-            $days = [];
-
-            foreach ($this->workspace->occupancies($unit, $period) as $occupancy) {
-                $days[$occupancy->tenancyId] = $occupancy->days;
-            }
+            $days = $this->usageDays($unit, $period);
 
             if ($days === []) {
                 continue;
             }
 
-            foreach ($this->reconciler->splitByUsageDays($amount, $days) as $tenancyId => $share) {
-                $values[(string) $tenancyId] = $share->cents;
+            foreach ($this->reconciler->splitByUsageDays($amount, $days) as $participantKey => $share) {
+                if ($this->isVacancyKey((string) $participantKey)) {
+                    continue;
+                }
+
+                $values[(string) $participantKey] = $share->cents;
             }
         }
 

@@ -13,8 +13,16 @@ use Brick\Math\BigDecimal;
  *
  * Wird für externe Heizkostenabrechnungen (Fall A), direkt zugeordnete
  * Grundsteuer und Einzelbelege einer bestimmten Einheit verwendet. Die
- * Zähler sind Beträge in Cent, der Nenner ist deren Summe. Damit ergibt die
- * Verteilung des Gesamtbetrags exakt die zugeordneten Einzelbeträge.
+ * Zähler sind Beträge in Cent. Ohne abweichenden Nenner ist der Nenner deren
+ * Summe; damit ergibt die Verteilung des Gesamtbetrags exakt die zugeordneten
+ * Einzelbeträge.
+ *
+ * Wird der zu verteilende Positionsbetrag als Nenner übergeben, gelten die
+ * Zähler als Festbeträge: Jeder Beteiligte erhält genau seinen Betrag, ein
+ * nicht zugeordneter Rest verbleibt als Restanteil beim Eigentümer und wird
+ * nie stillschweigend auf die übrigen Beteiligten verteilt. Übersteigt die
+ * Summe der Zähler den Positionsbetrag, ist das ein Eingabefehler und die
+ * Konstruktion schlägt fehl.
  *
  * Bezugsebene OCCUPANCY: bei Mieterwechsel wird der Betrag ausdrücklich dem
  * jeweiligen Nutzungszeitraum zugeordnet, nicht der Einheit; der zusätzliche
@@ -86,10 +94,11 @@ final class DirectAssignmentKey extends NumericAllocationKey
     }
 
     /**
-     * @param  array<string, BigDecimal|string|int>  $values
+     * @param  array<string, BigDecimal|string|int>  $values  Beträge in Cent je Beteiligtem
+     * @param  BigDecimal|string|int|null  $denominator  zu verteilender Positionsbetrag in Cent, sonst Summe der Zähler
      */
-    public static function fromCentValues(array $values): self
+    public static function fromCentValues(array $values, BigDecimal|string|int|null $denominator = null): self
     {
-        return new self($values);
+        return new self($values, $denominator);
     }
 }

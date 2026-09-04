@@ -10,6 +10,10 @@ namespace App\Application\Wizard\Dto;
  * Bezugsebene ist entweder eine Einheit oder ein Mietverhältnis. Fehlt der
  * Wert, wird das rot UND zusätzlich als Text ausgewiesen; ein Status wird
  * niemals allein über die Farbe kommuniziert.
+ *
+ * Ein optionaler Wert (zum Beispiel eine Zwischenablesung je Mietverhältnis
+ * beim Verbrauchsschlüssel, wenn der Jahresverbrauch der Einheit erfasst ist)
+ * gilt nie als fehlend.
  */
 final readonly class AllocationValueRow
 {
@@ -19,11 +23,17 @@ final readonly class AllocationValueRow
         public ?string $value,
         public bool $isUnitScope,
         public ?string $herkunft = null,
+        public bool $optional = false,
     ) {}
+
+    public function hasValue(): bool
+    {
+        return $this->value !== null && trim($this->value) !== '';
+    }
 
     public function isMissing(): bool
     {
-        return $this->value === null || trim($this->value) === '';
+        return ! $this->optional && ! $this->hasValue();
     }
 
     public function missingText(): ?string

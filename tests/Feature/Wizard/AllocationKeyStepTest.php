@@ -6,17 +6,20 @@ namespace Tests\Feature\Wizard;
 
 use App\Application\Calculation\BillingRunInputAssembler;
 use App\Application\Wizard\AllocationKeyWorkspace;
+use App\Domain\Allocation\ConsumptionKey;
 use App\Enums\AllocationKeySource;
 use App\Enums\AllocationKeyType;
 use App\Enums\BillingMode;
 use App\Enums\CostItemStatus;
 use App\Enums\HeatingSupplyCase;
 use App\Models\AllocationKey;
+use App\Models\AllocationKeyValue;
 use App\Models\BillingRun;
 use App\Models\CostItem;
 use App\Models\ManualOverride;
 use App\Models\Tenancy;
 use App\Models\Unit;
+use App\Models\VacancyPeriod;
 use Tests\Feature\Calculation\CalculationTestCase;
 
 /**
@@ -348,12 +351,243 @@ final class AllocationKeyStepTest extends CalculationTestCase
             'denominator' => null,
         ])->save();
 
-        $this->schluesselwert($szenario['key'], '120.000', null, $szenario['tenancies'][0]);
-        $this->schluesselwert($szenario['key'], '60.000', null, $nachmieter);
-        $this->schluesselwert($szenario['key'], '30.000', null, $szenario['tenancies'][1]);
+        // Jahresverbrauch je Einheit, ohne Zwischenablesung beim Nutzerwechsel
+        // in Wohnung A.
+        $this->schluesselwert($szenario['key'], '120.000', $szenario['units'][0]);
+        $this->schluesselwert($szenario['key'], '30.000', $szenario['units'][1]);
 
+        $szenario['tenancies'][] = $nachmieter;
         $szenario['billingRun'] = $szenario['billingRun']->refresh();
 
         return $szenario;
+    }
+
+    public function test_vollstaendige_zwischenablesungen_brauchen_keine_ersatzverteilung(): void
+    {
+        $szenario = $this->verbrauchMitNutzerwechsel();
+
+        $this->schluesselwert($szenario['key'], '61.000', null, $szenario['tenancies'][0]);
+        $this->schluesselwert($szenario['key'], '59.000', null, $szenario['tenancies'][2]);
+
+        $arbeitsflaeche = app(AllocationKeyWorkspace::class);
+        $lauf = $szenario['billingRun']->refresh();
+
+        self::assertSame([], $arbeitsflaeche->unitsNeedingSubstituteConfirmation($lauf));
+        self::assertSame([], $arbeitsflaeche->blockingReasons($lauf));
+
+        $schluessel = array_values(app(BillingRunInputAssembler::class)->assemble($lauf)->input->allocationKeys)[0];
+
+        self::assertInstanceOf(ConsumptionKey::class, $schluessel);
+        self::assertSame(0, $schluessel->numeratorFor((string) $szenario['tenancies'][0]->getKey())->compareTo('61'));
+        self::assertSame(0, $schluessel->numeratorFor((string) $szenario['tenancies'][2]->getKey())->compareTo('59'));
+        self::assertSame([], $schluessel->substituteParticipants());
+    }
+
+    public function test_jahresverbrauch_je_einheit_wird_ueber_die_maske_gespeichert_und_ersatzweise_verteilt(): void
+    {
+        $szenario = $this->verbrauchMitNutzerwechsel();
+
+        $antwort = $this->actingAs($szenario['user'])->post(
+            route('portal.wizard.schluessel.speichern', ['billingRun' => $szenario['billingRun']->getKey()]),
+            [
+                'kostenarten' => [
+                    (string) $szenario['category']->getKey() => [
+                        'key_type' => AllocationKeyType::VERBRAUCH->value,
+                        'masseinheit' => 'm3',
+                        'werte' => [
+                            (string) $szenario['units'][0]->getKey() => '100,000',
+                            (string) $szenario['units'][1]->getKey() => '50,000',
+                            // Zwischenablesungen bleiben leer.
+                            (string) $szenario['tenancies'][0]->getKey() => '',
+                            (string) $szenario['tenancies'][2]->getKey() => '',
+                        ],
+                    ],
+                ],
+            ]
+        );
+
+        $antwort->assertRedirect();
+        $antwort->assertSessionDoesntHaveErrors();
+
+        $gespeichert = AllocationKey::query()
+            ->where('billing_run_id', $szenario['billingRun']->getKey())
+            ->where('source', AllocationKeySource::MANUELL->value)
+            ->where('key_type', AllocationKeyType::VERBRAUCH->value)
+            ->firstOrFail();
+
+        // Vorher wurden Werte der Bezugsebene Nutzungszeitraum ausschließlich
+        // je Mietverhältnis gespeichert; ein Einheitenwert war unmöglich.
+        self::assertCount(2, $gespeichert->values);
+        self::assertSame((string) $szenario['units'][0]->getKey(), $gespeichert->values[0]->unit_id);
+        self::assertNull($gespeichert->values[0]->tenancy_id);
+
+        $arbeitsflaeche = app(AllocationKeyWorkspace::class);
+        $lauf = $szenario['billingRun']->refresh();
+
+        self::assertCount(1, $arbeitsflaeche->unitsNeedingSubstituteConfirmation($lauf));
+        self::assertStringContainsString('keine Zwischenablesung', implode(' ', $arbeitsflaeche->blockingReasons($lauf)));
+
+        $arbeitsflaeche->confirmSubstituteDistribution($lauf, (string) $szenario['units'][0]->getKey(), $szenario['user']);
+
+        self::assertSame([], $arbeitsflaeche->blockingReasons($lauf->refresh()));
+
+        $schluessel = array_values(app(BillingRunInputAssembler::class)->assemble($lauf->refresh())->input->allocationKeys)[0];
+
+        // 100,000 m³ auf 181 und 184 Tage: 49,589 und 50,411 m³, gekennzeichnet.
+        self::assertInstanceOf(ConsumptionKey::class, $schluessel);
+        self::assertSame('49.589', (string) $schluessel->numeratorFor((string) $szenario['tenancies'][0]->getKey()));
+        self::assertSame('50.411', (string) $schluessel->numeratorFor((string) $szenario['tenancies'][2]->getKey()));
+        self::assertCount(2, $schluessel->substituteParticipants());
+    }
+
+    public function test_leerstand_zaehlt_als_nutzerwechsel_und_kann_bestaetigt_werden(): void
+    {
+        $szenario = $this->szenario();
+
+        Tenancy::query()
+            ->whereKey($szenario['tenancies'][0]->getKey())
+            ->update(['ends_on' => '2025-08-31']);
+
+        VacancyPeriod::factory()->create([
+            'organization_id' => $szenario['organization']->getKey(),
+            'unit_id' => $szenario['units'][0]->getKey(),
+            'starts_on' => '2025-09-01',
+            'ends_on' => '2025-12-31',
+        ]);
+
+        $szenario['key']->forceFill([
+            'key_type' => AllocationKeyType::VERBRAUCH,
+            'source' => AllocationKeySource::MANUELL,
+            'measurement_unit' => 'm3',
+            'denominator' => null,
+        ])->save();
+
+        $this->schluesselwert($szenario['key'], '100.000', $szenario['units'][0]);
+        $this->schluesselwert($szenario['key'], '30.000', $szenario['units'][1]);
+
+        $arbeitsflaeche = app(AllocationKeyWorkspace::class);
+        $lauf = $szenario['billingRun']->refresh();
+
+        // Vorher zählte nur mehr als ein Mietverhältnis; die Einheit wurde
+        // nie zur Bestätigung angeboten, die Berechnung brach aber ab.
+        self::assertCount(1, $arbeitsflaeche->unitsNeedingSubstituteConfirmation($lauf));
+
+        $arbeitsflaeche->confirmSubstituteDistribution($lauf, (string) $szenario['units'][0]->getKey(), $szenario['user']);
+
+        $schluessel = array_values(app(BillingRunInputAssembler::class)->assemble($lauf->refresh())->input->allocationKeys)[0];
+
+        // 100,000 m³ auf 243 Tage Mieter und 122 Tage Leerstand: 66,575 und
+        // 33,425 m³; der Leerstandsanteil verbleibt beim Eigentümer.
+        self::assertInstanceOf(ConsumptionKey::class, $schluessel);
+        self::assertSame('66.575', (string) $schluessel->numeratorFor((string) $szenario['tenancies'][0]->getKey()));
+        self::assertSame(0, $schluessel->denominator()->compareTo('130'));
+    }
+
+    public function test_fremde_oder_unbekannte_beteiligte_werden_nicht_gespeichert(): void
+    {
+        $szenario = $this->szenario();
+        $fremder = $this->mandant();
+
+        foreach ([(string) $fremder['unit']->getKey(), '01JUNBEKANNT0000000000000A'] as $kennung) {
+            $antwort = $this->actingAs($szenario['user'])->post(
+                route('portal.wizard.schluessel.speichern', ['billingRun' => $szenario['billingRun']->getKey()]),
+                [
+                    'kostenarten' => [
+                        (string) $szenario['category']->getKey() => [
+                            'key_type' => AllocationKeyType::WOHNFLAECHE->value,
+                            'werte' => [
+                                (string) $szenario['units'][0]->getKey() => '100,00',
+                                (string) $szenario['units'][1]->getKey() => '50,00',
+                                $kennung => '12,50',
+                            ],
+                        ],
+                    ],
+                ]
+            );
+
+            $antwort->assertRedirect();
+            $antwort->assertSessionHasErrors(sprintf('kostenarten.%s.werte.%s', $szenario['category']->getKey(), $kennung));
+        }
+
+        self::assertSame(
+            0,
+            AllocationKey::query()
+                ->where('billing_run_id', $szenario['billingRun']->getKey())
+                ->where('source', AllocationKeySource::MANUELL->value)
+                ->count()
+        );
+        self::assertSame(0, AllocationKeyValue::query()->where('unit_id', $fremder['unit']->getKey())->count());
+    }
+
+    public function test_werte_einer_anderen_bezugsebene_werden_beim_typwechsel_nicht_uebernommen(): void
+    {
+        $szenario = $this->szenario();
+
+        // Das Formular sendet die Werte je Einheit weiter, obwohl der Typ auf
+        // Personentage (je Mietverhältnis) gewechselt wurde. Vorher wurden die
+        // Einheitenkennungen als Mietverhältnis gespeichert.
+        $antwort = $this->actingAs($szenario['user'])->post(
+            route('portal.wizard.schluessel.speichern', ['billingRun' => $szenario['billingRun']->getKey()]),
+            [
+                'kostenarten' => [
+                    (string) $szenario['category']->getKey() => [
+                        'key_type' => AllocationKeyType::PERSONENTAGE->value,
+                        'werte' => [
+                            (string) $szenario['units'][0]->getKey() => '100,00',
+                            (string) $szenario['units'][1]->getKey() => '50,00',
+                        ],
+                    ],
+                ],
+            ]
+        );
+
+        $antwort->assertRedirect();
+        $antwort->assertSessionDoesntHaveErrors();
+
+        $gespeichert = AllocationKey::query()
+            ->where('billing_run_id', $szenario['billingRun']->getKey())
+            ->where('source', AllocationKeySource::MANUELL->value)
+            ->firstOrFail();
+
+        self::assertSame(AllocationKeyType::PERSONENTAGE, $gespeichert->key_type);
+        self::assertCount(0, $gespeichert->values);
+    }
+
+    public function test_unbestaetigter_vorjahresschluessel_blockiert_bis_zum_speichern(): void
+    {
+        $szenario = $this->szenario();
+
+        $szenario['key']->forceFill([
+            'source' => AllocationKeySource::VORJAHR,
+            'confirmed_at' => null,
+            'confirmed_by_user_id' => null,
+        ])->save();
+
+        $arbeitsflaeche = app(AllocationKeyWorkspace::class);
+        $gruende = $arbeitsflaeche->blockingReasons($szenario['billingRun']->refresh());
+
+        self::assertNotSame([], $gruende);
+        self::assertStringContainsString('aus dem Vorjahr übernommen und noch nicht bestätigt', implode(' ', $gruende));
+
+        $this->actingAs($szenario['user'])->post(
+            route('portal.wizard.schluessel.weiter', ['billingRun' => $szenario['billingRun']->getKey()])
+        )->assertSessionHasErrors('weiter');
+
+        $this->actingAs($szenario['user'])->post(
+            route('portal.wizard.schluessel.speichern', ['billingRun' => $szenario['billingRun']->getKey()]),
+            [
+                'kostenarten' => [
+                    (string) $szenario['category']->getKey() => [
+                        'key_type' => AllocationKeyType::WOHNFLAECHE->value,
+                        'werte' => [
+                            (string) $szenario['units'][0]->getKey() => '100,00',
+                            (string) $szenario['units'][1]->getKey() => '50,00',
+                        ],
+                    ],
+                ],
+            ]
+        )->assertRedirect();
+
+        self::assertSame([], $arbeitsflaeche->blockingReasons($szenario['billingRun']->refresh()));
     }
 }

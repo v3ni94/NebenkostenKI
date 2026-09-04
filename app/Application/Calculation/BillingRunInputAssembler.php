@@ -25,9 +25,12 @@ use App\Domain\Calculation\Dto\OccupancyInput;
 use App\Domain\Calculation\Dto\PrepaymentInput;
 use App\Domain\Calculation\Dto\StatementCalculationInput;
 use App\Domain\Calculation\Dto\UnitInput;
+use App\Domain\Calculation\OccupancyKind;
 use App\Domain\Calculation\TaxBenefitCategory;
 use App\Domain\Money\Money;
 use App\Domain\Period\DatePeriodRange;
+use App\Domain\Period\PeriodCoverage;
+use App\Domain\Support\GermanNumberFormatter;
 use App\Enums\AllocationKeyType;
 use App\Enums\ApportionmentStatus;
 use App\Enums\CostItemStatus;
@@ -42,6 +45,8 @@ use App\Models\Prepayment;
 use App\Models\Tenancy;
 use App\Models\Unit;
 use App\Models\VacancyPeriod;
+use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 use Illuminate\Support\Carbon;
 
 /**
@@ -109,9 +114,16 @@ final class BillingRunInputAssembler
 
         [$occupancies, $tenancyIdByOccupancyKey, $labelByOccupancyKey] = $this->occupancies($billingRun, $period);
 
-        $keys = $this->allocationKeys($billingRun, $period, $units, $occupancies);
+        $relevantItems = $this->relevantCostItems($billingRun);
 
-        [$costItems, $categoryIdByCostItemKey, $heatingCategoryKeys] = $this->costItems($billingRun, $keys['refByCategory'], $keys['refByCostItem']);
+        $keys = $this->allocationKeys($billingRun, $period, $units, $occupancies, $relevantItems);
+
+        [$costItems, $categoryIdByCostItemKey, $heatingCategoryKeys, $directKeys] = $this->costItems(
+            $relevantItems,
+            $units,
+            $keys['refByCategory'],
+            $keys['refByCostItem']
+        );
 
         $prepayments = $this->prepayments($billingRun, $tenancyIdByOccupancyKey, $labelByOccupancyKey);
 
@@ -120,7 +132,7 @@ final class BillingRunInputAssembler
             $units,
             $occupancies,
             $costItems,
-            $keys['domain'],
+            $keys['domain'] + $directKeys['domain'],
             $prepayments,
             $billingRun->property->label,
         );
@@ -131,7 +143,7 @@ final class BillingRunInputAssembler
             $unitIdByUnitKey,
             $categoryIdByCostItemKey,
             $heatingCategoryKeys,
-            $keys['typeByRef'],
+            $keys['typeByRef'] + $directKeys['typeByRef'],
         );
     }
 
@@ -300,6 +312,7 @@ final class BillingRunInputAssembler
      *
      * @param  list<UnitInput>  $units
      * @param  list<OccupancyInput>  $occupancies
+     * @param  list<CostItem>  $relevantItems
      * @return array{
      *     domain: array<string, DomainAllocationKey>,
      *     refByCategory: array<string, string>,
@@ -312,6 +325,7 @@ final class BillingRunInputAssembler
         DatePeriodRange $period,
         array $units,
         array $occupancies,
+        array $relevantItems,
     ): array {
         $domain = [];
         $refByCategory = [];
@@ -320,6 +334,7 @@ final class BillingRunInputAssembler
 
         $substituteUnits = $this->confirmedSubstituteUnits($billingRun);
         $participantDays = $this->participantDaysByUnit($units, $occupancies, $period);
+        $directTargets = $this->directAssignmentTargets($relevantItems);
 
         $records = $billingRun->allocationKeys->sortBy(
             static fn (AllocationKey $key): string => (string) $key->getKey()
@@ -336,6 +351,7 @@ final class BillingRunInputAssembler
                 $occupancies,
                 $participantDays,
                 $substituteUnits,
+                $directTargets,
             );
             $typeByRef[$ref] = $record->key_type->value;
 
@@ -407,10 +423,54 @@ final class BillingRunInputAssembler
     }
 
     /**
+     * Zu verteilende Beträge in Cent je Kostenposition und je Kostenart. Sie
+     * dienen der Direktzuordnung als Nenner, damit die zugeordneten Beträge
+     * Festbeträge bleiben und ein nicht zugeordneter Rest beim Eigentümer
+     * verbleibt. Gezählt werden nur Positionen, die auf Mieter umgelegt werden.
+     *
+     * @param  list<CostItem>  $items
+     * @return array{item: array<string, int>, category: array<string, int>}
+     */
+    private function directAssignmentTargets(array $items): array
+    {
+        $byItem = [];
+        $byCategory = [];
+
+        foreach ($items as $item) {
+            if (! $this->isIncludedInTenantAllocation($item)) {
+                continue;
+            }
+
+            $byItem[(string) $item->getKey()] = $item->amount_cent;
+
+            if ($item->cost_category_id !== null) {
+                $byCategory[$item->cost_category_id] = ($byCategory[$item->cost_category_id] ?? 0) + $item->amount_cent;
+            }
+        }
+
+        return ['item' => $byItem, 'category' => $byCategory];
+    }
+
+    /**
+     * Spiegelt CostItemInput::isIncludedInTenantAllocation() auf dem Modell.
+     */
+    private function isIncludedInTenantAllocation(CostItem $item): bool
+    {
+        if ($this->allocability($item)->isAllocatedByDefault()) {
+            return true;
+        }
+
+        $reason = $item->apportionment_override_reason;
+
+        return is_string($reason) && trim($reason) !== '';
+    }
+
+    /**
      * @param  list<UnitInput>  $units
      * @param  list<OccupancyInput>  $occupancies
      * @param  array<string, array<string, int>>  $participantDays
      * @param  list<string>  $substituteUnits
+     * @param  array{item: array<string, int>, category: array<string, int>}  $directTargets
      */
     private function domainKey(
         AllocationKey $record,
@@ -420,6 +480,7 @@ final class BillingRunInputAssembler
         array $occupancies,
         array $participantDays,
         array $substituteUnits,
+        array $directTargets,
     ): DomainAllocationKey {
         $label = $record->label ?? $record->key_type->label();
         $denominator = $this->decimalString($record->denominator);
@@ -446,15 +507,14 @@ final class BillingRunInputAssembler
                 $this->allPersonSegments($occupancies, $label),
                 $period
             ),
-            AllocationKeyType::DIREKT => DirectAssignmentKey::fromCentValues(
-                $this->occupancyValues($record, $label)
-            ),
+            AllocationKeyType::DIREKT => $this->directAssignmentKey($record, $label, $directTargets),
             AllocationKeyType::VERBRAUCH => $this->consumptionKey(
                 $record,
                 $label,
                 $participantDays,
                 $substituteUnits,
-                $units
+                $units,
+                $occupancies
             ),
             AllocationKeyType::INDIVIDUELL_1,
             AllocationKeyType::INDIVIDUELL_2,
@@ -570,6 +630,11 @@ final class BillingRunInputAssembler
     }
 
     /**
+     * Personenabschnitte aller Nutzungszeiträume. Jedes Mietverhältnis muss
+     * für seinen gesamten Nutzungszeitraum Personenangaben haben; sonst
+     * erhielte es stillschweigend das Gewicht null und die übrigen Mieter
+     * trügen seinen Anteil. Fehlende Angaben werden nicht geschätzt.
+     *
      * @param  list<OccupancyInput>  $occupancies
      * @return list<PersonDaysSegment>
      */
@@ -578,6 +643,17 @@ final class BillingRunInputAssembler
         $segments = [];
 
         foreach ($occupancies as $occupancy) {
+            if ($occupancy->kind === OccupancyKind::TENANCY) {
+                $ranges = array_map(
+                    static fn (PersonDaysSegment $segment): DatePeriodRange => $segment->period,
+                    $occupancy->personSegments
+                );
+
+                if ($ranges === [] || ! PeriodCoverage::isFullyCovered($occupancy->period, $ranges)) {
+                    throw CalculationInputException::missingPersonSegments($label, $occupancy->label);
+                }
+            }
+
             foreach ($occupancy->personSegments as $segment) {
                 $segments[] = $segment;
             }
@@ -588,6 +664,49 @@ final class BillingRunInputAssembler
         }
 
         return $segments;
+    }
+
+    /**
+     * Direktzuordnung: Zähler sind Festbeträge in Cent je Nutzungszeitraum.
+     * Nenner ist der zu verteilende Positionsbetrag, damit ein nicht
+     * zugeordneter Rest als Restanteil beim Eigentümer ausgewiesen wird.
+     * Übersteigt die Summe der Zähler den Positionsbetrag, bricht der Aufbau
+     * ab. Ohne positiven Positionsbetrag (Gutschrift) bleiben die Zähler
+     * reine Gewichte.
+     *
+     * @param  array{item: array<string, int>, category: array<string, int>}  $directTargets
+     */
+    private function directAssignmentKey(AllocationKey $record, string $label, array $directTargets): DirectAssignmentKey
+    {
+        $values = $this->occupancyValues($record, $label);
+
+        $target = null;
+
+        if ($record->cost_item_id !== null) {
+            $target = $directTargets['item'][$record->cost_item_id] ?? null;
+        } elseif ($record->cost_category_id !== null) {
+            $target = $directTargets['category'][$record->cost_category_id] ?? null;
+        }
+
+        if ($target === null || $target <= 0) {
+            return DirectAssignmentKey::fromCentValues($values);
+        }
+
+        $sum = BigDecimal::zero();
+
+        foreach ($values as $value) {
+            $sum = $sum->plus(BigDecimal::of(str_replace(',', '.', $value)));
+        }
+
+        if ($sum->isGreaterThan(BigDecimal::of($target))) {
+            throw CalculationInputException::directAssignmentExceedsAmount(
+                $label,
+                GermanNumberFormatter::decimal($sum->dividedBy(100, 2, RoundingMode::HALF_UP), 2),
+                Money::fromCents($target)->formatAmount()
+            );
+        }
+
+        return DirectAssignmentKey::fromCentValues($values, (string) $target);
     }
 
     /**
@@ -624,6 +743,7 @@ final class BillingRunInputAssembler
      * @param  array<string, array<string, int>>  $participantDays
      * @param  list<string>  $substituteUnits
      * @param  list<UnitInput>  $units
+     * @param  list<OccupancyInput>  $occupancies
      */
     private function consumptionKey(
         AllocationKey $record,
@@ -631,8 +751,19 @@ final class BillingRunInputAssembler
         array $participantDays,
         array $substituteUnits,
         array $units,
+        array $occupancies,
     ): DomainAllocationKey {
         $records = [];
+
+        // Erfasste Leerstände gehören dem Eigentümer und verlangen keine
+        // Zwischenablesung.
+        $ownerParticipants = [];
+
+        foreach ($occupancies as $occupancy) {
+            if ($occupancy->isChargedToOwner()) {
+                $ownerParticipants[] = $occupancy->occupancyKey;
+            }
+        }
 
         foreach ($record->values as $value) {
             $numerator = $this->decimalString($value->numerator);
@@ -666,6 +797,7 @@ final class BillingRunInputAssembler
                 $participantDays,
                 $record->measurement_unit ?? '',
                 $substituteUnits,
+                $ownerParticipants,
             );
         } catch (MissingInterimReadingException $exception) {
             throw CalculationInputException::unconfirmedSubstituteDistribution(
@@ -707,21 +839,20 @@ final class BillingRunInputAssembler
     }
 
     /**
-     * @param  array<string, string>  $refByCategory
-     * @param  array<string, string>  $refByCostItem
-     * @return array{0: list<CostItemInput>, 1: array<string, string|null>, 2: list<string>}
+     * Kostenpositionen, die in die Berechnung eingehen: nicht verworfen und
+     * im Heizkostenfall C keine Heizkosten.
+     *
+     * @return list<CostItem>
      */
-    private function costItems(BillingRun $billingRun, array $refByCategory, array $refByCostItem): array
+    private function relevantCostItems(BillingRun $billingRun): array
     {
-        $items = [];
-        $categoryIds = [];
-        $heatingCategories = [];
-
         $decentralized = $billingRun->heating_supply_case === HeatingSupplyCase::DEZENTRAL;
 
         $sorted = $billingRun->costItems->sortBy(
             static fn (CostItem $item): string => (string) $item->getKey()
         );
+
+        $items = [];
 
         foreach ($sorted as $item) {
             if ($item->status === CostItemStatus::VERWORFEN) {
@@ -734,12 +865,50 @@ final class BillingRunInputAssembler
                 continue;
             }
 
+            $items[] = $item;
+        }
+
+        return $items;
+    }
+
+    /**
+     * Schlüsselreferenz einer Position: zuerst ein positionsbezogener
+     * Schlüssel, dann die Direktzuordnung zu einer Einheit aus der
+     * Kostenprüfung, zuletzt der Schlüssel der Kostenart aus Schritt 8.
+     *
+     * @param  list<CostItem>  $relevantItems
+     * @param  list<UnitInput>  $units
+     * @param  array<string, string>  $refByCategory
+     * @param  array<string, string>  $refByCostItem
+     * @return array{
+     *     0: list<CostItemInput>,
+     *     1: array<string, string|null>,
+     *     2: list<string>,
+     *     3: array{domain: array<string, DomainAllocationKey>, typeByRef: array<string, string>}
+     * }
+     */
+    private function costItems(array $relevantItems, array $units, array $refByCategory, array $refByCostItem): array
+    {
+        $items = [];
+        $categoryIds = [];
+        $heatingCategories = [];
+        $directKeys = ['domain' => [], 'typeByRef' => []];
+
+        foreach ($relevantItems as $item) {
             $category = $item->costCategory;
             $categoryKey = $category !== null ? (string) $category->getKey() : 'OHNE_KATEGORIE';
             $categoryLabel = $category !== null ? $category->name : 'Ohne Kostenart';
 
             $key = (string) $item->getKey();
-            $ref = $refByCostItem[$key] ?? ($category !== null ? ($refByCategory[(string) $category->getKey()] ?? null) : null);
+            $ref = $refByCostItem[$key] ?? null;
+
+            if ($ref === null && $item->direct_unit_id !== null) {
+                $ref = self::ALLOCATION_KEY_PREFIX.'POS-'.$key;
+                $directKeys['domain'][$ref] = $this->directUnitKey($item, $units);
+                $directKeys['typeByRef'][$ref] = AllocationKeyType::DIREKT->value;
+            }
+
+            $ref ??= $category !== null ? ($refByCategory[(string) $category->getKey()] ?? null) : null;
 
             if ($ref === null) {
                 throw CalculationInputException::missingAllocationKey($categoryLabel);
@@ -773,7 +942,35 @@ final class BillingRunInputAssembler
             throw CalculationInputException::noCostItems();
         }
 
-        return [$items, $categoryIds, $heatingCategories];
+        return [$items, $categoryIds, $heatingCategories, $directKeys];
+    }
+
+    /**
+     * Positionsbezogener Schlüssel für eine in der Kostenprüfung direkt einer
+     * Einheit zugeordnete Position: Bezugsebene UNIT, die zugeordnete Einheit
+     * trägt den Betrag vollständig, alle übrigen Einheiten den Anteil null.
+     * Ein Mieterwechsel oder Leerstand innerhalb der Einheit wird damit
+     * taggenau über den Zeitfaktor berücksichtigt.
+     *
+     * @param  list<UnitInput>  $units
+     */
+    private function directUnitKey(CostItem $item, array $units): UnitCountKey
+    {
+        $directUnitId = (string) $item->direct_unit_id;
+        $values = [];
+        $found = false;
+
+        foreach ($units as $unit) {
+            $isTarget = $unit->unitKey === $directUnitId;
+            $found = $found || $isTarget;
+            $values[$unit->unitKey] = $isTarget ? '1' : '0';
+        }
+
+        if (! $found) {
+            throw CalculationInputException::unknownDirectUnit($item->description);
+        }
+
+        return new UnitCountKey($values);
     }
 
     private function allocability(CostItem $item): AllocabilityStatus
