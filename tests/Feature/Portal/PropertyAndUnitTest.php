@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Portal;
 
+use App\Enums\ValueSource;
 use App\Http\Controllers\Portal\PropertyController;
 use App\Models\AuditLog;
 use App\Models\BillingRun;
+use App\Models\OccupancyPeriod;
 use App\Models\Property;
+use App\Models\Tenancy;
 use App\Models\Unit;
 
 /**
@@ -209,7 +212,8 @@ final class PropertyAndUnitTest extends PortalTestCase
             ->assertRedirect();
 
         // Die weich geloeschte Zeile belegt den Unique-Index weiter. Das
-        // Wiederanlegen derselben Bezeichnung darf nicht am Index scheitern.
+        // Wiederanlegen derselben Bezeichnung darf nicht am Index scheitern
+        // und erzeugt eine NEUE Einheit; die entfernte wird nicht restauriert.
         $antwort = $this->actingAs($mandant['user'])
             ->post(route('portal.einheiten.store', ['property' => $mandant['property']->getKey()]), [
                 'label' => $bezeichnung,
@@ -227,6 +231,89 @@ final class PropertyAndUnitTest extends PortalTestCase
         self::assertCount(1, $aktive);
         self::assertSame('55.0000', (string) $aktive->first()?->getAttribute('living_area_sqm'));
         self::assertNull($aktive->first()?->getAttribute('deleted_at'));
+        self::assertNotSame($mandant['unit']->getKey(), $aktive->first()?->getKey());
+    }
+
+    /**
+     * Befund N16: Das Loeschen einer Einheit loescht ihre Mietverhaeltnisse
+     * weich mit. Das Wiederanlegen derselben Bezeichnung bringt weder die alte
+     * Einheit noch deren Mietverhaeltnisse, Belegungen und Vorauszahlungen
+     * zurueck.
+     */
+    public function test_wiederangelegte_einheit_hat_keine_alten_mietverhaeltnisse(): void
+    {
+        $mandant = $this->mandant();
+        $bezeichnung = (string) $mandant['unit']->getAttribute('label');
+
+        OccupancyPeriod::query()->create([
+            'organization_id' => $mandant['organization']->getKey(),
+            'tenancy_id' => $mandant['tenancy']->getKey(),
+            'starts_on' => '2025-01-01',
+            'ends_on' => '2025-12-31',
+            'person_count' => 2,
+            'source' => ValueSource::MANUELL,
+        ]);
+
+        $this->actingAs($mandant['user'])
+            ->delete(route('portal.einheiten.destroy', ['unit' => $mandant['unit']->getKey()]))
+            ->assertRedirect();
+
+        // Das Mietverhaeltnis ist mit der Einheit weich geloescht.
+        self::assertNull(Tenancy::query()->find($mandant['tenancy']->getKey()));
+        self::assertNotNull(Tenancy::withTrashed()->find($mandant['tenancy']->getKey()));
+
+        $this->actingAs($mandant['user'])
+            ->post(route('portal.einheiten.store', ['property' => $mandant['property']->getKey()]), [
+                'label' => $bezeichnung,
+                'living_area_sqm' => '55',
+            ])
+            ->assertSessionHasNoErrors();
+
+        /** @var Unit $neu */
+        $neu = Unit::query()
+            ->where('property_id', $mandant['property']->getKey())
+            ->where('label', $bezeichnung)
+            ->firstOrFail();
+
+        self::assertNotSame($mandant['unit']->getKey(), $neu->getKey());
+        self::assertSame(0, $neu->tenancies()->count());
+        self::assertSame(0, $neu->tenancies()->withTrashed()->count());
+
+        // Die alte Zeile bleibt wegen ihrer Bezuege erhalten, gibt aber die
+        // Bezeichnung frei.
+        $alt = Unit::withTrashed()->find($mandant['unit']->getKey());
+
+        self::assertNotNull($alt);
+        self::assertNotSame($bezeichnung, $alt->getAttribute('label'));
+        self::assertStringStartsWith($bezeichnung.' (entfernt', (string) $alt->getAttribute('label'));
+
+        $liste = $this->actingAs($mandant['user'])->get(
+            route('portal.mietverhaeltnisse.index', ['unit' => $neu->getKey()])
+        );
+
+        $liste->assertOk();
+        $liste->assertDontSee((string) $mandant['tenancy']->getAttribute('tenant_display_name'));
+    }
+
+    public function test_entfernte_einheit_ohne_bezuege_wird_beim_wiederanlegen_endgueltig_entfernt(): void
+    {
+        $mandant = $this->mandant();
+        $mandant['tenancy']->forceDelete();
+        $bezeichnung = (string) $mandant['unit']->getAttribute('label');
+
+        $this->actingAs($mandant['user'])
+            ->delete(route('portal.einheiten.destroy', ['unit' => $mandant['unit']->getKey()]))
+            ->assertRedirect();
+
+        $this->actingAs($mandant['user'])
+            ->post(route('portal.einheiten.store', ['property' => $mandant['property']->getKey()]), [
+                'label' => $bezeichnung,
+                'living_area_sqm' => '55',
+            ])
+            ->assertSessionHasNoErrors();
+
+        self::assertNull(Unit::withTrashed()->find($mandant['unit']->getKey()));
+        self::assertSame(1, Unit::withTrashed()->where('property_id', $mandant['property']->getKey())->count());
     }
 
     public function test_einheit_wird_mit_allen_schluesselwerten_angelegt(): void

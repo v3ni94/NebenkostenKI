@@ -106,6 +106,34 @@ class ArchiveGuardTest extends TestCase
         }
     }
 
+    /**
+     * Befund N14: XLSX ist unbedenklich, aber derzeit nicht auswertbar. Der
+     * Eintrag wird uebersprungen, die uebrigen Eintraege bleiben verwendbar.
+     */
+    public function test_ueberspringt_xlsx_eintraege_statt_das_archiv_abzulehnen(): void
+    {
+        $path = SampleFiles::write(SampleFiles::zip([
+            'bescheid.pdf' => SampleFiles::pdf(2),
+            'mieterliste.xlsx' => SampleFiles::xlsx(2),
+        ]), 'zip');
+
+        $entries = $this->guard->inspect($path, $this->limits);
+
+        $this->assertSame(['pdf'], array_map(fn ($entry): string => $entry->extension, $entries));
+    }
+
+    public function test_ein_archiv_nur_mit_xlsx_gilt_als_leer(): void
+    {
+        $path = SampleFiles::write(SampleFiles::zip(['mieterliste.xlsx' => SampleFiles::xlsx(2)]), 'zip');
+
+        try {
+            $this->guard->inspect($path, $this->limits);
+            $this->fail('Ein Archiv ohne auswertbaren Eintrag muss abgelehnt werden.');
+        } catch (UploadRejectedException $exception) {
+            $this->assertSame(UploadErrorCode::ARCHIV_LEER, $exception->errorCode);
+        }
+    }
+
     public function test_lehnt_leeres_archiv_ab(): void
     {
         $path = SampleFiles::write(SampleFiles::zip(['__MACOSX/hinweis' => 'x']), 'zip');

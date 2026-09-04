@@ -10,6 +10,11 @@ use App\Application\Payment\Dto\CheckoutConsent;
 use App\Application\Payment\Dto\CheckoutStart;
 use App\Application\Payment\Dto\PriceQuote;
 use App\Application\Payment\Exceptions\CheckoutNotAllowedException;
+use App\Application\Review\ReviewGate;
+use App\Application\Wizard\AllocationKeyWorkspace;
+use App\Application\Wizard\AuditReportPresenter;
+use App\Application\Wizard\PrepaymentWorkspace;
+use App\Application\Wizard\PreviewBuilder;
 use App\Enums\BillingRunStatus;
 use App\Enums\LegalDocumentPurpose;
 use App\Enums\PaymentProvider;
@@ -44,6 +49,10 @@ use Illuminate\Support\Str;
  *  5. Der Idempotency-Key wird je Zahlungsvorgang genau einmal gebildet und
  *     auf der Zahlung gespeichert. Ein doppelt abgesendetes Formular erzeugt
  *     damit keinen zweiten Zahlungsvorgang.
+ *  6. Ohne gueltige Vorschau zum aktuellen Berechnungsstand und mit offenen
+ *     Sperrgruenden (Kostenpruefung, Vorauszahlungen, Verteilerschluessel,
+ *     Regel-Blocker) wird kein Checkout eingeleitet. Das ist die zweite
+ *     Verteidigungslinie hinter der Invalidierung der Vorschau.
  */
 final class StartCheckout
 {
@@ -54,6 +63,11 @@ final class StartCheckout
         private readonly BillingRunStateMachine $stateMachine,
         private readonly AuditRecorder $audit,
         private readonly ConsentFingerprint $fingerprint,
+        private readonly PreviewBuilder $preview,
+        private readonly ReviewGate $gate,
+        private readonly PrepaymentWorkspace $prepayments,
+        private readonly AllocationKeyWorkspace $keys,
+        private readonly AuditReportPresenter $report,
     ) {}
 
     /**
@@ -67,6 +81,7 @@ final class StartCheckout
         string $cancelUrl,
     ): CheckoutStart {
         $this->assertStatus($billingRun);
+        $this->assertPreview($billingRun);
         $this->assertNoConfirmedPayment($billingRun);
         $this->assertBillingAddress($billingRun);
         $this->assertUserConfirmation($billingRun);
@@ -222,6 +237,53 @@ final class StartCheckout
         if ($billingRun->getAttribute('active_calculation_snapshot_id') === null) {
             throw CheckoutNotAllowedException::snapshotMissing();
         }
+    }
+
+    /**
+     * Gueltige Vorschau zum aktuellen Berechnungsstand und keine offenen
+     * Sperrgruende. Die Reihenfolge entspricht dem Ablauf: Kostenpruefung
+     * (Schritt 6), Vorauszahlungen (Schritt 7), Verteilerschluessel
+     * (Schritt 8), Pruefbericht (Schritt 9).
+     *
+     * @throws CheckoutNotAllowedException
+     */
+    private function assertPreview(BillingRun $billingRun): void
+    {
+        if (! $this->preview->isValid($billingRun)) {
+            throw CheckoutNotAllowedException::previewInvalid();
+        }
+
+        $grund = $this->blockingReason($billingRun);
+
+        if ($grund !== null) {
+            throw CheckoutNotAllowedException::blocked($grund);
+        }
+    }
+
+    /**
+     * Erster offener Sperrgrund oder null.
+     */
+    public function blockingReason(BillingRun $billingRun): ?string
+    {
+        $grund = $this->gate->reason($billingRun);
+
+        if ($grund !== null) {
+            return $grund;
+        }
+
+        $offen = $this->prepayments->openReasons($billingRun);
+
+        if ($offen !== []) {
+            return 'Schritt 7 ist noch nicht abgeschlossen. '.$offen[0];
+        }
+
+        $blockiert = $this->keys->blockingReasons($billingRun);
+
+        if ($blockiert !== []) {
+            return 'Schritt 8 ist noch nicht abgeschlossen. '.$blockiert[0];
+        }
+
+        return $this->report->blockingReason($billingRun);
     }
 
     /**

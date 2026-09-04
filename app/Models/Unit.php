@@ -68,6 +68,26 @@ class Unit extends Model
     protected $guarded = ['id'];
 
     /**
+     * Loeschkaskade: Mit einer weich geloeschten Einheit werden ihre
+     * Mietverhaeltnisse weich geloescht. Sie sind ohne Einheit fachlich nicht
+     * mehr zuzuordnen und duerfen nicht als verwaiste Zeilen in einer spaeteren
+     * Abrechnung auftauchen. Die endgueltige Loeschung laeuft ueber die
+     * Fremdschluessel der Datenbank.
+     */
+    protected static function booted(): void
+    {
+        static::deleting(static function (Unit $unit): void {
+            if ($unit->isForceDeleting()) {
+                return;
+            }
+
+            foreach ($unit->tenancies()->get() as $tenancy) {
+                $tenancy->delete();
+            }
+        });
+    }
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array

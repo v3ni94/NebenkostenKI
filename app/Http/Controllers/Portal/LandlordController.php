@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Portal;
 
 use App\Application\Account\AuditRecorder;
 use App\Application\Account\OrganizationContext;
+use App\Application\Wizard\PreviewInvalidator;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Portal\LandlordRequest;
 use App\Models\Landlord;
@@ -37,6 +38,7 @@ class LandlordController extends Controller
     public function __construct(
         private readonly OrganizationContext $context,
         private readonly AuditRecorder $audit,
+        private readonly PreviewInvalidator $invalidator,
     ) {}
 
     public function edit(string $property): View
@@ -93,6 +95,10 @@ class LandlordController extends Controller
             organization: $this->context->organizationId(),
             metadata: ['property_id' => (string) $objekt->getKey()],
         );
+
+        // Der Vermieter ist Absender jeder Mieterabrechnung. Vorschau und
+        // Bestaetigung offener Laeufe des Objekts verlieren ihre Grundlage.
+        $this->invalidator->forProperty($objekt, $this->context->user());
 
         return redirect()
             ->route('portal.objekte.index')

@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Portal;
 use App\Application\Account\AuditRecorder;
 use App\Application\Account\OrganizationContext;
 use App\Application\BillingRun\PortalStatusResolver;
+use App\Application\Wizard\PreviewInvalidator;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Portal\PropertyRequest;
 use App\Models\Property;
@@ -37,6 +38,7 @@ class PropertyController extends Controller
         private readonly OrganizationContext $context,
         private readonly PortalStatusResolver $status,
         private readonly AuditRecorder $audit,
+        private readonly PreviewInvalidator $invalidator,
     ) {}
 
     public function index(): View
@@ -126,6 +128,11 @@ class PropertyController extends Controller
             actor: $this->context->user(),
             organization: $this->context->organizationId(),
         );
+
+        // Anschrift, Gesamtflaechen und Nenner stehen auf der Abrechnung
+        // beziehungsweise in den Schluesseln: offene Laeufe verlieren Vorschau
+        // und Bestaetigung.
+        $this->invalidator->forProperty($objekt, $this->context->user());
 
         return redirect()
             ->route('portal.objekte.index')

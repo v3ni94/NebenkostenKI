@@ -8,6 +8,7 @@ use App\Application\Account\AuditRecorder;
 use App\Application\Account\OrganizationContext;
 use App\Application\BillingRun\OccupancyTimeline;
 use App\Application\Heating\EuroAmountInput;
+use App\Application\Wizard\PreviewInvalidator;
 use App\Domain\Period\DatePeriodRange;
 use App\Enums\TenancyKind;
 use App\Enums\TenancyStatus;
@@ -50,6 +51,7 @@ class TenancyController extends Controller
         private readonly OrganizationContext $context,
         private readonly OccupancyTimeline $timeline,
         private readonly AuditRecorder $audit,
+        private readonly PreviewInvalidator $invalidator,
     ) {}
 
     public function index(string $unit): View
@@ -122,6 +124,10 @@ class TenancyController extends Controller
             organization: $this->context->organizationId(),
         );
 
+        // Ein neues Mietverhaeltnis ist abrechnungsrelevant: Vorschau und
+        // Bestaetigung betroffener Laeufe verlieren ihre Grundlage.
+        $this->invalidator->forTenancy($mietverhaeltnis, $this->context->user());
+
         return redirect()
             ->route('portal.mietverhaeltnisse.index', ['unit' => $einheit->getKey()])
             ->with('status', $this->speicherhinweis($mietverhaeltnis));
@@ -165,6 +171,13 @@ class TenancyController extends Controller
             return $this->ueberschneidungsfehler($request);
         }
 
+        // Bisheriger Vertragszeitraum, damit auch ein Lauf invalidiert wird,
+        // den das Mietverhaeltnis nach der Aenderung nicht mehr beruehrt.
+        $bisher = [
+            $this->iso($mietverhaeltnis->getAttribute('starts_on')),
+            $this->iso($mietverhaeltnis->getAttribute('ends_on')),
+        ];
+
         $mietverhaeltnis->fill($this->attribute($request))->save();
 
         $this->audit->record(
@@ -173,6 +186,8 @@ class TenancyController extends Controller
             actor: $this->context->user(),
             organization: $this->context->organizationId(),
         );
+
+        $this->invalidator->forTenancy($mietverhaeltnis, $this->context->user(), $bisher);
 
         return redirect()
             ->route('portal.mietverhaeltnisse.index', ['unit' => $einheit->getKey()])
@@ -194,6 +209,8 @@ class TenancyController extends Controller
             actor: $this->context->user(),
             organization: $this->context->organizationId(),
         );
+
+        $this->invalidator->forTenancy($mietverhaeltnis, $this->context->user());
 
         return redirect()
             ->route('portal.mietverhaeltnisse.index', ['unit' => $einheitId])
@@ -236,6 +253,8 @@ class TenancyController extends Controller
             organization: $this->context->organizationId(),
         );
 
+        $this->invalidator->forUnit($einheit, $this->context->user());
+
         return redirect()
             ->route('portal.mietverhaeltnisse.index', ['unit' => $einheit->getKey()])
             ->with('status', 'Der Leerstand ist gespeichert. Leerstandskosten bleiben beim Eigentümer.');
@@ -258,6 +277,8 @@ class TenancyController extends Controller
             actor: $this->context->user(),
             organization: $this->context->organizationId(),
         );
+
+        $this->invalidator->forUnit($einheit, $this->context->user());
 
         return redirect()
             ->route('portal.mietverhaeltnisse.index', ['unit' => $einheitId])
@@ -298,6 +319,8 @@ class TenancyController extends Controller
             organization: $this->context->organizationId(),
         );
 
+        $this->invalidator->forTenancy($mietverhaeltnis, $this->context->user());
+
         return redirect()
             ->route('portal.mietverhaeltnisse.index', ['unit' => $mietverhaeltnis->getAttribute('unit_id')])
             ->with('status', 'Der Zeitraum mit der Personenanzahl ist gespeichert.');
@@ -320,6 +343,8 @@ class TenancyController extends Controller
             actor: $this->context->user(),
             organization: $this->context->organizationId(),
         );
+
+        $this->invalidator->forTenancy($mietverhaeltnis, $this->context->user());
 
         return redirect()
             ->route('portal.mietverhaeltnisse.index', ['unit' => $mietverhaeltnis->getAttribute('unit_id')])

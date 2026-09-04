@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Tests\Feature\Payment;
 
 use App\Enums\BillingRunStatus;
+use App\Enums\CostItemStatus;
 use App\Enums\LegalDocumentPurpose;
 use App\Enums\PaymentStatus;
 use App\Models\BillingRun;
+use App\Models\CostItem;
 use App\Models\LegalAcceptance;
 use App\Models\Payment;
 use App\Services\Payment\Contracts\CheckoutClient;
@@ -128,6 +130,88 @@ final class CheckoutTest extends PaymentTestCase
 
         self::assertSame(0, Payment::query()->count());
         self::assertSame([], $this->checkoutClient->payloads);
+    }
+
+    /**
+     * Zweite Verteidigungslinie (Befund N9): Eine Stammdatenaenderung nach der
+     * Bestaetigung macht die Vorschau ungueltig; StartCheckout verweigert den
+     * Checkout mit Hinweis auf die Vorschau, auch wenn der Lauf im Zustand
+     * PREVIEW_READY bleibt.
+     */
+    public function test_ohne_gueltige_vorschau_wird_der_checkout_abgelehnt(): void
+    {
+        // Eine Abrechnung, damit das Mietverhaeltnis ohne Ueberschneidung
+        // bearbeitet werden kann.
+        $daten = $this->vorschaubereiterLauf(1);
+
+        $this->actingAs($daten['user'])->put(
+            route('portal.mietverhaeltnisse.update', ['tenancy' => $daten['tenancy']->getKey()]),
+            [
+                'tenant_display_name' => (string) $daten['tenancy']->getAttribute('tenant_display_name'),
+                'kind' => 'WOHNRAUM',
+                'starts_on' => '2025-01-01',
+                'monthly_operating_prepayment_eur' => '210,00',
+            ]
+        )->assertRedirect()->assertSessionHasNoErrors();
+
+        // Die Bestaetigung wurde durch die Aenderung zurueckgenommen. Sie wird
+        // hier absichtlich wieder gesetzt, damit allein die fehlende Vorschau
+        // den Checkout sperrt.
+        $daten['billingRun']->forceFill([
+            'review_confirmed_at' => now(),
+            'responsibility_confirmed_at' => now(),
+        ])->save();
+
+        self::assertSame(BillingRunStatus::PREVIEW_READY, $daten['billingRun']->refresh()->getAttribute('status'));
+
+        $antwort = $this->actingAs($daten['user'])
+            ->from(route('portal.checkout.show', ['billingRun' => $daten['billingRun']->getKey()]))
+            ->post(route('portal.checkout.store', ['billingRun' => $daten['billingRun']->getKey()]), [
+                'sofortige_ausfuehrung' => '1',
+                'vertragsgrundlagen' => '1',
+            ]);
+
+        $antwort->assertRedirect(route('portal.checkout.show', ['billingRun' => $daten['billingRun']->getKey()]));
+        $antwort->assertSessionHasErrors(['zahlung']);
+
+        $fehler = session('errors')?->get('zahlung') ?? [];
+
+        self::assertStringContainsString('keine gültige Vorschau', implode(' ', $fehler));
+        self::assertSame(0, Payment::query()->count());
+        self::assertSame([], $this->checkoutClient->payloads);
+
+        // Die Zahlungsseite zeigt den Hinweis.
+        $this->actingAs($daten['user'])
+            ->get(route('portal.checkout.show', ['billingRun' => $daten['billingRun']->getKey()]))
+            ->assertOk()
+            ->assertSee('keine gültige Vorschau');
+    }
+
+    public function test_ein_offener_sperrgrund_verhindert_den_checkout(): void
+    {
+        $daten = $this->vorschaubereiterLauf(2);
+
+        // Eine nachtraeglich vorgeschlagene, noch nicht entschiedene Position.
+        CostItem::factory()->create([
+            'organization_id' => $daten['organization']->getKey(),
+            'billing_run_id' => $daten['billingRun']->getKey(),
+            'status' => CostItemStatus::VORGESCHLAGEN,
+            'confirmed_at' => null,
+        ]);
+
+        $antwort = $this->actingAs($daten['user'])
+            ->from(route('portal.checkout.show', ['billingRun' => $daten['billingRun']->getKey()]))
+            ->post(route('portal.checkout.store', ['billingRun' => $daten['billingRun']->getKey()]), [
+                'sofortige_ausfuehrung' => '1',
+                'vertragsgrundlagen' => '1',
+            ]);
+
+        $antwort->assertSessionHasErrors(['zahlung']);
+
+        $fehler = session('errors')?->get('zahlung') ?? [];
+
+        self::assertStringContainsString('Kostenpositionen offen', implode(' ', $fehler));
+        self::assertSame(0, Payment::query()->count());
     }
 
     public function test_die_zustimmungen_landen_datensparsam_in_legal_acceptances(): void

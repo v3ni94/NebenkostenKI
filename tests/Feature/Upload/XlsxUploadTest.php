@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Upload;
 
-use App\Enums\DocumentProcessingStatus;
 use App\Models\Document;
 use App\Services\Storage\TemporaryUploadStorage;
 use App\Services\Storage\UploadErrorCode;
@@ -62,7 +61,12 @@ class XlsxUploadTest extends TestCase
         $this->starteUpload('mieterliste.csv', 4096)->assertCreated();
     }
 
-    public function test_archiv_mit_xlsx_eintrag_wird_vollstaendig_abgelehnt(): void
+    /**
+     * Befund N14: Ein Archiv mit brauchbaren PDFs und einer beigelegten
+     * Tabelle wird nicht mehr vollstaendig abgelehnt. Der XLSX-Eintrag wird
+     * uebersprungen, die PDF-Eintraege werden entpackt.
+     */
+    public function test_archiv_mit_xlsx_eintrag_ueberspringt_die_tabelle_und_entpackt_die_pdfs(): void
     {
         $this->ladeDateiHoch(SampleFiles::zip([
             'bescheid.pdf' => SampleFiles::pdf(2),
@@ -71,12 +75,29 @@ class XlsxUploadTest extends TestCase
 
         $this->verarbeiteQueue();
 
-        $dokument = Document::query()->firstOrFail();
+        $archiv = Document::query()->orderBy('sequence_number')->firstOrFail();
 
-        $this->assertSame(1, Document::query()->count(), 'Es wird nichts teilweise entpackt.');
-        $this->assertSame(DocumentProcessingStatus::ABGELEHNT, $dokument->getAttribute('processing_status'));
-        $this->assertSame(UploadErrorCode::ARCHIV_EINTRAG_UNZULAESSIG->value, $dokument->getAttribute('failure_code'));
-        $this->assertSame([], Storage::disk(TemporaryUploadStorage::DISK)->allFiles());
+        $this->assertNotSame(
+            UploadErrorCode::ARCHIV_EINTRAG_UNZULAESSIG->value,
+            $archiv->getAttribute('failure_code'),
+            'Die Tabelle darf das Archiv nicht mehr zu Fall bringen.'
+        );
+
+        $this->assertSame(2, Document::query()->count(), 'Archiv und ein entpackter PDF-Eintrag.');
+        $this->assertSame(
+            0,
+            Document::query()->where('mime_type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')->count(),
+            'Aus der Tabelle entsteht kein Dokument.'
+        );
+        $this->assertSame(1, Document::query()->where('mime_type', 'application/pdf')->count());
+    }
+
+    public function test_die_konfiguration_bietet_xlsx_nicht_mehr_an(): void
+    {
+        $this->assertNotContains(
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            (array) config('smartabrechnen.uploads.accepted_mime_types')
+        );
     }
 
     public function test_fehlermeldungen_bewerben_xlsx_nicht_mehr_als_zulaessig(): void

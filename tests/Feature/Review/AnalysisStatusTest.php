@@ -136,6 +136,9 @@ final class AnalysisStatusTest extends ReviewTestCase
         self::assertSame(1, $bericht->documentsEvaluated);
         self::assertSame(3, $bericht->documentsFailed);
         self::assertTrue($bericht->complete);
+        // Befund N11: Der Prozentwert zaehlt alle Endzustaende, nicht nur die
+        // ausgewerteten Unterlagen.
+        self::assertSame(100, $bericht->percent());
 
         $antwort = $this->actingAs($mandant['user'])->get(
             route('portal.pruefung.analyse', ['billingRun' => $lauf->getKey()])
@@ -249,6 +252,58 @@ final class AnalysisStatusTest extends ReviewTestCase
         Mail::assertSent(PruefaufgabenOffenMail::class, function (PruefaufgabenOffenMail $mail) use ($mandant): bool {
             return $mail->hasTo((string) $mandant['user']->email);
         });
+
+        self::assertSame(
+            1,
+            EmailMessage::query()
+                ->where('billing_run_id', $lauf->getKey())
+                ->where('template', 'pruefaufgaben-offen')
+                ->count()
+        );
+    }
+
+    /**
+     * Befund N12: Ein erneuter Klick auf Zuordnen wiederholt die Zuordnung,
+     * aber nicht die Nachricht.
+     */
+    public function test_die_pruefaufgabenmail_geht_je_lauf_nur_einmal(): void
+    {
+        Mail::fake();
+
+        $mandant = $this->mandant();
+        $lauf = $this->lauf($mandant['organization'], $mandant['property'], [
+            'created_by_user_id' => $mandant['user']->getKey(),
+        ]);
+
+        $dokument = $this->dokument($lauf, DocumentType::RECHNUNG, 'Unterlage 01');
+        $this->felder($dokument, [
+            'belegdatum' => '2025-06-30',
+            'gesamtbetrag_brutto_cent' => 25000,
+            'vorgeschlagene_kostenart' => 'Gartenpflege',
+            'leistungszeitraum_von' => '2025-01-01',
+            'leistungszeitraum_bis' => '2025-12-31',
+        ]);
+
+        $this->actingAs($mandant['user'])->post(
+            route('portal.pruefung.zuordnen', ['billingRun' => $lauf->getKey()])
+        )->assertRedirect();
+
+        // Eine zweite, noch nicht zugeordnete Unterlage sorgt dafuer, dass der
+        // zweite Durchlauf erneut offene Punkte meldet.
+        $weitere = $this->dokument($lauf, DocumentType::RECHNUNG, 'Unterlage 02');
+        $this->felder($weitere, [
+            'belegdatum' => '2025-07-31',
+            'gesamtbetrag_brutto_cent' => 12000,
+            'vorgeschlagene_kostenart' => 'Hausreinigung',
+            'leistungszeitraum_von' => '2025-01-01',
+            'leistungszeitraum_bis' => '2025-12-31',
+        ]);
+
+        $this->actingAs($mandant['user'])->post(
+            route('portal.pruefung.zuordnen', ['billingRun' => $lauf->getKey()])
+        )->assertRedirect();
+
+        Mail::assertSentCount(1);
 
         self::assertSame(
             1,

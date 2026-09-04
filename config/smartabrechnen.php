@@ -107,7 +107,8 @@ return [
             'image/heic',
             'image/heif',
             'text/csv',
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            // XLSX wird derzeit nicht ausgewertet (StartUploadRequest) und deshalb
+            // auch nicht angeboten.
             'application/zip',
         ],
         'malware_scanner' => [

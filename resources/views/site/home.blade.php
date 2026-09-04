@@ -1,7 +1,7 @@
 @extends('layouts.site')
 
 @section('meta_title', 'Betriebskostenabrechnung online erstellen')
-@section('meta_description', 'Smart Abrechnen erstellt aus Hausgeldabrechnung, Grundsteuerbescheid, Mietvertrag und Belegen eine strukturierte Betriebskostenabrechnung. Konto und Entwürfe kostenlos, Zahlung erst nach der Vorschau.')
+@section('meta_description', 'Smart Abrechnen erstellt aus Hausgeldabrechnung, Grundsteuerbescheid, Heizkostenabrechnung und Belegen eine strukturierte Betriebskostenabrechnung. Konto und Entwürfe kostenlos, Zahlung erst nach der Vorschau.')
 
 @php
     $preisBruttoCent = (int) config('smartabrechnen.pricing.per_statement_gross_cent');
@@ -22,10 +22,11 @@
                 </h1>
 
                 <p class="mt-5 max-w-2xl text-lg leading-relaxed text-hvm-textschwarz">
-                    Laden Sie Hausgeldabrechnung, Grundsteuerbescheid, Heizkostenabrechnung, Mietvertrag und Belege
-                    ungeordnet hoch. Smart Abrechnen erkennt die Unterlagen, liest die Werte aus und stellt Ihnen nur
-                    noch die offenen Punkte zur Prüfung vor. Die Beträge selbst werden ausschließlich rechnerisch
-                    ermittelt, nicht geschätzt.
+                    Laden Sie Hausgeldabrechnung, Grundsteuerbescheid, Heizkostenabrechnung und Belege ungeordnet
+                    hoch. Smart Abrechnen erkennt die Unterlagen, liest die Kostenwerte aus und stellt Ihnen die
+                    offenen Punkte zur Prüfung vor. Vorauszahlungen, Mietzeiten und Umlagevereinbarungen erfassen Sie
+                    selbst in wenigen Schritten. Die Beträge werden ausschließlich rechnerisch ermittelt, nicht
+                    geschätzt.
                 </p>
 
                 <div class="mt-8 flex flex-wrap gap-3">
@@ -98,7 +99,7 @@
                     <li>die auf Ihre Einheit entfallenden umlagefähigen Kosten aus der Hausgeldabrechnung</li>
                     <li>die Grundsteuer, sofern sie nicht bereits in der Hausgeldabrechnung enthalten ist</li>
                     <li>eine separate Heizkostenabrechnung, soweit vorhanden</li>
-                    <li>die Vorauszahlungen Ihrer Mieter aus Mietvertrag, Vorjahr oder Zahlungsübersicht</li>
+                    <li>die taggenaue Sollsumme der Vorauszahlungen aus den von Ihnen erfassten Monatsbeträgen</li>
                 </ul>
 
                 <p class="mt-4">
@@ -109,8 +110,9 @@
 
             <x-hvm.card :accent="true" title="Vollständige Objektabrechnung für Mehrfamilienhäuser">
                 <p>
-                    Für ein ganzes Objekt mit mehreren Einheiten. Sie laden alle Rechnungen, Gebührenbescheide,
-                    Mietverträge, Zählerdaten, Vorjahresabrechnungen, Heizkostenabrechnungen und Zahlungsdaten hoch.
+                    Für ein ganzes Objekt mit mehreren Einheiten. Sie laden alle Rechnungen, Gebührenbescheide und
+                    Heizkostenabrechnungen hoch und erfassen Einheiten, Mietzeiten, Vorauszahlungen und Zählerstände
+                    in den geführten Schritten.
                 </p>
 
                 <p class="mt-4 font-semibold text-hvm-anthrazit">Das Portal übernimmt dabei:</p>
@@ -191,13 +193,15 @@
             </x-hvm.card>
 
             <x-hvm.card title="Mietvertrag">
-                Aus dem Mietvertrag ergeben sich die vereinbarten Betriebskosten, der Umlageschlüssel und die
-                Vorauszahlungen. Nachträge bitte mit hochladen.
+                Halten Sie ihn bereit: Die vereinbarten Betriebskosten, den Umlageschlüssel und die monatlichen
+                Vorauszahlungen tragen Sie aus dem Vertrag in die geführten Schritte ein. Hochgeladene Mietverträge
+                werden abgelegt und Ihnen zur Sichtprüfung angezeigt, die Werte daraus werden nicht automatisch
+                übernommen.
             </x-hvm.card>
 
             <x-hvm.card title="Vorjahresabrechnung">
-                Sie dient dem Vergleich und der Plausibilitätsprüfung. Vorjahreswerte werden nie als neue Kosten
-                übernommen.
+                Sie hilft Ihnen beim Abgleich der Kostenarten. Hochgeladen wird sie abgelegt und angezeigt;
+                Vorjahreswerte werden nie als neue Kosten übernommen.
             </x-hvm.card>
 
             <x-hvm.card title="Heizkostenabrechnung">
@@ -206,13 +210,14 @@
             </x-hvm.card>
 
             <x-hvm.card title="Nachweis der Vorauszahlungen">
-                Kontoauszug oder Zahlungsübersicht für die tatsächlich geleisteten Vorauszahlungen. Abgezogen werden die
-                Ist-Zahlungen, Sollwerte dienen der Kontrolle.
+                Kontoauszug oder Zahlungsübersicht für die tatsächlich geleisteten Vorauszahlungen. Den Ist-Betrag je
+                Mietverhältnis tragen Sie selbst ein; abgezogen werden die Ist-Zahlungen, Sollwerte dienen der
+                Kontrolle.
             </x-hvm.card>
 
             <x-hvm.card title="Angaben zu Einheiten und Mietzeiten">
-                Wohnflächen, Miteigentumsanteile, Einzug, Auszug und Leerstand. Vieles davon liest das Portal aus Ihren
-                Unterlagen aus, Sie bestätigen es nur.
+                Wohnflächen, Miteigentumsanteile, Einzug, Auszug, Leerstand und Personenzahlen erfassen Sie in den
+                Stammdaten. Das Portal prüft die Angaben auf Lücken, Überschneidungen und Summen.
             </x-hvm.card>
         </div>
     </section>
