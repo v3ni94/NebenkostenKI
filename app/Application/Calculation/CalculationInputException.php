@@ -90,6 +90,28 @@ final class CalculationInputException extends RuntimeException
         ));
     }
 
+    public static function personDaysWithVacancy(string $keyLabel, string $unitLabel): self
+    {
+        return new self(sprintf(
+            'Für den Verteilerschlüssel %s ist die Einheit %s im Abrechnungszeitraum nicht durchgehend vermietet '
+            .'(Leerstand oder Eigennutzung). Für einen nicht vermieteten Zeitraum liegt keine Personenangabe vor; '
+            .'ohne sie ginge sein Anteil stillschweigend auf die übrigen Mieter über, eine Personenannahme wäre '
+            .'eine Schätzung. Beides wird nicht getan. Bitte wählen Sie für die Kostenart in Schritt 8 einen '
+            .'anderen Verteilerschlüssel.',
+            $keyLabel,
+            $unitLabel
+        ));
+    }
+
+    public static function unconfirmedCostItem(string $costItemLabel): self
+    {
+        return new self(sprintf(
+            'Die Kostenposition %s ist nur vorgeschlagen und noch nicht bestätigt. Bitte bestätigen oder verwerfen '
+            .'Sie die Position in der Kostenprüfung. Eine unbestätigte Position wird nicht berechnet.',
+            $costItemLabel
+        ));
+    }
+
     public static function directAssignmentExceedsAmount(string $keyLabel, string $assigned, string $amount): self
     {
         return new self(sprintf(

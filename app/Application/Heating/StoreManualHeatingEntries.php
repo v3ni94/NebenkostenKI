@@ -530,6 +530,12 @@ final class StoreManualHeatingEntries
      * Eigentuemer ausgewiesen (Nenner der Direktzuordnung ist der
      * Positionsbetrag).
      *
+     * Der Schluessel wird auch dann geschrieben, wenn kein einziges
+     * Mietverhaeltnis einen Anteil erhaelt, weil alle erfassten Betraege
+     * Einheiten ohne Mietverhaeltnis betreffen. Ohne Positionsschluessel
+     * fiele die Position auf den Schluessel der Kostenart zurueck und wuerde
+     * die Mieter anderer Einheiten belasten.
+     *
      * @param  array<string, Money>  $amountsByUnit
      */
     private function writeAllocationKey(BillingRun $billingRun, CostItem $item, array $amountsByUnit): void
@@ -558,10 +564,6 @@ final class StoreManualHeatingEntries
 
                 $values[(string) $participantKey] = $share->cents;
             }
-        }
-
-        if ($values === []) {
-            return;
         }
 
         /** @var AllocationKey $key */

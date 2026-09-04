@@ -86,6 +86,42 @@ final class ConsumptionKeyBuilderTest extends TestCase
     }
 
     #[Test]
+    public function unvollstaendige_zwischenablesung_wird_mit_bestaetigung_aus_dem_jahreswert_ergaenzt(): void
+    {
+        // Jahreswert 120,000 m³, nur mv-2 hat eine Ablesung (61,000). Der
+        // Rest 59,000 geht taggenau an mv-3 und wird gekennzeichnet; mv-2
+        // behaelt seinen abgelesenen Wert ohne Kennzeichnung.
+        $key = $this->builder->build(
+            [
+                ConsumptionRecord::forUnit('W-2', '120.000'),
+                ConsumptionRecord::forOccupancy('W-2', 'mv-2', '61.000'),
+            ],
+            ['W-2' => ['mv-2' => 181, 'mv-3' => 184]],
+            'm³',
+            ['W-2']
+        );
+
+        $this->assertSame('61.000', (string) $key->numeratorFor('mv-2'));
+        $this->assertSame('59.000', (string) $key->numeratorFor('mv-3'));
+        $this->assertSame('120.000', (string) $key->denominator());
+        $this->assertFalse($key->usesSubstituteDistributionFor('mv-2'));
+        $this->assertTrue($key->usesSubstituteDistributionFor('mv-3'));
+    }
+
+    #[Test]
+    public function unvollstaendige_zwischenablesung_ohne_jahreswert_bleibt_auch_mit_bestaetigung_ein_fehler(): void
+    {
+        $this->expectException(MissingInterimReadingException::class);
+
+        $this->builder->build(
+            [ConsumptionRecord::forOccupancy('W-2', 'mv-2', '61.000')],
+            ['W-2' => ['mv-2' => 181, 'mv-3' => 184]],
+            'm³',
+            ['W-2']
+        );
+    }
+
+    #[Test]
     public function einheit_ohne_nutzerwechsel_braucht_keine_zwischenablesung(): void
     {
         $key = $this->builder->build(

@@ -302,6 +302,93 @@ final class BillingRunInputAssemblerTest extends CalculationTestCase
         app(BillingRunInputAssembler::class)->assemble($szenario['billingRun']->refresh());
     }
 
+    public function test_personentage_mit_erfasstem_leerstand_brechen_ab_statt_den_anteil_auf_die_mieter_zu_verschieben(): void
+    {
+        $szenario = $this->szenario();
+
+        // Wohnung B: Mieter bis 30.06.2025, danach erfasster Leerstand.
+        Tenancy::query()
+            ->whereKey($szenario['tenancies'][1]->getKey())
+            ->update(['ends_on' => '2025-06-30']);
+
+        VacancyPeriod::factory()->create([
+            'organization_id' => $szenario['organization']->getKey(),
+            'unit_id' => $szenario['units'][1]->getKey(),
+            'starts_on' => '2025-07-01',
+            'ends_on' => '2025-12-31',
+        ]);
+
+        foreach ($szenario['tenancies'] as $index => $mietverhaeltnis) {
+            OccupancyPeriod::factory()->create([
+                'organization_id' => $szenario['organization']->getKey(),
+                'tenancy_id' => $mietverhaeltnis->getKey(),
+                'starts_on' => '2025-01-01',
+                'ends_on' => $index === 0 ? '2025-12-31' : '2025-06-30',
+                'person_count' => 2,
+            ]);
+        }
+
+        $szenario['key']->forceFill(['key_type' => AllocationKeyType::PERSONENTAGE, 'denominator' => null])->save();
+
+        // Vorher erhielt der Leerstand das Gewicht null; sein Anteil ging
+        // stillschweigend auf die Mieter ueber.
+        $this->expectException(CalculationInputException::class);
+        $this->expectExceptionMessage('Wohnung B im Abrechnungszeitraum nicht durchgehend vermietet');
+
+        app(BillingRunInputAssembler::class)->assemble($szenario['billingRun']->refresh());
+    }
+
+    public function test_personentage_mit_nicht_belegtem_zeitraum_brechen_ab(): void
+    {
+        $szenario = $this->szenario();
+
+        // Wohnung B: Mieter bis 30.06.2025, danach weder Nachmieter noch
+        // erfasster Leerstand.
+        Tenancy::query()
+            ->whereKey($szenario['tenancies'][1]->getKey())
+            ->update(['ends_on' => '2025-06-30']);
+
+        foreach ($szenario['tenancies'] as $index => $mietverhaeltnis) {
+            OccupancyPeriod::factory()->create([
+                'organization_id' => $szenario['organization']->getKey(),
+                'tenancy_id' => $mietverhaeltnis->getKey(),
+                'starts_on' => '2025-01-01',
+                'ends_on' => $index === 0 ? '2025-12-31' : '2025-06-30',
+                'person_count' => 2,
+            ]);
+        }
+
+        $szenario['key']->forceFill(['key_type' => AllocationKeyType::PERSONENTAGE, 'denominator' => null])->save();
+
+        $this->expectException(CalculationInputException::class);
+        $this->expectExceptionMessage('Wohnung B');
+
+        app(BillingRunInputAssembler::class)->assemble($szenario['billingRun']->refresh());
+    }
+
+    public function test_eine_nur_vorgeschlagene_kostenposition_wird_nicht_berechnet(): void
+    {
+        $szenario = $this->szenario();
+
+        CostItem::factory()->create([
+            'organization_id' => $szenario['organization']->getKey(),
+            'billing_run_id' => $szenario['billingRun']->getKey(),
+            'cost_category_id' => $szenario['category']->getKey(),
+            'description' => 'Von der KI erkannt, noch nicht geprüft',
+            'amount_cent' => 999900,
+            'status' => CostItemStatus::VORGESCHLAGEN,
+            'confirmed_at' => null,
+        ]);
+
+        // Vorher wurde die unbestaetigte Position wie eine bestaetigte
+        // verteilt, sobald der Aufbau an der Kostenpruefung vorbei aufgerufen
+        // wurde.
+        $this->expectException(CalculationInputException::class);
+        $this->expectExceptionMessage('nur vorgeschlagen und noch nicht bestätigt');
+
+        app(BillingRunInputAssembler::class)->assemble($szenario['billingRun']->refresh());
+    }
+
     public function test_verbrauch_mit_erfasstem_leerstand_ohne_ablesewert_bricht_nicht_ab(): void
     {
         $szenario = $this->szenario();
