@@ -144,6 +144,7 @@ final class PreviewInvalidator
                 BillingRunStatus::PAID->value,
                 BillingRunStatus::FINALIZING->value,
                 BillingRunStatus::FINALIZED->value,
+                BillingRunStatus::FAILED->value,
                 BillingRunStatus::CANCELLED->value,
             ])
             ->get()

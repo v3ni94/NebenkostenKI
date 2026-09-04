@@ -211,10 +211,14 @@ final class CostItemDecisions
         $items = CostItem::query()
             ->where('direct_unit_id', $unit->getKey())
             ->whereHas('billingRun', static function ($query): void {
+                // FAILED ist ein bezahlter Lauf, dessen Finalisierung
+                // scheiterte; sein Snapshot ist gesperrt und wird nicht
+                // mehr aus den Kostenpositionen aufgebaut.
                 $query->whereNotIn('status', [
                     BillingRunStatus::PAID->value,
                     BillingRunStatus::FINALIZING->value,
                     BillingRunStatus::FINALIZED->value,
+                    BillingRunStatus::FAILED->value,
                     BillingRunStatus::CANCELLED->value,
                 ]);
             })

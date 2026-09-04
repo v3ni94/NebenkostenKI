@@ -512,6 +512,44 @@ final class AllocationKeyStepTest extends CalculationTestCase
     }
 
     /**
+     * Nachpruefung R1: Sind alle Mietverhaeltnisse abgelesen und bleibt nur
+     * ein Leerstand ohne Ablesung, muss der Widerspruch zum Jahreswert
+     * ebenfalls bereits in Schritt 8 erscheinen, nicht erst in Schritt 10.
+     */
+    public function test_ablesungen_ueber_dem_jahresverbrauch_blockieren_auch_bei_leerstand_als_einzigem_rest(): void
+    {
+        $szenario = $this->szenario();
+
+        VacancyPeriod::factory()->create([
+            'organization_id' => $szenario['organization']->getKey(),
+            'unit_id' => $szenario['units'][0]->getKey(),
+            'starts_on' => '2025-09-01',
+            'ends_on' => '2025-12-31',
+        ]);
+
+        Tenancy::query()
+            ->whereKey($szenario['tenancies'][0]->getKey())
+            ->update(['ends_on' => '2025-08-31']);
+
+        $szenario['key']->forceFill([
+            'key_type' => AllocationKeyType::VERBRAUCH,
+            'source' => AllocationKeySource::MANUELL,
+            'measurement_unit' => 'm3',
+            'denominator' => null,
+        ])->save();
+
+        // Jahreswert 120,000 m³, die einzige Mietpartei hat 130,000 m³ abgelesen.
+        $this->schluesselwert($szenario['key'], '120.000', $szenario['units'][0]);
+        $this->schluesselwert($szenario['key'], '30.000', $szenario['units'][1]);
+        $this->schluesselwert($szenario['key'], '130.000', null, $szenario['tenancies'][0]);
+
+        $gruende = app(AllocationKeyWorkspace::class)->blockingReasons($szenario['billingRun']->refresh());
+
+        self::assertStringContainsString('ergeben die Zwischenablesungen zusammen 130,000', implode(' ', $gruende));
+        self::assertStringContainsString('beträgt jedoch nur 120,000', implode(' ', $gruende));
+    }
+
+    /**
      * Befund R2: Ein negativer Betrag der Direktzuordnung wird mit deutscher
      * Meldung abgewiesen und nicht gespeichert.
      */
