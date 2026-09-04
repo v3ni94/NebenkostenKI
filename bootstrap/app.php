@@ -142,6 +142,9 @@ return Application::configure(basePath: dirname(__DIR__))
          *                           ADMIN und FINANCE.
          *   admin-retry-jobs        Wiederholen von Teiljobs und Loeschungen:
          *                           ADMIN und SUPPORT.
+         *   admin-manage-payments   Zahlungsnachlauf, also Finalisierung und
+         *                           Rechnung eines bezahlten Laufs nachholen:
+         *                           ADMIN und FINANCE.
          *
          * Eine Kennung mit unpassender Rolle erhaelt 403, nicht 404: Sie ist
          * bereits im internen Bereich, die Existenz der Route ist ihr bekannt.
@@ -163,6 +166,7 @@ return Application::configure(basePath: dirname(__DIR__))
         Gate::define('admin-manage-users', $rollenGate(AdminRole::ADMIN, AdminRole::SUPPORT));
         Gate::define('admin-cancel-invoices', $rollenGate(AdminRole::ADMIN, AdminRole::FINANCE));
         Gate::define('admin-retry-jobs', $rollenGate(AdminRole::ADMIN, AdminRole::SUPPORT));
+        Gate::define('admin-manage-payments', $rollenGate(AdminRole::ADMIN, AdminRole::FINANCE));
 
         /*
          * Gate "email-verified"

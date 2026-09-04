@@ -9,6 +9,7 @@ use App\Enums\UserStatus;
 use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -39,6 +40,16 @@ use Symfony\Component\HttpFoundation\Response;
  * Sitzung den ersten Schritt bereits hinter sich hat und der zweite noch
  * offensteht.
  *
+ * Ausserdem gilt: Eine Sitzung, die allein ueber das Merkmal "angemeldet
+ * bleiben" (Remember-Cookie) entstanden ist, hat in DIESER Sitzung keinen Code
+ * nachgewiesen. Das Cookie wurde zwar nach einem vollstaendigen Nachweis
+ * ausgestellt, ersetzt ihn fuer den internen Bereich aber nicht: Wer das
+ * Geraet in die Hand bekommt, erhielte sonst den Adminbereich ohne zweiten
+ * Faktor. Der Nachweis wird deshalb an einem Sitzungsmerkmal festgemacht, das
+ * App\Http\Controllers\Auth\TwoFactorChallengeController nach gueltigem Code
+ * setzt; fehlt es bei einer Cookie-Anmeldung, wird zur Codeeingabe geleitet.
+ * Der Kundenbereich bleibt davon unberuehrt.
+ *
  * REGISTRIERUNG: Die Middleware wird nicht in bootstrap/app.php eingetragen,
  * sondern in routes/admin.php an die Adminroutengruppe gehaengt. Damit bleibt
  * die Wirkung auf den Adminbereich begrenzt und ist an genau einer Stelle
@@ -53,6 +64,13 @@ class RequireAdminTwoFactor
 
     public const string MELDUNG_GESPERRT = 'Diese Kennung ist gesperrt. Der interne Bereich ist damit nicht '
         .'zugänglich.';
+
+    /**
+     * Sitzungsmerkmal des in dieser Sitzung nachgewiesenen zweiten Faktors.
+     * Gesetzt vom TwoFactorChallengeController nach gueltigem Code, Wert ist
+     * der Zeitpunkt des Nachweises.
+     */
+    public const string SESSION_ZWEITFAKTOR_BESTAETIGT_AT = 'zwei_faktor.bestaetigt_at';
 
     public function __construct(private readonly TwoFactorAuthentication $zweiFaktor) {}
 
@@ -79,13 +97,32 @@ class RequireAdminTwoFactor
                 ->with('status', self::MELDUNG_ZWEITFAKTOR);
         }
 
-        if ($this->zweitfaktorNochOffen($request)) {
+        if ($this->zweitfaktorNochOffen($request) || $this->nurUeberCookieAngemeldet($request)) {
             return redirect()
                 ->route('two-factor.challenge')
                 ->with('status', self::MELDUNG_CODE);
         }
 
         return $next($request);
+    }
+
+    /**
+     * Ist die Sitzung allein ueber das Remember-Cookie entstanden, ohne dass in
+     * ihr ein Code nachgewiesen wurde?
+     */
+    private function nurUeberCookieAngemeldet(Request $request): bool
+    {
+        if (! Auth::guard('web')->viaRemember()) {
+            return false;
+        }
+
+        if (! $request->hasSession()) {
+            return true;
+        }
+
+        $nachweis = $request->session()->get(self::SESSION_ZWEITFAKTOR_BESTAETIGT_AT);
+
+        return ! is_string($nachweis) || $nachweis === '';
     }
 
     /**

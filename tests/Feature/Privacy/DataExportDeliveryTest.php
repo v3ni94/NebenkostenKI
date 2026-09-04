@@ -8,9 +8,12 @@ use App\Application\Privacy\CreateDataExport;
 use App\Enums\GeneratedDocumentKind;
 use App\Enums\OrganizationRole;
 use App\Models\AuditLog;
+use App\Models\EmailMessage;
 use App\Models\GeneratedDocument;
 use App\Models\Organization;
 use App\Models\OrganizationUser;
+use App\Models\ReminderEvent;
+use App\Models\ReminderPreference;
 use App\Models\User;
 use App\Providers\AppServiceProvider;
 use App\Services\Storage\SignedDownloadUrlFactory;
@@ -173,6 +176,126 @@ final class DataExportDeliveryTest extends PrivacyTestCase
         $this->actingAs($a['user'])->get(route('portal.datenschutz.export.download', [
             'export' => $export->getKey(),
         ]))->assertOk();
+    }
+
+    public function test_ein_mitglied_desselben_mandanten_erhaelt_den_export_auch_nicht_ueber_die_allgemeine_downloadroute(): void
+    {
+        $a = $this->mandant('A');
+
+        /** @var User $mitglied */
+        $mitglied = User::factory()->create(['email' => 'mitglied@example.test']);
+
+        OrganizationUser::query()->create([
+            'organization_id' => $a['organization']->getKey(),
+            'user_id' => $mitglied->getKey(),
+            'role' => OrganizationRole::MEMBER,
+            'joined_at' => now(),
+        ]);
+
+        $export = $this->export($a);
+
+        // Die allgemeine Artefaktroute prueft die Zugehoerigkeit zum Mandanten.
+        // Fuer einen Datenexport reicht das nicht: Er gehoert allein dem
+        // Antragsteller.
+        $this->actingAs($mitglied)->get(route('portal.downloads.stream', [
+            'generatedDocument' => $export->getKey(),
+        ]))->assertNotFound();
+
+        /** @var SignedDownloadUrlFactory $urls */
+        $urls = app(SignedDownloadUrlFactory::class);
+
+        $this->actingAs($mitglied)->get($urls->forRoute('portal.downloads.signed', [
+            'generatedDocument' => (string) $export->getKey(),
+        ]))->assertNotFound();
+
+        // Der Antragsteller selbst behaelt den Zugriff auch ueber diese Route.
+        $this->actingAs($a['user'])->get(route('portal.downloads.stream', [
+            'generatedDocument' => $export->getKey(),
+        ]))->assertOk();
+    }
+
+    public function test_der_export_enthaelt_in_einem_geteilten_mandanten_keine_nachrichten_und_protokolle_anderer_mitglieder(): void
+    {
+        $a = $this->mandant('A');
+        $organisation = $a['organization'];
+
+        /** @var User $mitglied */
+        $mitglied = User::factory()->create(['email' => 'mitglied@example.test']);
+
+        OrganizationUser::query()->create([
+            'organization_id' => $organisation->getKey(),
+            'user_id' => $mitglied->getKey(),
+            'role' => OrganizationRole::MEMBER,
+            'joined_at' => now(),
+        ]);
+
+        // Personenbezogene Daten des anderen Mitglieds im selben Mandanten.
+        EmailMessage::factory()->create([
+            'organization_id' => $organisation->getKey(),
+            'user_id' => $mitglied->getKey(),
+            'recipient_email' => 'mitglied@example.test',
+            'subject' => 'Betreff nur fuer das Mitglied 8842',
+        ]);
+        $fremdeEinstellung = ReminderPreference::factory()->create([
+            'organization_id' => $organisation->getKey(),
+            'user_id' => $mitglied->getKey(),
+        ]);
+        $fremdesEreignis = ReminderEvent::factory()->create([
+            'organization_id' => $organisation->getKey(),
+            'user_id' => $mitglied->getKey(),
+            'recipient_email' => 'mitglied@example.test',
+        ]);
+        $fremderEintrag = AuditLog::factory()->create([
+            'organization_id' => $organisation->getKey(),
+            'actor_user_id' => $mitglied->getKey(),
+            'action' => 'mitglied.handlung.9917',
+        ]);
+
+        // Eigene Daten des Antragstellers im selben Mandanten.
+        EmailMessage::factory()->create([
+            'organization_id' => $organisation->getKey(),
+            'user_id' => $a['user']->getKey(),
+            'recipient_email' => (string) $a['user']->getAttribute('email'),
+            'subject' => 'Betreff fuer den Antragsteller 5531',
+        ]);
+        $eigeneEinstellung = ReminderPreference::factory()->create([
+            'organization_id' => $organisation->getKey(),
+            'user_id' => $a['user']->getKey(),
+        ]);
+        $eigenerEintrag = AuditLog::factory()->create([
+            'organization_id' => $organisation->getKey(),
+            'actor_user_id' => $a['user']->getKey(),
+            'action' => 'antragsteller.handlung.7734',
+        ]);
+
+        $this->actingAs($a['user'])->post(route('portal.datenschutz.export'))
+            ->assertRedirect(route('portal.datenschutz.show'));
+
+        /** @var GeneratedDocument $export */
+        $export = GeneratedDocument::query()
+            ->where('kind', GeneratedDocumentKind::DSGVO_EXPORT->value)
+            ->where('requested_by_user_id', $a['user']->getKey())
+            ->firstOrFail();
+
+        $this->actingAs($a['user'])->get(route('portal.datenschutz.export.download', [
+            'export' => $export->getKey(),
+        ]))->assertOk();
+
+        $eintraege = $this->zipEintraege((string) $export->getAttribute('storage_path'));
+
+        self::assertStringNotContainsString('mitglied@example.test', $eintraege['daten/nachrichten.json']);
+        self::assertStringNotContainsString('Betreff nur fuer das Mitglied 8842', $eintraege['daten/nachrichten.json']);
+        self::assertStringContainsString('Betreff fuer den Antragsteller 5531', $eintraege['daten/nachrichten.json']);
+
+        self::assertStringNotContainsString((string) $fremdeEinstellung->getKey(), $eintraege['daten/erinnerungseinstellungen.json']);
+        self::assertStringContainsString((string) $eigeneEinstellung->getKey(), $eintraege['daten/erinnerungseinstellungen.json']);
+
+        self::assertStringNotContainsString((string) $fremdesEreignis->getKey(), $eintraege['daten/erinnerungsereignisse.json']);
+        self::assertStringNotContainsString('mitglied@example.test', $eintraege['daten/erinnerungsereignisse.json']);
+
+        self::assertStringNotContainsString((string) $fremderEintrag->getKey(), $eintraege['daten/revisionsprotokoll.json']);
+        self::assertStringNotContainsString('mitglied.handlung.9917', $eintraege['daten/revisionsprotokoll.json']);
+        self::assertStringContainsString((string) $eigenerEintrag->getKey(), $eintraege['daten/revisionsprotokoll.json']);
     }
 
     public function test_die_anforderung_ist_je_nutzer_und_tag_begrenzt(): void

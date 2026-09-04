@@ -77,6 +77,42 @@ class ChunkUploadTest extends TestCase
         $this->assertTrue($gesperrt, 'Der Abrechnungslauf wurde vor der Nummernvergabe nicht in der Transaktion gesperrt.');
     }
 
+    public function test_entpackte_archiveintraege_erhalten_ihre_laufende_nummer_hinter_einer_zeilensperre_auf_dem_lauf(): void
+    {
+        $laufId = (string) $this->welt()['billingRun']->getKey();
+
+        // Der Upload selbst sperrt den Lauf bereits (siehe oben). Die Bremse
+        // wird deshalb erst danach gesetzt und misst allein das Entpacken.
+        $this->ladeDateiHoch(SampleFiles::zip([
+            'bescheid.pdf' => SampleFiles::pdf(2),
+            'foto.png' => SampleFiles::png(),
+        ]), 'zip');
+
+        $basis = DB::transactionLevel();
+        $gesperrt = 0;
+        $eingefuegtInTransaktion = 0;
+        $eingefuegtOhneTransaktion = 0;
+
+        DB::listen(function (QueryExecuted $query) use ($laufId, $basis, &$gesperrt, &$eingefuegtInTransaktion, &$eingefuegtOhneTransaktion): void {
+            $inTransaktion = DB::transactionLevel() > $basis;
+
+            if ($inTransaktion && str_contains($query->sql, 'billing_runs') && in_array($laufId, $query->bindings, true)) {
+                $gesperrt++;
+            }
+
+            if (str_starts_with($query->sql, 'insert into "documents"')) {
+                $inTransaktion ? $eingefuegtInTransaktion++ : $eingefuegtOhneTransaktion++;
+            }
+        });
+
+        $this->verarbeiteQueue();
+
+        $this->assertSame(3, Document::query()->count(), 'Das Archiv wurde nicht in zwei Einzeldokumente aufgeloest.');
+        $this->assertSame(0, $eingefuegtOhneTransaktion, 'Ein entpacktes Dokument wurde ausserhalb einer Transaktion angelegt.');
+        $this->assertSame(2, $eingefuegtInTransaktion);
+        $this->assertGreaterThanOrEqual(2, $gesperrt, 'Der Abrechnungslauf wurde vor der Nummernvergabe der Archiveintraege nicht in der Transaktion gesperrt.');
+    }
+
     public function test_der_originaldateiname_wird_nirgends_gespeichert(): void
     {
         $this->starteUpload('Mietvertrag Familie Beispielmann 2026.pdf', 4096)->assertCreated();

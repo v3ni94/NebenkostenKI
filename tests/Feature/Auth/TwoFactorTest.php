@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Auth;
 
 use App\Application\Account\TwoFactorAuthentication;
+use App\Console\Commands\Admin\ResetTwoFactorCommand;
 use App\Domain\Security\TimeBasedOneTimePassword;
 use App\Enums\AdminRole;
 use App\Enums\OrganizationRole;
@@ -705,6 +706,159 @@ final class TwoFactorTest extends TestCase
             ->get('/admin');
 
         $antwort->assertRedirect(route('two-factor.challenge'));
+    }
+
+    public function test_eine_cookie_anmeldung_oeffnet_den_adminbereich_erst_nach_erneutem_codenachweis(): void
+    {
+        $nutzer = $this->adminKennung(true);
+        $daten = ['secret' => $this->dienst()->secret($nutzer)];
+        self::assertIsString($daten['secret']);
+
+        // Remember-Cookie, wie es nach einer vollstaendigen Anmeldung mit
+        // "angemeldet bleiben" ausgestellt wird.
+        $nutzer->forceFill(['remember_token' => str_repeat('c', 60)])->save();
+
+        $cookie = 'remember_web_'.sha1(SessionGuard::class);
+        $wert = implode('|', [
+            (string) $nutzer->getKey(),
+            str_repeat('c', 60),
+            (string) $nutzer->getAttribute('password'),
+        ]);
+
+        // Das Cookie meldet an, der Kundenbereich ist erreichbar.
+        $this->withCookie($cookie, $wert)->get(route('portal.dashboard'))->assertOk();
+        self::assertTrue(Auth::viaRemember());
+
+        // Der Adminbereich verlangt in dieser Sitzung den Codenachweis.
+        $this->withCookie($cookie, $wert)->get('/admin')->assertRedirect(route('two-factor.challenge'));
+
+        $this->withCookie($cookie, $wert)->get(route('two-factor.challenge'))->assertOk();
+
+        $this->withCookie($cookie, $wert)->post(route('two-factor.challenge.store'), [
+            'code' => $this->code($daten['secret']),
+        ])->assertRedirect();
+
+        self::assertTrue(Auth::check());
+        self::assertSame($nutzer->getKey(), Auth::id());
+
+        // Nach dem Nachweis ist der Adminbereich in derselben Sitzung offen.
+        $this->withCookie($cookie, $wert)->get('/admin')->assertOk();
+    }
+
+    public function test_eine_regulaere_anmeldung_mit_code_oeffnet_den_adminbereich_unmittelbar(): void
+    {
+        $nutzer = $this->adminKennung(true);
+        $geheimnis = $this->dienst()->secret($nutzer);
+        self::assertIsString($geheimnis);
+
+        $this->post(route('login'), [
+            'email' => $nutzer->getAttribute('email'),
+            'password' => self::PASSWORT,
+            'remember' => '1',
+        ])->assertRedirect(route('two-factor.challenge'));
+
+        $this->post(route('two-factor.challenge.store'), ['code' => $this->code($geheimnis)])
+            ->assertRedirect();
+
+        $this->get('/admin')->assertOk();
+    }
+
+    // --- Notfall ueber die Konsole -------------------------------------------
+
+    public function test_der_notfallbefehl_setzt_den_zweitfaktor_einer_adminkennung_zurueck_und_protokolliert(): void
+    {
+        $nutzer = $this->adminKennung(true);
+        $nutzer->forceFill(['remember_token' => str_repeat('d', 60)])->save();
+
+        $this->artisan('smartabrechnen:admin:reset-2fa', [
+            '--email' => $nutzer->getAttribute('email'),
+            '--grund' => 'Telefon verloren, keine Wiederherstellungscodes, Ticket 4711.',
+            '--bestaetigt-von' => 'Zweite Person Beispiel',
+            '--bestaetigt' => true,
+        ])->assertSuccessful();
+
+        $nutzer->refresh();
+
+        self::assertNull($nutzer->getAttribute('two_factor_confirmed_at'));
+        self::assertNull($this->dienst()->secret($nutzer));
+        self::assertSame(0, $this->dienst()->remainingRecoveryCodes($nutzer));
+        self::assertNotSame(str_repeat('d', 60), $nutzer->getAttribute('remember_token'));
+
+        /** @var AuditLog $eintrag */
+        $eintrag = AuditLog::query()->where('action', ResetTwoFactorCommand::AKTION)->firstOrFail();
+
+        self::assertSame($nutzer->getKey(), $eintrag->getAttribute('subject_id'));
+        self::assertNull($eintrag->getAttribute('actor_user_id'));
+        self::assertSame('Telefon verloren, keine Wiederherstellungscodes, Ticket 4711.', $eintrag->getAttribute('reason'));
+        self::assertSame('konsole', $eintrag->getAttribute('metadata')['kanal'] ?? null);
+        self::assertSame('Zweite Person Beispiel', $eintrag->getAttribute('metadata')['bestaetigt_von'] ?? null);
+        self::assertTrue(AuditLog::query()->where('action', TwoFactorAuthentication::AKTION_ZURUECKGESETZT)->exists());
+
+        // Die naechste Anmeldung ist einstufig; der Adminbereich fuehrt zur
+        // Einrichtung eines neuen Faktors.
+        $this->post(route('login'), [
+            'email' => $nutzer->getAttribute('email'),
+            'password' => self::PASSWORT,
+        ])->assertRedirect();
+
+        self::assertTrue(Auth::check());
+        $this->get('/admin')->assertRedirect(route('two-factor.setup'));
+    }
+
+    public function test_der_notfallbefehl_verlangt_begruendung_und_zweite_person(): void
+    {
+        $nutzer = $this->adminKennung(true);
+
+        $this->artisan('smartabrechnen:admin:reset-2fa', [
+            '--email' => $nutzer->getAttribute('email'),
+            '--bestaetigt-von' => 'Zweite Person Beispiel',
+            '--bestaetigt' => true,
+        ])->assertFailed();
+
+        $this->artisan('smartabrechnen:admin:reset-2fa', [
+            '--email' => $nutzer->getAttribute('email'),
+            '--grund' => 'Telefon verloren, keine Wiederherstellungscodes, Ticket 4711.',
+            '--bestaetigt' => true,
+        ])->assertFailed();
+
+        self::assertNotNull($nutzer->refresh()->getAttribute('two_factor_confirmed_at'));
+        self::assertFalse(AuditLog::query()->where('action', ResetTwoFactorCommand::AKTION)->exists());
+    }
+
+    public function test_der_notfallbefehl_fragt_ohne_bestaetigung_nach_und_bricht_bei_nein_ab(): void
+    {
+        $nutzer = $this->adminKennung(true);
+
+        $this->artisan('smartabrechnen:admin:reset-2fa', [
+            '--email' => $nutzer->getAttribute('email'),
+            '--grund' => 'Telefon verloren, keine Wiederherstellungscodes, Ticket 4711.',
+            '--bestaetigt-von' => 'Zweite Person Beispiel',
+        ])
+            ->expectsConfirmation('Identitaet geprueft und Vorgang im Vier-Augen-Prinzip bestaetigt. Fortfahren?', 'no')
+            ->assertFailed();
+
+        self::assertNotNull($nutzer->refresh()->getAttribute('two_factor_confirmed_at'));
+    }
+
+    public function test_der_notfallbefehl_wirkt_nicht_auf_kundenkonten(): void
+    {
+        $daten = $this->mitZweitfaktor();
+
+        $this->artisan('smartabrechnen:admin:reset-2fa', [
+            '--email' => $daten['user']->getAttribute('email'),
+            '--grund' => 'Telefon verloren, keine Wiederherstellungscodes, Ticket 4711.',
+            '--bestaetigt-von' => 'Zweite Person Beispiel',
+            '--bestaetigt' => true,
+        ])->assertFailed();
+
+        self::assertNotNull($daten['user']->refresh()->getAttribute('two_factor_confirmed_at'));
+
+        $this->artisan('smartabrechnen:admin:reset-2fa', [
+            '--email' => 'unbekannt@beispiel.invalid',
+            '--grund' => 'Telefon verloren, keine Wiederherstellungscodes, Ticket 4711.',
+            '--bestaetigt-von' => 'Zweite Person Beispiel',
+            '--bestaetigt' => true,
+        ])->assertFailed();
     }
 
     public function test_eine_adminkennung_richtet_den_faktor_ueber_die_einrichtungsseite_ein(): void

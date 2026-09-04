@@ -5,12 +5,18 @@ declare(strict_types=1);
 namespace Tests\Feature\Admin;
 
 use App\Enums\AdminRole;
+use App\Enums\BillingRunStatus;
+use App\Enums\EmailSuppressionReason;
 use App\Enums\InvoiceStatus;
 use App\Enums\ProcessingJobStatus;
 use App\Enums\UserStatus;
+use App\Http\Controllers\Admin\CommunicationController;
 use App\Http\Controllers\Admin\UserController;
+use App\Mail\SuppressionGuard;
+use App\Models\BillingRun;
 use App\Models\Invoice;
 use App\Models\ProcessingJob;
+use App\Models\Property;
 use App\Models\User;
 use Illuminate\Support\Facades\Notification;
 
@@ -27,6 +33,9 @@ use Illuminate\Support\Facades\Notification;
  *   Passwort-Link, Zweitfaktor-Reset        ja     nein     nein
  *   Storno einer Leistungsrechnung          ja     nein     ja
  *   Teiljobs und Loeschungen wiederholen    ja     ja       nein
+ *   Zahlungsnachlauf (Finalisierung und
+ *   Rechnung nachholen)                     ja     nein     ja
+ *   Sperrlisteneintrag aufheben             ja     ja       nein
  */
 final class RollentrennungTest extends AdminTestCase
 {
@@ -197,6 +206,99 @@ final class RollentrennungTest extends AdminTestCase
             ->assertRedirect('/admin/datenschutz');
 
         $this->assertDatabaseHas('audit_logs', ['action' => 'admin.deletion.retried']);
+    }
+
+    public function test_eine_supportkennung_darf_den_zahlungsnachlauf_nicht_ausloesen(): void
+    {
+        $lauf = $this->bezahlterLaufOhneFinalisierung();
+
+        $this->actingAs($this->interneKennung(AdminRole::SUPPORT))
+            ->post('/admin/zahlungsnachlauf/'.$lauf->getKey().'/finalisieren')
+            ->assertForbidden();
+
+        $this->actingAs($this->interneKennung(AdminRole::SUPPORT))
+            ->post('/admin/zahlungsnachlauf/'.$lauf->getKey().'/rechnung')
+            ->assertForbidden();
+
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'admin.billing_run.finalization_requested']);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'admin.invoice.late_issue_requested']);
+        self::assertSame(
+            BillingRunStatus::PAID,
+            BillingRun::query()->findOrFail($lauf->getKey())->getAttribute('status'),
+        );
+    }
+
+    public function test_eine_finanzkennung_erreicht_den_zahlungsnachlauf(): void
+    {
+        $lauf = $this->bezahlterLaufOhneFinalisierung();
+
+        // Das Gate laesst die Finanzkennung durch. Ob die Finalisierung
+        // fachlich gelingt, prueft ZahlungsnachlaufTest; hier zaehlt allein,
+        // dass die Handlung nicht mit 403 abgewiesen wird und protokolliert ist.
+        $this->actingAs($this->interneKennung(AdminRole::FINANCE))
+            ->post('/admin/zahlungsnachlauf/'.$lauf->getKey().'/finalisieren')
+            ->assertRedirect('/admin/zahlungsnachlauf');
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'admin.billing_run.finalization_requested',
+            'subject_id' => $lauf->getKey(),
+        ]);
+    }
+
+    public function test_eine_finanzkennung_darf_keine_sperre_aufheben(): void
+    {
+        app(SuppressionGuard::class)->suppress('gesperrt@beispiel.invalid', EmailSuppressionReason::BOUNCE, 'erinnerung-folgejahr');
+
+        $this->actingAs($this->interneKennung(AdminRole::FINANCE))
+            ->post(route('admin.kommunikation.sperre.aufheben'), [
+                'email' => 'gesperrt@beispiel.invalid',
+                'grund' => 'SMTP-Ausfall am 04.09.2026, keine echte Unzustellbarkeit.',
+            ])
+            ->assertForbidden();
+
+        self::assertTrue(app(SuppressionGuard::class)->isSuppressed('gesperrt@beispiel.invalid'));
+        $this->assertDatabaseMissing('audit_logs', ['action' => CommunicationController::AUDIT_SPERRE_AUFGEHOBEN]);
+    }
+
+    public function test_eine_supportkennung_darf_eine_sperre_aufheben(): void
+    {
+        app(SuppressionGuard::class)->suppress('gesperrt@beispiel.invalid', EmailSuppressionReason::BOUNCE, 'erinnerung-folgejahr');
+
+        $this->actingAs($this->interneKennung(AdminRole::SUPPORT))
+            ->post(route('admin.kommunikation.sperre.aufheben'), [
+                'email' => 'gesperrt@beispiel.invalid',
+                'grund' => 'SMTP-Ausfall am 04.09.2026, keine echte Unzustellbarkeit.',
+            ])
+            ->assertRedirect('/admin/kommunikation');
+
+        self::assertFalse(app(SuppressionGuard::class)->isSuppressed('gesperrt@beispiel.invalid'));
+    }
+
+    /**
+     * Bezahlter Lauf, dessen Finalisierung noch offen ist. Die Stammdaten
+     * reichen fuer die Rechtepruefung; die fachliche Finalisierung prueft
+     * ZahlungsnachlaufTest.
+     */
+    private function bezahlterLaufOhneFinalisierung(): BillingRun
+    {
+        $kunde = $this->kunde();
+
+        /** @var Property $objekt */
+        $objekt = Property::factory()->create([
+            'organization_id' => $kunde['organization']->getKey(),
+            'created_by_user_id' => $kunde['user']->getKey(),
+        ]);
+
+        /** @var BillingRun $lauf */
+        $lauf = BillingRun::factory()->create([
+            'organization_id' => $kunde['organization']->getKey(),
+            'property_id' => $objekt->getKey(),
+            'created_by_user_id' => $kunde['user']->getKey(),
+            'status' => BillingRunStatus::PAID,
+            'paid_at' => now()->subHour(),
+        ]);
+
+        return $lauf;
     }
 
     public function test_lesende_routen_bleiben_fuer_jede_rolle_erreichbar(): void
