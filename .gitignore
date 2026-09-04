@@ -30,3 +30,6 @@ Thumbs.db
 
 # Releasepakete des SFTP-Deployments
 /build-release
+
+# Arbeitskopien der Werkzeugumgebung
+.claude/worktrees/
