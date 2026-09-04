@@ -207,7 +207,7 @@ Dazu 35 Punkte mittlerer und niedriger Schwere. Alle 39 Folgepunkte wurden in ei
 |---|---|
 | Pint | bestanden |
 | PHPStan Level 6 | keine Fehler |
-| PHPUnit | 2.384 Tests, 14.911 Assertions |
+| PHPUnit | 2.384 Tests, 14.911 Assertions (nach Runde 3: 2.405 Tests, 15.067 Assertions) |
 
 Wesentliche Änderungen der Runde 2 mit Betriebswirkung:
 - Der Checkout verlangt jetzt eine gültige Vorschau und keine offenen Sperrgründe; jede Stammdatenänderung setzt Vorschau und Bestätigung zurück.
@@ -235,3 +235,25 @@ Verbleibende offene Punkte stehen in ARCHITECTURE.md Abschnitt 11; die neuen Vor
 10. Preiskorridor 20,00 bis 30,00 EUR ist Livegang-Blocker; Preisänderungen außerhalb erfordern Konfigurationsänderung.
 11. Redaktionelle Freigabe der geänderten Website-, FAQ-, Upload- und Mailtexte.
 12. Bei aktivem KI-Tagesbudget ohne Kalkulationsbasis stehen KI-Aufrufe still. Vor Livegang Basis für alle Modelle pflegen oder ohne Limit betreiben.
+
+## 15. Dritte Nachprüfung und Runde 3
+
+Die Änderungen der Runde 2 wurden erneut von zwei Prüfern je Cluster gegengeprüft (10 Prüfer). Ergebnis: alle 39 Punkte bestätigt behoben, keine Blocker und keine hohen Folgepunkte mehr, 14 mittlere Restpunkte. Diese wurden in Runde 3 in drei Arbeitspaketen behoben:
+
+- Geld und Masken: Ablesesumme über dem Jahreswert wird Prüfaufgabe statt stillem Nullrest; negative Direktzuordnungsbeträge werden abgewiesen; die Maske in Schritt 8 weist Direktzuordnungen als Eurobetrag aus; das endgültige Entfernen einer Einheit löst keine Direktzuordnung mehr still auf, sondern setzt betroffene Positionen auf prüfpflichtig; Ist-Werte je Vorauszahlungszeile bleiben erhalten; der Personentage-Blocker erscheint bereits in Schritt 8; Website-Texte zu Vorjahresabgleich und Leerstand korrigiert.
+- Zahlung und Mail: Die Invalidierung einer Vorschau bricht offene Zahlungsvorgänge ab und setzt den Lauf zurück; der Webhook schaltet nur bei gültiger Vorschau und vorliegender Bestätigung frei, sonst landet der Eingang als VORSCHAU_UNGUELTIG im Zahlungsnachlauf; Relay- und Absenderablehnungen mit genannter Empfängeradresse sperren nicht mehr; wiederholte Mails erhalten neu signierte Downloadlinks.
+- Konto und KI: Rechtsnachweise und Exportmetadaten im Datenexport sind auf den Antragsteller begrenzt; der Provider prüft vor jedem Dateiupload, ob eine Providerdatei offen ist; der Verbrauch eines Primäraufrufs bleibt auch bei abgebrochenem Zweitaufruf nachgewiesen; endgültig fehlgeschlagene Dokumente tragen keine Wiederholungszusage mehr.
+
+| Prüfung nach Runde 3 | Ergebnis |
+|---|---|
+| Pint | bestanden |
+| PHPStan Level 6 | keine Fehler |
+| PHPUnit | 2.405 Tests, 15.067 Assertions |
+
+Weitere Vorlagen für die Geschäftsführung aus Runde 3:
+1. Zahlungseingänge mit failure_code VORSCHAU_UNGUELTIG erscheinen im Zahlungsnachlauf; Erstattung oder Zuordnung ist je Fall zu entscheiden.
+2. Der Vermerk "Zieleinheit entfernt" an einer Kostenposition ist im Revisionsprotokoll und in manual_overrides nachvollziehbar, in der Prüfoberfläche erscheint die Position als offen. Eine sichtbare Anzeige des Vermerks wäre eine Ergänzung.
+3. Formulierungen auf Startseite, Ablauf und FAQ zu Personentage bei Leerstand und zum Schlüsselvorschlag freigeben.
+4. Rechtsnachweise ohne Personenzuordnung (Altbestand) erscheinen in keinem Datenexport.
+
+Empfehlung: Der Code ist damit aus Sicht dieser Prüfung reif für den Staging-Lauf mit echten Diensten (MariaDB, SMTP, SFTP, Stripe-Testmodus, KI-Anbieter) und für Ihren Browsertest. Die Betreiberpunkte aus Abschnitt 9 und die Vorlagen aus den Abschnitten 12, 14 und 15 bleiben offen.

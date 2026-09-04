@@ -136,7 +136,8 @@ final class SitePagesTest extends TestCase
         $ablauf = $this->get(route('site.ablauf'));
 
         $ablauf->assertOk();
-        $ablauf->assertSee('von Ihnen erfasste und bestätigte Regelung', false);
+        $ablauf->assertSee('im Vorjahreslauf bestätigte Schlüssel', false);
+        $ablauf->assertDontSee('Regelung aus dem Mietvertrag', false);
     }
 
     /**

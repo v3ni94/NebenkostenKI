@@ -121,7 +121,10 @@
                         Kosten für Zeiträume ohne Mietverhältnis bleiben beim Eigentümer und erscheinen in der
                         Eigentümerübersicht als Leerstandsanteil. Verbrauchswerte werden bei einem Nutzerwechsel nur
                         anhand einer Zwischenablesung geteilt. Fehlt diese, erfolgt keine stille Schätzung. Eine von
-                        Ihnen ausdrücklich bestätigte Ersatzverteilung wird in der Abrechnung gekennzeichnet.
+                        Ihnen ausdrücklich bestätigte Ersatzverteilung wird in der Abrechnung gekennzeichnet. Der
+                        Schlüssel Personentage setzt durchgehend vermietete Einheiten voraus; bei Leerstand wählen
+                        Sie für die betroffene Kostenart einen anderen Schlüssel, weil Personen für den Leerstand
+                        nicht geschätzt werden.
                     </p>
                 </x-hvm.faq-item>
 
@@ -258,8 +261,8 @@
                     </p>
                     <p class="mt-2">
                         Neue Belege, Mieterwechsel, Vorauszahlungen, Zählerstände und Heizkosten müssen für das neue
-                        Jahr erneut erfasst oder bestätigt werden. Vorjahreswerte dienen nur dem Vergleich und werden
-                        nie als neue Kosten übernommen.
+                        Jahr erneut erfasst oder bestätigt werden. Vorjahreswerte werden nie als neue Kosten
+                        übernommen.
                     </p>
                 </x-hvm.faq-item>
 

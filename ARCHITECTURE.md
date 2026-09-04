@@ -12,7 +12,8 @@ Vollprüfung mit adversarialer Gegenprüfung durchgeführt
 bestätigten und 23 nachverifizierten Befunde sind behoben, drei Funktionen sind
 für den Start bewusst ausgeschlossen (ADR-016 bis ADR-018). Die adversariale Nachprüfung
 der Behebungen (16 unabhängige Prüfer) ergab 39 Folgepunkte, die in einer zweiten Runde
-behoben wurden. 2.384 Tests mit 14.911 Assertions grün, PHPStan Level 6 projektweit fehlerfrei, Pint sauber. Der
+behoben wurden; eine dritte Nachprüfung ergab 14 mittlere Restpunkte, die in Runde 3 behoben
+wurden. 2.405 Tests mit 15.067 Assertions grün, PHPStan Level 6 projektweit fehlerfrei, Pint sauber. Der
 Livegang ist durch Betreiberangaben und den Staging-Nachweis blockiert, nicht
 durch offene Entwicklungsarbeit. Die frühere Abschlussprüfung ist in
 [docs/abnahme.md](docs/abnahme.md) protokolliert.
@@ -799,7 +800,7 @@ Stand 04.09.2026, nachgeprüft in der Abschlussprüfung vom 01.09.2026 und der V
 | 3 | Domain-Engine, Regeln und Warnungen, Wizard, Schnellweg, Vollobjektweg, PDF mit Wasserzeichen und Eigentümerübersicht | abgeschlossen |
 | 4 | Preislogik, Stripe Checkout und Webhooks, Finalisierung und ZIP, HVM-Rechnung, IONOS-SMTP und Templates, Folgejahresübernahme und Erinnerungen | abgeschlossen; SMTP und Stripe sind gegen Fakes und mit Signaturprüfung getestet, der Nachweis am echten Postfach und am echten Stripe-Konto steht aus |
 | 5 | Adminbereich und Blocker, DSGVO-Export und Löschung, Backups und Restore-Test, GitHub Actions und SFTP-Deployment, Last-, Sicherheits- und E2E-Tests, Abnahme | abgeschlossen; der Übertragungsschritt in `deploy.yml` ist aktiviert und wartet auf die SFTP-Secrets des IONOS-Kontos |
-| Prüfung | Vollprüfung vom 04.09.2026 mit 15 Suchagenten und dreifacher Gegenprüfung, Behebung in acht Arbeitspaketen, adversariale Nachprüfung der Behebungen durch 16 unabhängige Prüfer, zweite Behebungsrunde in fünf Arbeitspaketen | abgeschlossen; 85 bestätigte und 23 nachverifizierte Befunde sowie 39 Folgepunkte behoben, drei Ausschlüsse per ADR-016 bis ADR-018 |
+| Prüfung | Vollprüfung vom 04.09.2026 mit 15 Suchagenten und dreifacher Gegenprüfung, Behebung in acht Arbeitspaketen, adversariale Nachprüfung durch 16 Prüfer, zweite Runde in fünf Paketen, Nachprüfung durch 10 Prüfer, dritte Runde in drei Paketen | abgeschlossen; 85 bestätigte und 23 nachverifizierte Befunde, 39 Folgepunkte und 14 Restpunkte behoben, drei Ausschlüsse per ADR-016 bis ADR-018 |
 
 Die Berechnungsengine aus Phase 3 wurde bewusst früh gebaut, weil sie die
 fachliche Grundlage ist und ohne Infrastruktur testbar bleibt.
@@ -837,7 +838,7 @@ ausschließlich in der Blockerliste des Adminbereichs und in
 | `DatabaseJobQueue::succeed()` und `fail()` prüfen den Lease-Inhaber nicht | niedrig | **offen.** Nach Lease-Ablauf könnte ein verspäteter Erstprozess den Job eines zweiten Prozesses abschließen. Der Heartbeat (Befund B51) verkleinert das Fenster. Umgang: Lease-Token beim Abschluss vergleichen. Verantwortlich: technische Betreuung |
 | `ExpandArchive::nextSequenceNumber()` vergibt Nummern ohne Sperre | **erledigt** | Sperre und Nummernvergabe je Archiveintrag in einer Transaktion (Runde 2, N19) |
 | Kein Notfallbefehl für den einzigen Administrator ohne Zweitfaktor | **erledigt** | `smartabrechnen:admin:reset-2fa` mit Begründung, Bestätigung und Audit; Verfahren (Rückruf, zweite Person, Ticket) in `docs/betrieb/installation.md` beschrieben (Runde 2, N22) |
-| Offene Providerdateien werden in einer Spalte je Upload geführt | mittel | **offen.** Zwei Provideraufrufe im selben Vorgang (Schema-Fallback, Dual Review) können nur eine Datei-ID halten. Runde 2 (N28) verhindert das Überschreiben und löscht die Zweitdatei sofort; scheitern beide Löschungen im selben Aufruf, ist die Zweitdatei nur im Protokoll (Hash) sichtbar. Umgang: eigene Tabelle je Provider und Datei-ID, PrivacyMonitor, DeleteOriginalSources und RetryFailedDeletions darauf umstellen. Verantwortlich: technische Betreuung, vor Livegang empfohlen |
+| Offene Providerdateien werden in einer Spalte je Upload geführt | niedrig | **entschärft.** Seit Runde 3 (R10) fragt der Provider vor jedem Dateiupload den Beobachter, ob eine Providerdatei offen ist; ist das der Fall, wird nichts übertragen. Eine zweite Datei kann damit nur noch in einem Wettlauf zweier Prozesse entstehen. Eine eigene Tabelle je Provider und Datei-ID bleibt die saubere Zielstruktur. Verantwortlich: technische Betreuung |
 | Providerlöschung mit Antwort 404 gilt als nicht bestätigt | niedrig | **Entscheidung offen.** Eine vom Provider bereits automatisch abgelaufene Datei antwortet mit 404; das Dokument bleibt bis zum Dead Letter blockiert. Zu entscheiden, ob 404 als bestätigte Löschung gilt (Datenschutz gegen Verfügbarkeit). Verantwortlich: Geschäftsführung |
 | Wiederholungspuffer für fehlgeschlagene Mails enthält signierte Downloadlinks | niedrig | **Entscheidung offen.** Der vollständige Nachrichteninhalt liegt bis zu 24 Stunden verschlüsselt in `email_messages.retry_payload` (Runde 2, N20), eine bewusste Ausnahme von der Regel, keine Downloadlinks zu protokollieren. Verantwortlich: Geschäftsführung bestätigt oder verkürzt das Fenster |
 | Liegen gebliebene Webhook-Ereignisse werden angezeigt, nicht automatisch nachverarbeitet | niedrig | akzeptiert. EMPFANGEN-Ereignisse ohne Abschluss erhalten bei Wiederzustellung HTTP 500, der Anbieter stellt bis zu drei Tage erneut zu; ältere Fälle stehen im Zahlungsnachlauf (Runde 2, N36). Die gespeicherte Nutzlast ist datensparsam und nicht erneut signaturprüfbar |
