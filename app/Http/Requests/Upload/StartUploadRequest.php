@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Requests\Upload;
 
 use App\Enums\DocumentType;
+use App\Http\Requests\GermanFormRequest;
 use App\Models\BillingRun;
 use App\Services\Storage\UploadLimits;
-use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
@@ -22,7 +22,7 @@ use Illuminate\Validation\Rule;
  * Die Kategorie ist optional. Der Nutzer muss nichts einordnen, das System
  * klassifiziert selbst (Abschnitt 9, Schritt 2).
  */
-class StartUploadRequest extends FormRequest
+class StartUploadRequest extends GermanFormRequest
 {
     /**
      * Objektbezogene Autorisierung ueber die Policy des Abrechnungslaufs, und
@@ -53,7 +53,7 @@ class StartUploadRequest extends FormRequest
     /**
      * @return array<string, string>
      */
-    public function messages(): array
+    protected function eigeneMeldungen(): array
     {
         $limits = UploadLimits::fromConfig();
 

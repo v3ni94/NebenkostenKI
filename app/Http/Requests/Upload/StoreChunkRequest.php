@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Upload;
 
+use App\Http\Requests\GermanFormRequest;
 use App\Models\BillingRun;
 use App\Models\TemporaryUpload;
-use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Gate;
 
@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Gate;
  * Abschnitt fuer sich keine gueltige Datei ist. Die vollstaendige Pruefkette
  * laeuft nach der Wiederzusammensetzung.
  */
-class StoreChunkRequest extends FormRequest
+class StoreChunkRequest extends GermanFormRequest
 {
     /**
      * Autorisierung vor Validierung: Ein fremder Mandant darf nicht einmal
@@ -50,7 +50,7 @@ class StoreChunkRequest extends FormRequest
     /**
      * @return array<string, string>
      */
-    public function messages(): array
+    protected function eigeneMeldungen(): array
     {
         return [
             'index.required' => 'Der Dateiabschnitt ist unvollständig. Bitte laden Sie die Datei erneut hoch.',

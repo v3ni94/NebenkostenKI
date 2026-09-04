@@ -44,13 +44,16 @@ return Application::configure(basePath: dirname(__DIR__))
     ])
     ->withMiddleware(function (Middleware $middleware): void {
         // HTTPS zuerst, damit eine unverschluesselte Anfrage erst gar nicht in
-        // die Sitzungsbehandlung laeuft. Sicherheitsheader am Ende der Gruppe,
-        // damit sie auf jeder Antwort liegen, auch auf Fehlerseiten.
+        // die Sitzungsbehandlung laeuft.
         $middleware->prependToGroup('web', ForceHttps::class);
         // Die www-Umleitung liegt VOR ForceHttps, damit www.<domain> in genau
         // einem Schritt auf die kanonische https-Adresse fuehrt.
         $middleware->prependToGroup('web', RedirectToCanonicalHost::class);
-        $middleware->appendToGroup('web', SecurityHeaders::class);
+        // Sicherheitsheader global und nicht nur in der Gruppe "web": Ein 404
+        // fuer einen unbekannten Pfad, ein 405 und die HTTPS-Umleitung
+        // entstehen, bevor eine Routengruppe erreicht wird. Als globale
+        // Middleware liegen die Header auf jeder Antwort, auch auf diesen.
+        $middleware->append(SecurityHeaders::class);
 
         /*
          * Vertrauenswuerdige Proxys (config/deploy.php, TRUSTED_PROXIES).

@@ -62,7 +62,7 @@ final class FreshConfigurationTest extends TestCase
         self::assertStringContainsString('APP_KEY ist nicht gesetzt', $ausgabe);
     }
 
-    public function test_check_config_frischt_den_cache_vor_der_pruefung_auf(): void
+    public function test_check_config_prueft_gegen_die_aktuelle_env_und_laesst_den_cache_unangetastet(): void
     {
         $datenbank = $this->arbeit.'/check.sqlite';
         touch($datenbank);
@@ -70,9 +70,16 @@ final class FreshConfigurationTest extends TestCase
         $umgebung = $this->umgebung($datenbank) + ['APP_KEY' => 'base64:'.base64_encode(random_bytes(32))];
 
         $this->prozess(['migrate', '--force', '--no-interaction'], $umgebung)->mustRun();
-        $this->prozess(['config:cache'], $umgebung)->mustRun();
 
-        $prozess = $this->prozess(['smartabrechnen:check-config'], $umgebung);
+        // 1. Cache mit abgeschaltetem Debugmodus erzeugen (so wie install).
+        $this->prozess(['config:cache'], $umgebung)->mustRun();
+        $cacheDatei = $this->arbeit.'/cache/config.php';
+        self::assertFileExists($cacheDatei, 'Vorbedingung: Cache muss vorliegen.');
+        $cacheInhalt = (string) file_get_contents($cacheDatei);
+
+        // 2. Die .env aendert sich nach dem Cachen: APP_DEBUG=true. Der Cache
+        //    kennt weiterhin false. Die Pruefung muss den neuen Wert sehen.
+        $prozess = $this->prozess(['smartabrechnen:check-config'], array_replace($umgebung, ['APP_DEBUG' => 'true']));
         $prozess->run();
 
         $ausgabe = $prozess->getOutput().$prozess->getErrorOutput();
@@ -80,7 +87,15 @@ final class FreshConfigurationTest extends TestCase
         self::assertStringContainsString('Konfigurationscache gefunden', $ausgabe);
         // Nach dem Neustart darf der Hinweis nicht ein zweites Mal erscheinen.
         self::assertSame(1, substr_count($ausgabe, 'Konfigurationscache gefunden'), $ausgabe);
-        self::assertFileDoesNotExist($this->arbeit.'/cache/config.php', 'check-config darf keinen neuen Cache hinterlassen.');
+        self::assertStringContainsString('Der Debugmodus ist eingeschaltet', $ausgabe, 'check-config muss gegen die aktuelle .env pruefen, nicht gegen den Cache.');
+
+        // 3. Der produktive Cache bleibt unveraendert liegen. Ohne ihn wuerde
+        //    die Web-Anwendung bis zum naechsten install ohne Cache laufen.
+        self::assertFileExists($cacheDatei, 'check-config darf den produktiven Konfigurationscache nicht loeschen.');
+        self::assertSame($cacheInhalt, (string) file_get_contents($cacheDatei), 'check-config darf den Cache nicht veraendern.');
+
+        // 4. Es bleibt keine Hilfsdatei des Pruefprozesses zurueck.
+        self::assertSame([], glob(storage_path('framework/cache/config-pruefung-*.php')) ?: []);
     }
 
     /**

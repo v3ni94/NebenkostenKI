@@ -120,4 +120,44 @@ final class HtaccessTest extends TestCase
         $this->assertStringContainsString('RewriteRule ^ https://%1%{REQUEST_URI} [R=301,L]', $inhalt);
         $this->assertStringNotContainsString('smart-abrechnen.de', $inhalt, 'Die Domain darf nicht hart codiert sein.');
     }
+
+    /**
+     * Im Rueckfall-Layout (Weg B) schreibt die Wurzel-.htaccess intern nach
+     * current/public/ um. Im zweiten Durchlauf traegt %{REQUEST_URI} diesen
+     * internen Pfad. Redirects, die ihr Ziel aus %{REQUEST_URI} bauen, duerfen
+     * deshalb nur im ersten Durchlauf laufen (REDIRECT_STATUS leer), sonst
+     * landet /current/public/ in der Adresszeile des Browsers.
+     */
+    public function test_public_htaccess_leitet_nur_im_ersten_durchlauf_um(): void
+    {
+        $inhalt = (string) file_get_contents(dirname(__DIR__, 3).'/public/.htaccess');
+
+        preg_match_all('/((?:^\s*RewriteCond[^\n]*\n)+)^\s*RewriteRule[^\n]*R=301[^\n]*$/m', $inhalt, $treffer);
+
+        $this->assertCount(2, $treffer[1], 'Erwartet werden genau zwei Redirect-Regeln: www und Schraegstrich am Ende.');
+
+        foreach ($treffer[1] as $bedingungen) {
+            $this->assertStringContainsString(
+                'RewriteCond %{ENV:REDIRECT_STATUS} ^$',
+                $bedingungen,
+                'Jeder Redirect in public/.htaccess muss auf den ersten Durchlauf beschraenkt sein.'
+            );
+        }
+    }
+
+    public function test_wurzel_htaccess_leitet_www_und_schraegstrich_vor_der_umschreibung_um(): void
+    {
+        $inhalt = self::wurzel();
+
+        $www = strpos($inhalt, 'RewriteRule ^ https://%1%{REQUEST_URI} [R=301,L]');
+        $schraegstrich = strpos($inhalt, 'RewriteRule ^ %1 [L,R=301]');
+        $umschreibung = strpos($inhalt, 'current/public/$1');
+
+        $this->assertNotFalse($www, 'Die Wurzel-.htaccess muss www umleiten, bevor nach current/public/ umgeschrieben wird.');
+        $this->assertNotFalse($schraegstrich, 'Die Wurzel-.htaccess muss den Schraegstrich am Ende umleiten, bevor umgeschrieben wird.');
+        $this->assertNotFalse($umschreibung);
+        $this->assertLessThan($umschreibung, $www);
+        $this->assertLessThan($umschreibung, $schraegstrich);
+        $this->assertStringNotContainsString('smart-abrechnen.de', $inhalt, 'Die Domain darf nicht hart codiert sein.');
+    }
 }

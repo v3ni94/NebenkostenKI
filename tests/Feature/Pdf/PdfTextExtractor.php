@@ -8,10 +8,12 @@ namespace Tests\Feature\Pdf;
  * Testhilfe: liest den sichtbaren Text und die Seitenzahl aus einem erzeugten
  * PDF.
  *
- * Die Anwendung rendert im Kernschriftmodus von mPDF. Textstrings liegen
- * deshalb in Windows-1252 in den mit Flate komprimierten Seiteninhalten. Der
- * Extraktor dekomprimiert die Streams, löst Oktalfolgen auf und wandelt nach
- * UTF-8, damit Tests auf deutschen Text prüfen können.
+ * Die Anwendung rendert im UTF-8-Modus von mPDF mit eingebetteter
+ * Unicode-Schrift. Textstrings liegen deshalb als UTF-16BE in den mit Flate
+ * komprimierten Seiteninhalten. Der Extraktor dekomprimiert die Streams, löst
+ * Oktalfolgen auf und wandelt nach UTF-8, damit Tests auf den Text prüfen
+ * können. Zeichenketten ohne Nullbytes (Kernschriften, Metadaten) werden
+ * weiterhin als Windows-1252 gelesen.
  */
 final class PdfTextExtractor
 {
@@ -114,7 +116,8 @@ final class PdfTextExtractor
             $decoded
         );
 
-        $utf8 = mb_convert_encoding($decoded, 'UTF-8', 'Windows-1252');
+        $quelle = strlen($decoded) % 2 === 0 && str_contains($decoded, "\0") ? 'UTF-16BE' : 'Windows-1252';
+        $utf8 = mb_convert_encoding($decoded, 'UTF-8', $quelle);
 
         return is_string($utf8) ? $utf8 : $decoded;
     }

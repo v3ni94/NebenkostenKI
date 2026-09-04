@@ -95,6 +95,7 @@
                                 <th class="px-3 py-2">Adresse</th>
                                 <th class="px-3 py-2">Grund</th>
                                 <th class="px-3 py-2">Gesperrt am</th>
+                                <th class="px-3 py-2">Sperre aufheben</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -103,6 +104,18 @@
                                     <td class="px-3 py-2">{{ $eintrag->getAttribute('email') }}</td>
                                     <td class="px-3 py-2">{{ $eintrag->getAttribute('reason')->label() }}</td>
                                     <td class="px-3 py-2">{{ \Illuminate\Support\Carbon::parse((string) $eintrag->getAttribute('suppressed_at'))->format('d.m.Y') }}</td>
+                                    <td class="px-3 py-2">
+                                        {{-- Zum Beispiel nach einem SMTP-Ausfall, der faelschlich als Unzustellbarkeit gewertet wurde. --}}
+                                        <form method="POST" action="{{ route('admin.kommunikation.sperre.aufheben') }}" class="space-y-2">
+                                            @csrf
+                                            <input type="hidden" name="email" value="{{ $eintrag->getAttribute('email') }}">
+                                            <label class="sr-only" for="grund-{{ $eintrag->getKey() }}">Begründung</label>
+                                            <input type="text" id="grund-{{ $eintrag->getKey() }}" name="grund" required
+                                                   placeholder="Begründung"
+                                                   class="w-56 rounded border border-hvm-mittelgrau px-2 py-1">
+                                            <x-hvm.button type="submit" variant="secondary" size="sm">Aufheben</x-hvm.button>
+                                        </form>
+                                    </td>
                                 </tr>
                             @endforeach
                         </tbody>

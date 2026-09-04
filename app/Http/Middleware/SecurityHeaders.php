@@ -43,6 +43,13 @@ use Symfony\Component\HttpFoundation\Response;
  *    geringer als bei Skripten.
  *  - Ausserhalb der Produktion wird zusaetzlich der Vite-Entwicklungsserver
  *    freigegeben, damit der Hot-Reload funktioniert.
+ *  - form-action erlaubt neben 'self' den Ursprung der gehosteten
+ *    Zahlungsseite, siehe ZAHLUNGSANBIETER_FORM_ACTION.
+ *
+ * Die Middleware ist global registriert (bootstrap/app.php), nicht nur in der
+ * Gruppe "web". Nur so tragen auch Antworten, die vor dem Erreichen einer
+ * Route entstehen (404 fuer unbekannte Pfade, 405, die HTTPS-Umleitung), die
+ * Sicherheitsheader.
  *
  * HSTS wird ausschliesslich ueber HTTPS und ausschliesslich in der Produktion
  * gesetzt. Ein HSTS-Header auf einer Entwicklungsumgebung sperrt den Browser
@@ -54,6 +61,19 @@ class SecurityHeaders
      * SHA-256 des Inline-Bausteins zur JavaScript-Erkennung, Base64-kodiert.
      */
     private const INLINE_SKRIPT_HASH = 'sha256-/x7W7R75k8Roq0WaVRQX9blP4OufE5xbAdzklGxsgpw=';
+
+    /**
+     * Ursprung der gehosteten Zahlungsseite des Zahlungsanbieters.
+     *
+     * Der Bezahlschritt ist ein gewoehnliches HTML-Formular, dessen POST mit
+     * einer Weiterleitung auf die Checkout-Session des Anbieters beantwortet
+     * wird. Chromium- und WebKit-Browser pruefen form-action auch gegen das
+     * Ziel dieser Weiterleitung. Ohne diesen Eintrag bricht der Browser die
+     * Navigation zur Zahlungsseite ab und eine Zahlung ist nicht moeglich.
+     * Wird spaeter eine eigene Checkout-Domain beim Anbieter eingerichtet,
+     * ist sie hier zu ergaenzen.
+     */
+    public const ZAHLUNGSANBIETER_FORM_ACTION = 'https://checkout.stripe.com';
 
     /**
      * Ursprung des Vite-Entwicklungsservers, nur ausserhalb der Produktion.
@@ -114,7 +134,7 @@ class SecurityHeaders
         $direktiven = [
             "default-src 'self'",
             "base-uri 'self'",
-            "form-action 'self'",
+            "form-action 'self' ".self::ZAHLUNGSANBIETER_FORM_ACTION,
             "frame-ancestors 'none'",
             "object-src 'none'",
             'script-src '.implode(' ', $skript),

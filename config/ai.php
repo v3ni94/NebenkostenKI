@@ -26,6 +26,28 @@ declare(strict_types=1);
 |
 */
 
+/*
+ * Eine in der .env vorhandene, aber leere Zeile (SCHLUESSEL=) liefert ueber
+ * env() die leere Zeichenkette und nicht null. Fuer die dreiwertigen Schalter
+ * unten ist leer gleichbedeutend mit "nicht gesetzt". Ohne diese Angleichung
+ * wuerde eine leere Zeile aus .env.example die Pipeline abschalten
+ * (filter_var('') ist false) oder ein Tageslimit von 0 Cent erzeugen.
+ */
+$leerAlsNull = static function (string $schluessel): ?string {
+    $wert = env($schluessel);
+
+    if ($wert === null || is_bool($wert)) {
+        return $wert === null ? null : ($wert ? 'true' : 'false');
+    }
+
+    $wert = trim((string) $wert);
+
+    return $wert === '' ? null : $wert;
+};
+
+$bindDocumentPipeline = $leerAlsNull('AI_BIND_DOCUMENT_PIPELINE');
+$maxDailyCostCentPerUser = $leerAlsNull('AI_MAX_DAILY_COST_CENT_PER_USER');
+
 return [
 
     'primary_provider' => env('AI_PRIMARY_PROVIDER', 'openai'),
@@ -65,12 +87,18 @@ return [
      * automatische Auswertung ruht, Uploads und manuelle Erfassung laufen
      * weiter, und es bleiben keine Originaldateien liegen.
      */
-    'bind_document_pipeline' => env('AI_BIND_DOCUMENT_PIPELINE') !== null
-        ? filter_var(env('AI_BIND_DOCUMENT_PIPELINE'), FILTER_VALIDATE_BOOL)
+    'bind_document_pipeline' => $bindDocumentPipeline !== null
+        ? filter_var($bindDocumentPipeline, FILTER_VALIDATE_BOOL)
         : null,
 
-    'max_daily_cost_cent_per_user' => env('AI_MAX_DAILY_COST_CENT_PER_USER') !== null
-        ? (int) env('AI_MAX_DAILY_COST_CENT_PER_USER')
+    /*
+     * Tagesbudget je Nutzer in ganzen Cent. Leer oder nicht gesetzt bedeutet:
+     * kein Limit. Ein Wert kleiner oder gleich 0 ist ein Konfigurationsfehler
+     * (jede Auswertung wuerde als "Tageslimit erreicht" abgewiesen) und wird
+     * von smartabrechnen:check-config und den Livegang-Blockern gemeldet.
+     */
+    'max_daily_cost_cent_per_user' => is_numeric($maxDailyCostCentPerUser)
+        ? (int) $maxDailyCostCentPerUser
         : null,
 
     'providers' => [
@@ -106,6 +134,18 @@ return [
      * offizielle Preisliste des Providers zu pruefen. Fuer die Abrechnung
      * gegenueber dem Nutzer sind sie ohne Bedeutung; sie dienen der internen
      * Kostenkontrolle und den Tageslimits.
+     *
+     * OFFENER PUNKT FUER DEN BETREIBER: Fuer die Standardmodelle des
+     * Primaerproviders openai (OPENAI_MODEL_EXTRACT, OPENAI_MODEL_ANALYZE)
+     * ist hier keine Basis hinterlegt. Ohne Basis wird kein Preis geraten:
+     * der Aufruf wird ungezaehlt durchgelassen und ein konfiguriertes
+     * Tageslimit greift fuer diese Modelle nicht. smartabrechnen:check-config
+     * und die Livegang-Blocker melden diesen Zustand, sobald ein Tageslimit
+     * gesetzt ist. Die Werte sind vor Livegang aus der offiziellen Preisliste
+     * des Providers zu uebernehmen, zum Beispiel:
+     *
+     *     'gpt-5.6-luna' => ['input' => <vom Betreiber zu pruefen>, 'output' => <vom Betreiber zu pruefen>],
+     *     'gpt-5.6-terra' => ['input' => <vom Betreiber zu pruefen>, 'output' => <vom Betreiber zu pruefen>],
      */
     'cost_basis_us_cent_per_million_tokens' => [
         'claude-haiku-4-5' => ['input' => 100, 'output' => 500],

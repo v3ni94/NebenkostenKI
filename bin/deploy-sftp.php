@@ -145,72 +145,31 @@ final class SftpDeployer
         }
 
         $symlinks = $this->symlinksSupported();
-        $this->say($symlinks ? 'Symlinks sind moeglich: .env und storage werden verknuepft.' : 'Symlinks sind nicht moeglich: .env wird kopiert, storage bleibt im Release (LARAVEL_STORAGE_PATH beachten).');
+        $this->say($symlinks ? 'Symlinks sind moeglich: .env und storage werden verknuepft.' : 'Symlinks sind nicht moeglich: .env wird kopiert, storage bleibt im Release. In shared/.env muss LARAVEL_STORAGE_PATH auf shared/storage zeigen, sonst bleiben Originaluploads im alten Release liegen.');
+
+        if (! $symlinks && ! $this->sharedEnvDeclaresStoragePath()) {
+            return $this->fail('Ohne Symlinks muss shared/.env die Variable LARAVEL_STORAGE_PATH auf <root>/shared/storage setzen (docs/betrieb/installation.md, Schritt 8.1). Sonst laegen Kurzzeitbereich und Logs je Release getrennt. Es wurde nichts uebertragen.');
+        }
 
         // --- Upload in ein NEUES Verzeichnis ---------------------------------
+        // Bricht der Upload ab (Netzabbruch, Lesefehler, fehlende Pflichtdatei),
+        // wird das halbe Verzeichnis entfernt. Es darf weder einen erneuten
+        // Lauf mit demselben Releasenamen blockieren noch als Rollbackziel
+        // erscheinen.
         $target = 'releases/'.$release;
-        $uploaded = 0;
-        $directories = [];
 
-        foreach ($files as $file) {
-            if ($symlinks && str_starts_with($file, 'storage/')) {
-                continue;
-            }
+        try {
+            $failure = $this->upload($source, $files, $target, $release, $symlinks);
+        } catch (Throwable $exception) {
+            $this->abandon($target);
 
-            $directory = dirname($file);
-
-            if ($directory !== '.' && ! isset($directories[$directory])) {
-                $fs->createDirectory($target.'/'.$directory);
-                $directories[$directory] = true;
-            }
-
-            $stream = fopen($source.'/'.$file, 'rb');
-
-            if ($stream === false) {
-                return $this->fail('Die Datei '.$file.' konnte nicht gelesen werden.');
-            }
-
-            $fs->writeStream($target.'/'.$file, $stream);
-
-            if (is_resource($stream)) {
-                fclose($stream);
-            }
-
-            $uploaded++;
-
-            if ($uploaded % 500 === 0) {
-                $this->say(sprintf('  %d Dateien uebertragen ...', $uploaded));
-            }
+            throw $exception;
         }
 
-        $this->say(sprintf('%d Dateien uebertragen.', $uploaded));
+        if ($failure !== null) {
+            $this->abandon($target);
 
-        // --- Gemeinsame Dateien --------------------------------------------
-        if ($symlinks) {
-            $this->connection()->symlink('../../shared/.env', $target.'/.env');
-            $this->connection()->symlink('../../shared/storage', $target.'/storage');
-        } else {
-            $fs->copy('shared/.env', $target.'/.env');
-        }
-
-        $fs->write($target.'/'.self::RELEASE_MARKER, $release."\n");
-
-        if (! $fs->fileExists($target.'/public/version.json')) {
-            $fs->write($target.'/public/version.json', json_encode([
-                'release' => $release,
-                'built_at' => gmdate('Y-m-d\TH:i:s\Z'),
-            ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR)."\n");
-        }
-
-        // --- Integritaet vor dem Umschalten ------------------------------------
-        foreach (ReleasePackage::REQUIRED_FILES as $required) {
-            if (! $fs->fileExists($target.'/'.$required)) {
-                return $this->fail('Nach dem Upload fehlt '.$required.'. Das Release wird nicht aktiviert.');
-            }
-        }
-
-        if (! $fs->fileExists($target.'/.env')) {
-            return $this->fail('Die .env des Releases fehlt. Das Release wird nicht aktiviert.');
+            return $this->fail($failure);
         }
 
         // --- Umschalten ---------------------------------------------------------
@@ -252,6 +211,14 @@ final class SftpDeployer
             return $this->fail('Das Release ist nicht vorhanden. Verfuegbare Releases mit --list anzeigen.');
         }
 
+        // Dieselbe Integritaetspruefung wie vor dem ersten Aktivieren: ein
+        // unvollstaendiges Verzeichnis darf nie zum aktiven Release werden.
+        $incomplete = $this->integrityFailure('releases/'.$release);
+
+        if ($incomplete !== null) {
+            return $this->fail('Das Release ist unvollstaendig und kann nicht aktiviert werden: '.$incomplete);
+        }
+
         if ($this->dryRun) {
             $this->say('Probelauf: wuerde auf '.$release.' zurueckschalten.');
 
@@ -263,12 +230,157 @@ final class SftpDeployer
 
         if ($this->smokeUrl !== null) {
             $failure = $this->smokeTest($this->smokeUrl);
-            $this->say($failure === null ? 'Smoke-Test bestanden.' : 'Smoke-Test fehlgeschlagen: '.$failure);
 
-            return $failure === null ? 0 : 1;
+            if ($failure !== null) {
+                $this->say('Smoke-Test fehlgeschlagen: '.$failure);
+
+                if ($previous !== null) {
+                    $this->switchTo($previous);
+                    $this->say('Zurueckgeschaltet auf das zuvor aktive Release '.$previous.'.');
+                }
+
+                return 1;
+            }
+
+            $this->say('Smoke-Test bestanden.');
         }
 
         return 0;
+    }
+
+    // ----------------------------------------------------------------------
+    // Upload und Integritaet
+    // ----------------------------------------------------------------------
+
+    /**
+     * Laedt das Paket nach $target und legt die gemeinsamen Dateien an.
+     * Liefert null bei Erfolg, sonst die Begruendung des Abbruchs.
+     *
+     * @param  list<string>  $files
+     */
+    private function upload(string $source, array $files, string $target, string $release, bool $symlinks): ?string
+    {
+        $fs = $this->filesystem();
+        $uploaded = 0;
+        $directories = [];
+
+        foreach ($files as $file) {
+            if ($symlinks && str_starts_with($file, 'storage/')) {
+                continue;
+            }
+
+            $directory = dirname($file);
+
+            if ($directory !== '.' && ! isset($directories[$directory])) {
+                $fs->createDirectory($target.'/'.$directory);
+                $directories[$directory] = true;
+            }
+
+            $stream = fopen($source.'/'.$file, 'rb');
+
+            if ($stream === false) {
+                return 'Die Datei '.$file.' konnte nicht gelesen werden.';
+            }
+
+            $fs->writeStream($target.'/'.$file, $stream);
+
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+
+            $uploaded++;
+
+            if ($uploaded % 500 === 0) {
+                $this->say(sprintf('  %d Dateien uebertragen ...', $uploaded));
+            }
+        }
+
+        $this->say(sprintf('%d Dateien uebertragen.', $uploaded));
+
+        // --- Gemeinsame Dateien --------------------------------------------
+        // Das Linkziel bleibt relativ zum Release, damit ein Umbenennen von
+        // releases/<name> nach current den Link nicht bricht. Der Linkpfad
+        // selbst wird absolut angegeben, siehe absolutePath().
+        if ($symlinks) {
+            if (! $this->connection()->symlink('../../shared/.env', $this->absolutePath($target.'/.env'))
+                || ! $this->connection()->symlink('../../shared/storage', $this->absolutePath($target.'/storage'))) {
+                return 'Die Verknuepfung von .env oder storage konnte nicht angelegt werden.';
+            }
+        } else {
+            $fs->copy('shared/.env', $target.'/.env');
+        }
+
+        $fs->write($target.'/'.self::RELEASE_MARKER, $release."\n");
+
+        if (! $fs->fileExists($target.'/public/version.json')) {
+            $fs->write($target.'/public/version.json', json_encode([
+                'release' => $release,
+                'built_at' => gmdate('Y-m-d\TH:i:s\Z'),
+            ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR)."\n");
+        }
+
+        // --- Integritaet vor dem Umschalten ------------------------------------
+        $incomplete = $this->integrityFailure($target);
+
+        if ($incomplete !== null) {
+            return 'Nach dem Upload ist das Release unvollstaendig: '.$incomplete.' Das Release wird nicht aktiviert.';
+        }
+
+        return null;
+    }
+
+    /**
+     * Prueft ein Releaseverzeichnis auf Pflichtdateien, Releasemarker und
+     * .env. Liefert null, wenn alles vorliegt, sonst die fehlende Datei.
+     */
+    private function integrityFailure(string $directory): ?string
+    {
+        $fs = $this->filesystem();
+
+        foreach (ReleasePackage::REQUIRED_FILES as $required) {
+            if (! $fs->fileExists($directory.'/'.$required)) {
+                return 'Es fehlt '.$required.'.';
+            }
+        }
+
+        if (! $fs->fileExists($directory.'/'.self::RELEASE_MARKER)) {
+            return 'Der Releasemarker '.self::RELEASE_MARKER.' fehlt, der Upload war nicht abgeschlossen.';
+        }
+
+        if (! $fs->fileExists($directory.'/.env')) {
+            return 'Die .env des Releases fehlt.';
+        }
+
+        return null;
+    }
+
+    /**
+     * Entfernt ein unvollstaendiges Releaseverzeichnis. Aufraeumfehler werden
+     * gemeldet, brechen aber nicht ab: die eigentliche Fehlermeldung ist
+     * wichtiger.
+     */
+    private function abandon(string $target): void
+    {
+        try {
+            if ($this->filesystem()->directoryExists($target)) {
+                $this->filesystem()->deleteDirectory($target);
+                $this->say('Unvollstaendiges Release '.basename($target).' wurde entfernt.');
+            }
+        } catch (Throwable $exception) {
+            $this->say('Das unvollstaendige Release '.basename($target).' konnte nicht entfernt werden ('.get_class($exception).'). Bitte per SFTP loeschen.');
+        }
+    }
+
+    /**
+     * Ohne Symlinks liegt storage/ je Release. Damit Kurzzeitbereich und
+     * Logs trotzdem gemeinsam bleiben, muss shared/.env LARAVEL_STORAGE_PATH
+     * setzen (docs/betrieb/installation.md, Schritt 8.1).
+     */
+    private function sharedEnvDeclaresStoragePath(): bool
+    {
+        $env = $this->filesystem()->read('shared/.env');
+
+        return preg_match('/^\s*LARAVEL_STORAGE_PATH\s*=\s*\S+/m', $env) === 1;
     }
 
     public function list(): int
@@ -421,10 +533,10 @@ final class SftpDeployer
 
         try {
             $fs->write($probe, 'probe');
-            $ok = $this->connection()->symlink(basename($probe), $probe.'.link');
+            $ok = $this->connection()->symlink(basename($probe), $this->absolutePath($probe.'.link'));
 
             if ($ok) {
-                $this->connection()->delete($probe.'.link', false);
+                $this->connection()->delete($this->absolutePath($probe.'.link'), false);
             }
 
             $fs->delete($probe);
@@ -468,6 +580,23 @@ final class SftpDeployer
     private function connection(): SFTP
     {
         return $this->connection ??= $this->provider()->provideConnection();
+    }
+
+    /**
+     * Absoluter Serverpfad unterhalb von SFTP_DEPLOY_ROOT.
+     *
+     * Flysystem stellt jedem Pfad das Root voran. Die rohe SFTP-Verbindung
+     * (symlink, delete) tut das nicht: phpseclib loest einen relativen Pfad
+     * gegen das Anmeldeverzeichnis des SFTP-Nutzers auf, das auf IONOS
+     * oberhalb von SFTP_DEPLOY_ROOT liegt. Ohne diese Angleichung landete die
+     * Symlink-Probe im falschen Verzeichnis, das Skript fiel immer in den
+     * Kopiermodus, und echte Links waeren an der falschen Stelle entstanden.
+     */
+    private function absolutePath(string $path): string
+    {
+        $root = rtrim($this->env['SFTP_DEPLOY_ROOT'] ?? '', '/');
+
+        return $root.'/'.ltrim($path, '/');
     }
 
     private function provider(): SftpConnectionProvider

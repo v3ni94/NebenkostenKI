@@ -18,6 +18,7 @@ use App\Services\Ai\AiProviderKey;
 use App\Services\Ai\Integration\AiIntegrationErrorCode;
 use App\Services\Storage\TemporaryUploadStorage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Tests\Feature\Ai\Concerns\BuildsAiIntegration;
 use Tests\TestCase;
@@ -136,6 +137,35 @@ class CostLimitAndReleaseGateTest extends TestCase
         )->extract($document, $upload);
 
         $this->assertTrue($outcome->successful);
+    }
+
+    public function test_der_budgettag_wechselt_um_mitternacht_deutscher_zeit(): void
+    {
+        // Sommerzeit: 00:30 Uhr in Deutschland ist 22:30 Uhr UTC des Vortags.
+        // Ein Verbrauch von gestern 23:30 Uhr deutscher Zeit darf das heutige
+        // Budget nicht belasten, auch wenn er in UTC noch am selben Tag liegt.
+        Carbon::setTestNow(Carbon::parse('2026-07-15 23:30:00', 'Europe/Berlin'));
+        $gestern = $this->verbrauchteHeute(900);
+        $gestern->forceFill(['created_at' => now()])->save();
+
+        Carbon::setTestNow(Carbon::parse('2026-07-16 00:30:00', 'Europe/Berlin'));
+        [$document, $upload] = $this->dokumentMitQuelldatei();
+
+        $http = (new RecordingAiHttpClient)->pushJson(
+            AiTestFactory::openAiResponseBody(AiTestFactory::fixture('hausgeldabrechnung.json')),
+        );
+
+        try {
+            $outcome = $this->extractor(
+                $this->router(AiTestFactory::openAiProvider($http), AiProviderKey::OPENAI),
+                dailyLimitCent: 10,
+            )->extract($document, $upload);
+        } finally {
+            Carbon::setTestNow();
+        }
+
+        $this->assertTrue($outcome->successful, $outcome->errorCode ?? '');
+        $this->assertSame(1, $http->callCount());
     }
 
     public function test_produktive_umgebung_ohne_datenschutzfreigabe_blockiert_die_extraktion(): void

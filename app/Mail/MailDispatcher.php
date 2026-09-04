@@ -150,9 +150,32 @@ class MailDispatcher
     }
 
     /**
-     * Ein dauerhafter Zustellfehler ist eine Antwort der Gegenstelle im Bereich
-     * 5xx, zum Beispiel 550 unbekannter Empfaenger. Ein zeitweiliger Fehler
-     * (4xx, Zeitueberschreitung) fuehrt nicht zur Sperrung.
+     * SMTP-Antwortcodes der Gegenstelle, die den Empfaenger dauerhaft ablehnen
+     * (RFC 5321, Abschnitt 4.2.3): 550 Postfach nicht verfuegbar, 551 Nutzer
+     * nicht lokal, 552 Speicher ueberschritten, 553 Postfachname unzulaessig,
+     * 554 Transaktion fehlgeschlagen.
+     *
+     * @var list<int>
+     */
+    private const DAUERHAFTE_EMPFAENGERCODES = [550, 551, 552, 553, 554];
+
+    /**
+     * Ein dauerhafter Zustellfehler ist ausschliesslich eine Antwort der
+     * Gegenstelle auf RCPT oder DATA mit einem Code aus
+     * DAUERHAFTE_EMPFAENGERCODES, zum Beispiel 550 unbekannter Empfaenger.
+     *
+     * Absenderseitige Fehler duerfen die Adresse nie sperren: Ein nicht
+     * erreichbarer Postausgangsserver (Verbindungsfehler, die Meldung nennt
+     * Host und Port wie "smtp.example:587"), ein falsches Postfachpasswort
+     * (Code 535, 534, 530 bei der Anmeldung) oder eine Zeitueberschreitung
+     * sagen nichts ueber die Empfaengeradresse aus. Sie sind zeitweilig und
+     * fuehren nicht zur Sperrung, ebenso alle 4xx-Antworten.
+     *
+     * Symfony Mailer formuliert Serverantworten als
+     * 'Expected response code "250" but got code "550", with message "..."'
+     * und Anmeldefehler als 'Failed to authenticate on SMTP server ...'.
+     * Ausgewertet wird deshalb der ausdrueckliche Antwortcode, nicht jede
+     * dreistellige Zahl in der Meldung.
      */
     public static function istDauerhafterFehler(Throwable $fehler): bool
     {
@@ -160,7 +183,20 @@ class MailDispatcher
             return true;
         }
 
-        return preg_match('/\b5\d\d\b/', $fehler->getMessage()) === 1;
+        $meldung = $fehler->getMessage();
+
+        if (preg_match('/Failed to authenticate|Connection could not be established|Connection to .* has been closed|Connection .* timed out/i', $meldung) === 1) {
+            return false;
+        }
+
+        // Antwortcode der Gegenstelle, wie ihn Symfony Mailer wiedergibt, oder
+        // eine Meldung, die direkt mit dem Antwortcode beginnt (550 5.1.1 ...).
+        if (preg_match('/got code "(\d{3})"/', $meldung, $treffer) !== 1
+            && preg_match('/^\s*(\d{3})(?=[\s\-])/', $meldung, $treffer) !== 1) {
+            return false;
+        }
+
+        return in_array((int) $treffer[1], self::DAUERHAFTE_EMPFAENGERCODES, true);
     }
 
     /**

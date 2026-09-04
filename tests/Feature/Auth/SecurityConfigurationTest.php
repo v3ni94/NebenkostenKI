@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Auth;
 
 use App\Application\Account\AuditRecorder;
+use App\Http\Middleware\SecurityHeaders;
 use App\Models\Organization;
 use App\Models\OrganizationUser;
 use App\Models\User;
@@ -48,7 +49,13 @@ final class SecurityConfigurationTest extends TestCase
         self::assertStringContainsString("frame-ancestors 'none'", $csp);
         self::assertStringContainsString("object-src 'none'", $csp);
         self::assertStringContainsString("base-uri 'self'", $csp);
-        self::assertStringContainsString("form-action 'self'", $csp);
+        // form-action muss neben 'self' den Ursprung der gehosteten
+        // Zahlungsseite erlauben, weil Chromium und WebKit die Direktive auch
+        // gegen das Ziel der Weiterleitung nach dem Bezahl-POST pruefen.
+        self::assertStringContainsString(
+            "form-action 'self' ".SecurityHeaders::ZAHLUNGSANBIETER_FORM_ACTION.';',
+            $csp.';'
+        );
 
         // Der Inline-Baustein zur JavaScript-Erkennung wird ueber seinen Hash
         // freigegeben, nicht ueber unsafe-inline.
@@ -57,6 +64,37 @@ final class SecurityConfigurationTest extends TestCase
 
         // Alpine wertet Attributausdruecke zur Laufzeit aus.
         self::assertStringContainsString("'unsafe-eval'", $csp);
+    }
+
+    public function test_unbekannter_pfad_traegt_die_sicherheitsheader(): void
+    {
+        $antwort = $this->get('/diesen-pfad-gibt-es-nicht');
+
+        $antwort->assertNotFound();
+        $antwort->assertHeader('X-Frame-Options', 'DENY');
+        $antwort->assertHeader('X-Content-Type-Options', 'nosniff');
+        $antwort->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+        self::assertStringContainsString("default-src 'self'", (string) $antwort->headers->get('Content-Security-Policy'));
+    }
+
+    public function test_nicht_erlaubtes_verfahren_traegt_die_sicherheitsheader(): void
+    {
+        $antwort = $this->get('/webhooks/stripe');
+
+        $antwort->assertStatus(405);
+        $antwort->assertHeader('X-Frame-Options', 'DENY');
+        self::assertStringContainsString("default-src 'self'", (string) $antwort->headers->get('Content-Security-Policy'));
+    }
+
+    public function test_die_https_umleitung_traegt_die_sicherheitsheader(): void
+    {
+        $this->app['env'] = 'production';
+
+        $antwort = $this->get('http://beispiel.test/preise');
+
+        $antwort->assertStatus(301);
+        $antwort->assertHeader('X-Frame-Options', 'DENY');
+        self::assertStringContainsString("default-src 'self'", (string) $antwort->headers->get('Content-Security-Policy'));
     }
 
     public function test_hsts_wird_ausserhalb_der_produktion_nicht_gesetzt(): void

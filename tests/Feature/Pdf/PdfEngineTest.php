@@ -87,6 +87,76 @@ class PdfEngineTest extends TestCase
         );
     }
 
+    public function test_zeichen_ausserhalb_von_windows_1252_bleiben_erhalten(): void
+    {
+        // Frei erfundene Beispielnamen mit polnischen, tuerkischen und
+        // rumaenischen Buchstaben. Im Kernschriftmodus wuerden sie zu "?".
+        $name = 'Familie Yılmaz, Łukasz Nowak, Ștefan Ağaoğlu';
+
+        $document = $this->engine->renderHtml('<p>Anschrift: '.e($name).'</p>', $this->renderOptions(), 'test');
+        $text = PdfTextExtractor::text($document->contents);
+
+        $this->assertStringContainsString($name, $text);
+        $this->assertStringNotContainsString('Y?lmaz', $text);
+        $this->assertStringNotContainsString('?ukasz', $text);
+    }
+
+    public function test_wasserzeichen_mit_zeichen_ausserhalb_von_windows_1252_bleibt_lesbar(): void
+    {
+        config()->set('smartabrechnen.pdf.watermark_text', 'VORSCHAU Łukasz');
+
+        $document = $this->engine->renderHtml(
+            '<p>Seite eins</p><pagebreak /><p>Seite zwei</p>',
+            PdfRenderOptions::preview(ArtifactType::EIGENTUEMERUEBERSICHT, 'Test'),
+            'test',
+        );
+
+        $this->assertSame(2, PdfTextExtractor::occurrences($document->contents, 'VORSCHAU Łukasz'));
+    }
+
+    public function test_platzhalter_in_nutzertexten_werden_nicht_ersetzt(): void
+    {
+        $html = '<p>Objekt: Haus {nb} Nord</p>'
+            .'<p>Einheit: WE {PAGENO}</p>'
+            .'<p>Verwendungszweck: Nebenkosten {DATE Y}</p>'
+            .'<p>Gruppe: {nbpg}</p>'
+            .'<p>Klammer: {x} bleibt</p>';
+
+        $document = $this->engine->renderHtml($html, $this->renderOptions(), 'test');
+        $text = PdfTextExtractor::text($document->contents);
+
+        // Der Extraktor fuegt getrennte Textobjekte mit einem Leerzeichen
+        // zusammen; Leerzeichen werden deshalb fuer den Vergleich entfernt.
+        $kompakt = str_replace(' ', '', $text);
+
+        $this->assertStringContainsString('Objekt:Haus{nb}Nord', $kompakt);
+        $this->assertStringContainsString('Einheit:WE{PAGENO}', $kompakt);
+        $this->assertStringContainsString('Verwendungszweck:Nebenkosten{DATEY}', $kompakt);
+        $this->assertStringContainsString('Gruppe:{nbpg}', $kompakt);
+        $this->assertStringContainsString('Klammer:{x}bleibt', $kompakt);
+
+        // Die Fusszeile verwendet die echten Platzhalter weiterhin.
+        $this->assertStringContainsString('Seite 1 von 1', $text);
+        $this->assertStringNotContainsString('Nebenkosten '.date('Y'), $text);
+    }
+
+    public function test_die_eingebettete_schrift_haelt_datei_klein_und_rendert_zuegig(): void
+    {
+        $absaetze = str_repeat('<p>Betriebskostenabrechnung für das Abrechnungsjahr 2025, Müller Größe Straße, 1.234,56 EUR.</p>', 120);
+
+        $start = microtime(true);
+        $document = $this->engine->renderHtml($absaetze, $this->renderOptions(), 'test');
+        $dauer = microtime(true) - $start;
+
+        $this->assertGreaterThanOrEqual(2, $document->pageCount);
+        $this->assertLessThan(400 * 1024, strlen($document->contents), 'Die Datei darf trotz eingebetteter Schrift nicht unverhaeltnismaessig gross werden.');
+        $this->assertLessThan(10.0, $dauer, 'Das Rendern darf nicht unverhaeltnismaessig lange dauern.');
+
+        // Die Schrift ist als Teilmenge eingebettet, keine Kernschrift ohne Einbettung.
+        $this->assertStringContainsString('/FontFile2', $document->contents);
+        $this->assertStringNotContainsString('/BaseFont /Helvetica', $document->contents);
+    }
+
     public function test_ungueltige_vorlage_fuehrt_zu_einem_fehler_und_nicht_zu_einer_datei(): void
     {
         $this->expectException(PdfException::class);
@@ -98,8 +168,13 @@ class PdfEngineTest extends TestCase
     {
         $document = $this->engine->renderHtml('<p>Test</p>', $this->renderOptions(), 'test');
 
-        $this->assertStringNotContainsString('pdfa', strtolower($document->contents));
+        // Geprueft werden die PDF/A-Kennzeichen (XMP-Schema pdfaid und der
+        // Output-Intent), nicht die blosse Zeichenfolge "pdfa": Der
+        // Teilmengen-Praefix der eingebetteten Schrift ("MPDFAA+") enthaelt
+        // diese Folge, ohne eine Konformitaet zu behaupten.
+        $this->assertStringNotContainsString('pdfaid', strtolower($document->contents));
         $this->assertStringNotContainsString('/GTS_PDFA1', $document->contents);
+        $this->assertStringNotContainsString('/OutputIntents', $document->contents);
     }
 
     public function test_vorlagen_verwenden_kein_flexbox_und_kein_grid(): void

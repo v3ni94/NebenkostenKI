@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Privacy;
 
-use Illuminate\Foundation\Http\FormRequest;
+use App\Http\Requests\GermanFormRequest;
 
 /**
  * Antrag auf Löschung des Kontos.
@@ -13,7 +13,7 @@ use Illuminate\Foundation\Http\FormRequest;
  * Löschantrag auslöst. Die Autorisierung selbst liegt in der Policy des
  * Controllers, nicht hier.
  */
-final class DeletionRequestRequest extends FormRequest
+final class DeletionRequestRequest extends GermanFormRequest
 {
     public function authorize(): bool
     {
@@ -33,7 +33,7 @@ final class DeletionRequestRequest extends FormRequest
     /**
      * @return array<string, string>
      */
-    public function messages(): array
+    protected function eigeneMeldungen(): array
     {
         return [
             'bestaetigung.accepted' => 'Bitte bestätigen Sie, dass Sie die Löschung Ihres Kontos beantragen möchten.',

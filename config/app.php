@@ -62,12 +62,19 @@ return [
     |--------------------------------------------------------------------------
     |
     | Here you may specify the default timezone for your application, which
-    | will be used by the PHP date and date-time functions. The timezone
-    | is set to "UTC" by default as it is suitable for most use cases.
+    | will be used by the PHP date and date-time functions.
+    |
+    | Fachliche Zeitzone der Anwendung ist Europe/Berlin: Rechnungsdatum und
+    | Nummernkreisjahr der Leistungsrechnung, Tagesgrenzen des KI-Tagesbudgets,
+    | Erinnerungstermine und alle angezeigten Datumsangaben beziehen sich auf
+    | den deutschen Kalendertag. Mit UTC wuerde eine Zahlung am 01.01. um
+    | 00:30 Uhr eine Rechnung mit Vorjahresdatum und Vorjahresnummer erhalten.
+    | APP_TIMEZONE erlaubt eine abweichende Einstellung, der Standard ist
+    | Europe/Berlin.
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => env('APP_TIMEZONE', 'Europe/Berlin'),
 
     /*
     |--------------------------------------------------------------------------

@@ -98,6 +98,44 @@ final class LivegangBlockerTest extends AdminTestCase
         self::assertTrue($this->bericht()->has(LaunchBlockerCheck::KI_DATENSCHUTZFREIGABE));
     }
 
+    public function test_eine_abgeschaltete_ki_anbindung_ist_ein_blocker(): void
+    {
+        config()->set('ai.bind_document_pipeline', null);
+        self::assertFalse($this->bericht()->has(LaunchBlockerCheck::KI_ANBINDUNG));
+
+        config()->set('ai.bind_document_pipeline', false);
+        self::assertTrue($this->bericht()->has(LaunchBlockerCheck::KI_ANBINDUNG));
+    }
+
+    public function test_ein_tageslimit_von_null_cent_ist_ein_blocker(): void
+    {
+        config()->set('ai.max_daily_cost_cent_per_user', 0);
+
+        self::assertTrue($this->bericht()->has(LaunchBlockerCheck::KI_TAGESLIMIT));
+
+        config()->set('ai.max_daily_cost_cent_per_user', null);
+
+        self::assertFalse($this->bericht()->has(LaunchBlockerCheck::KI_TAGESLIMIT));
+    }
+
+    public function test_ein_tageslimit_ohne_kalkulationsbasis_fuer_die_modelle_des_providers_ist_ein_blocker(): void
+    {
+        config()->set('ai.primary_provider', 'openai');
+        config()->set('ai.fallback_enabled', false);
+        config()->set('ai.max_daily_cost_cent_per_user', 500);
+
+        // Die ausgelieferte Basis kennt nur Anthropic-Modelle.
+        self::assertTrue($this->bericht()->has(LaunchBlockerCheck::KI_TAGESLIMIT));
+
+        // Testplatzhalter, keine Preisangaben.
+        config()->set('ai.cost_basis_us_cent_per_million_tokens', [
+            'gpt-5.6-luna' => ['input' => 1, 'output' => 1],
+            'gpt-5.6-terra' => ['input' => 1, 'output' => 1],
+        ]);
+
+        self::assertFalse($this->bericht()->has(LaunchBlockerCheck::KI_TAGESLIMIT));
+    }
+
     public function test_ein_abgeschalteter_malware_scanner_wird_erkannt_und_verschwindet_nach_konfiguration(): void
     {
         config()->set('smartabrechnen.uploads.malware_scanner.driver', 'disabled');

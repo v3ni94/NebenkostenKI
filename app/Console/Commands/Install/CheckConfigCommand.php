@@ -30,7 +30,8 @@ final class CheckConfigCommand extends Command
 
     public function handle(ConfigurationCheck $check): int
     {
-        $restarted = $this->ensureFreshConfiguration();
+        // Reiner Pruefbefehl: der produktive Konfigurationscache bleibt liegen.
+        $restarted = $this->ensureFreshConfiguration(keepCache: true);
 
         if ($restarted !== null) {
             return $restarted;
