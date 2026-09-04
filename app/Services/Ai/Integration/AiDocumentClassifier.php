@@ -62,6 +62,7 @@ final class AiDocumentClassifier implements DocumentClassifier
         }
 
         $spentMilliCent = $this->ledger->spentMilliCentToday($document);
+        $observer = new DocumentAiCallObserver($document, $upload, $this->calls, $this->logger);
 
         try {
             $this->ledger->assertBudgetAvailable($spentMilliCent);
@@ -73,12 +74,18 @@ final class AiDocumentClassifier implements DocumentClassifier
                     $this->ledger->userReference($document),
                     $spentMilliCent,
                     null,
+                    // Solange eine fruehere Providerdatei nicht bestaetigt
+                    // geloescht ist, wird keine weitere angelegt.
+                    ! DocumentAiCallObserver::hasUnresolvedProviderFile($upload),
+                    $observer,
                 ),
             ));
         } catch (Throwable $exception) {
             return ClassificationOutcome::failed($this->failureFor($exception)->outcomeCode());
         }
 
+        $observer->noteDeletionOutcomes($result->extraction->providerFileDeletions);
+        $this->calls->recordPreceding($document, $result->extraction->precedingCalls);
         $this->calls->record($document, $result->metadata(), 1);
 
         if ($result->containsInstructionLikeText) {

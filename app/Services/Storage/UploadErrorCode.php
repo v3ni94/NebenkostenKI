@@ -40,6 +40,7 @@ enum UploadErrorCode: string
     case ARTEFAKT_UNZULAESSIG = 'ARTEFAKT_UNZULAESSIG';
     case ARTEFAKT_DISK_UNZULAESSIG = 'ARTEFAKT_DISK_UNZULAESSIG';
     case QUELLE_NICHT_VORHANDEN = 'QUELLE_NICHT_VORHANDEN';
+    case QUELLE_NICHT_LESBAR = 'QUELLE_NICHT_LESBAR';
     case LOESCHUNG_FEHLGESCHLAGEN = 'LOESCHUNG_FEHLGESCHLAGEN';
     case PROVIDER_LOESCHUNG_FEHLGESCHLAGEN = 'PROVIDER_LOESCHUNG_FEHLGESCHLAGEN';
     case TTL_ABGELAUFEN = 'TTL_ABGELAUFEN';
@@ -57,9 +58,9 @@ enum UploadErrorCode: string
     public function message(): string
     {
         return match ($this) {
-            self::MIME_UNBEKANNT => 'Das Dateiformat konnte nicht erkannt werden. Bitte laden Sie die Unterlage als PDF, JPG, PNG, CSV oder XLSX hoch.',
+            self::MIME_UNBEKANNT => 'Das Dateiformat konnte nicht erkannt werden. Bitte laden Sie die Unterlage als PDF, JPG, PNG oder CSV hoch.',
             self::MIME_TAEUSCHUNG => 'Der Inhalt der Datei passt nicht zur Dateiendung. Bitte laden Sie die Originaldatei unverändert erneut hoch.',
-            self::ERWEITERUNG_UNZULAESSIG => 'Dieses Dateiformat wird nicht unterstützt. Zulässig sind PDF, JPG, PNG, HEIC, CSV, XLSX und ZIP.',
+            self::ERWEITERUNG_UNZULAESSIG => 'Dieses Dateiformat wird nicht unterstützt. Zulässig sind PDF, JPG, PNG, HEIC, CSV und ZIP. Excel-Tabellen speichern Sie bitte als CSV oder PDF.',
             self::AUSFUEHRBARER_INHALT => 'Die Datei enthält ausführbaren Programmcode und wurde deshalb abgelehnt.',
             self::DATEI_ZU_GROSS => 'Die Datei überschreitet die zulässige Größe je Datei. Bitte teilen Sie die Unterlage oder verringern Sie die Auflösung des Scans.',
             self::DATEI_LEER => 'Die Datei ist leer. Bitte prüfen Sie die Unterlage und laden Sie sie erneut hoch.',
@@ -83,6 +84,7 @@ enum UploadErrorCode: string
             self::ARTEFAKT_UNZULAESSIG => 'Es wurde versucht, eine nicht freigegebene Datei im dauerhaften Speicher abzulegen. Der Vorgang wurde abgebrochen.',
             self::ARTEFAKT_DISK_UNZULAESSIG => 'Der Zielspeicher ist für Ergebnisartefakte nicht zugelassen.',
             self::QUELLE_NICHT_VORHANDEN => 'Die Quelldatei ist nicht mehr vorhanden. Bitte laden Sie die Unterlage erneut hoch.',
+            self::QUELLE_NICHT_LESBAR => 'Die Datei konnte im Kurzzeitbereich nicht mehr gelesen werden und wurde gelöscht. Bitte laden Sie die Unterlage erneut hoch.',
             self::LOESCHUNG_FEHLGESCHLAGEN => 'Die Löschung der Quelldatei ist fehlgeschlagen. Der Vorgang wird automatisch wiederholt.',
             self::PROVIDER_LOESCHUNG_FEHLGESCHLAGEN => 'Die Löschung der temporären Auswertungsdatei ist fehlgeschlagen. Der Vorgang wird automatisch wiederholt.',
             self::TTL_ABGELAUFEN => 'Die Auswertung wurde nicht rechtzeitig abgeschlossen. Die Datei wurde gelöscht. Bitte laden Sie sie erneut hoch.',

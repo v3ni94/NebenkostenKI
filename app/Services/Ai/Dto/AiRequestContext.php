@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\Ai\Dto;
 
+use App\Services\Ai\AiCallObserver;
+
 /**
  * Aufrufkontext eines KI-Aufrufs.
  *
@@ -24,6 +26,7 @@ final class AiRequestContext
      * @param  int|null  $estimatedInputTokens  Schaetzung der Eingabetoken fuer die Vorabpruefung des Budgets.
      * @param  bool  $allowProviderFileUpload  Erlaubt den Umweg ueber die Files-API des Providers, falls die
      *                                         Datei nicht direkt in den Verarbeitungsrequest passt.
+     * @param  AiCallObserver|null  $observer  Beobachter des Aufrufs (Heartbeat, Providerdatei, Abbruch).
      */
     public function __construct(
         public readonly string $correlationId,
@@ -31,6 +34,7 @@ final class AiRequestContext
         public readonly int $dailySpentMilliCent = 0,
         public readonly ?int $estimatedInputTokens = null,
         public readonly bool $allowProviderFileUpload = true,
+        public readonly ?AiCallObserver $observer = null,
     ) {}
 
     public static function forCorrelation(string $correlationId): self
@@ -46,6 +50,19 @@ final class AiRequestContext
             $milliCent,
             $this->estimatedInputTokens,
             $this->allowProviderFileUpload,
+            $this->observer,
+        );
+    }
+
+    public function withObserver(?AiCallObserver $observer): self
+    {
+        return new self(
+            $this->correlationId,
+            $this->userReference,
+            $this->dailySpentMilliCent,
+            $this->estimatedInputTokens,
+            $this->allowProviderFileUpload,
+            $observer,
         );
     }
 }

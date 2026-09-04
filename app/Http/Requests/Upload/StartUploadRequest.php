@@ -8,6 +8,7 @@ use App\Enums\DocumentType;
 use App\Http\Requests\GermanFormRequest;
 use App\Models\BillingRun;
 use App\Services\Storage\UploadLimits;
+use Closure;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
@@ -44,7 +45,7 @@ class StartUploadRequest extends GermanFormRequest
         $limits = UploadLimits::fromConfig();
 
         return [
-            'dateiname' => ['required', 'string', 'max:255'],
+            'dateiname' => ['required', 'string', 'max:255', $this->rejectsUnsupportedSpreadsheets()],
             'groesse' => ['required', 'integer', 'min:1', 'max:'.$limits->maxFileBytes],
             'kategorie' => ['nullable', Rule::enum(DocumentType::class)],
         ];
@@ -73,7 +74,40 @@ class StartUploadRequest extends GermanFormRequest
      */
     public function fileExtension(): string
     {
-        $name = (string) $this->input('dateiname');
+        return self::extensionOf((string) $this->input('dateiname'));
+    }
+
+    /**
+     * XLSX wird fuer den Start nicht ausgewertet: Die Provider verarbeiten
+     * PDF, Bilder und Text, eine serverseitige Umwandlung der Tabelle gibt es
+     * noch nicht. Die Datei wird deshalb bereits hier mit einer klaren
+     * Handlungsanweisung abgelehnt, statt die Pruefkette zu durchlaufen und
+     * erst in der Auswertung zu scheitern.
+     *
+     * @var list<string>
+     */
+    public const UNSUPPORTED_SPREADSHEET_EXTENSIONS = ['xlsx'];
+
+    /**
+     * Die Meldung nennt bewusst nicht den Dateinamen.
+     */
+    public const UNSUPPORTED_SPREADSHEET_MESSAGE = 'Excel-Tabellen (XLSX) werden derzeit nicht ausgewertet. Bitte speichern Sie die Tabelle als CSV oder PDF und laden Sie sie erneut hoch.';
+
+    private function rejectsUnsupportedSpreadsheets(): Closure
+    {
+        return static function (string $attribute, mixed $value, Closure $fail): void {
+            if (! is_string($value)) {
+                return;
+            }
+
+            if (in_array(self::extensionOf($value), self::UNSUPPORTED_SPREADSHEET_EXTENSIONS, true)) {
+                $fail(self::UNSUPPORTED_SPREADSHEET_MESSAGE);
+            }
+        };
+    }
+
+    private static function extensionOf(string $name): string
+    {
         $position = strrpos($name, '.');
 
         return $position === false ? '' : strtolower(substr($name, $position + 1));

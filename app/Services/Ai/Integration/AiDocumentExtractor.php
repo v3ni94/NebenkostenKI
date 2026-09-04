@@ -91,14 +91,21 @@ final class AiDocumentExtractor implements DocumentExtractor
         }
 
         $spentMilliCent = $this->ledger->spentMilliCentToday($document);
+        $observer = new DocumentAiCallObserver($document, $upload, $this->calls, $this->logger);
 
         try {
             $this->ledger->assertBudgetAvailable($spentMilliCent);
 
-            $result = $this->callProvider($document, $payload, $type, $schemaKey, $spentMilliCent);
+            $result = $this->callProvider($document, $upload, $payload, $type, $schemaKey, $spentMilliCent, $observer);
         } catch (Throwable $exception) {
             return $this->fail($document, $this->failureFor($exception));
         }
+
+        // Loeschstatus der Providerdateien und Verbrauch verworfener
+        // Primaeraufrufe gehoeren zum Nachweis, auch wenn das fachliche
+        // Ergebnis gueltig ist.
+        $observer->noteDeletionOutcomes($result->providerFileDeletions);
+        $this->calls->recordPreceding($document, $result->precedingCalls);
 
         $aiCall = $this->calls->record(
             $document,
@@ -148,16 +155,22 @@ final class AiDocumentExtractor implements DocumentExtractor
 
     private function callProvider(
         Document $document,
+        TemporaryUpload $upload,
         DocumentPayload $payload,
         DocumentType $type,
         string $schemaKey,
         int $spentMilliCent,
+        DocumentAiCallObserver $observer,
     ): ExtractionResult {
         $context = new AiRequestContext(
             (string) $document->getKey(),
             $this->ledger->userReference($document),
             $spentMilliCent,
             null,
+            // Solange eine fruehere Providerdatei nicht bestaetigt geloescht
+            // ist, wird keine weitere angelegt (siehe DocumentAiCallObserver).
+            ! DocumentAiCallObserver::hasUnresolvedProviderFile($upload),
+            $observer,
         );
 
         return match ($this->schemaMap->purposeFor($type)) {

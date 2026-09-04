@@ -29,11 +29,13 @@ final class ArchiveGuard
 {
     /**
      * Endungen, die innerhalb eines Archivs zulaessig sind. ZIP fehlt bewusst,
-     * verschachtelte Archive werden abgelehnt.
+     * verschachtelte Archive werden abgelehnt. XLSX fehlt, weil Tabellen in
+     * diesem Format derzeit nicht ausgewertet werden und ein Eintrag sonst
+     * erst in der Auswertung scheitern wuerde (siehe StartUploadRequest).
      *
      * @var list<string>
      */
-    private const ALLOWED_ENTRY_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif', 'csv', 'xlsx'];
+    private const ALLOWED_ENTRY_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif', 'csv'];
 
     /**
      * Eintraege, die jedes Betriebssystem beim Packen erzeugt und die kein
@@ -248,7 +250,6 @@ final class ArchiveGuard
     {
         return match ($extension) {
             'pdf' => "\ntrailer\n%%EOF\n",
-            'xlsx' => "PK\x05\x06",
             default => '',
         };
     }

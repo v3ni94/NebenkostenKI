@@ -6,7 +6,6 @@ namespace App\Services\Storage\Crypto;
 
 use App\Models\TemporaryUpload;
 use RuntimeException;
-use Throwable;
 
 /**
  * Verwaltet die Dateischluessel des Kurzzeitbereichs je Upload-Praefix.
@@ -149,34 +148,34 @@ final class TemporaryUploadKeyring
         return TemporaryUploadCipherFactory::forWrappedKey($wrapped)->unwrapKey($wrapped, $this->masterKey());
     }
 
+    /**
+     * Ein Datenbankfehler wird bewusst NICHT verschluckt (fail closed). Wuerde
+     * er als "kein Schluessel vorhanden" gewertet, entstuende beim Schreiben
+     * ein Zufallsschluessel, der nirgends gespeichert wird; der Chunk waere
+     * danach fuer jeden anderen Prozess unlesbar und liesse sich auch durch
+     * eine Wiederholung des Browsers nicht reparieren.
+     */
     private function loadWrappedKey(string $prefix): ?string
     {
-        try {
-            $value = TemporaryUpload::query()
-                ->where('storage_key', $prefix)
-                ->where('is_tombstone', false)
-                ->value(self::COLUMN);
-        } catch (Throwable) {
-            // Ohne Datenbank (reine Unit-Tests) gibt es keinen gespeicherten
-            // Schluessel. Der Aufrufer behandelt das wie "nicht vorhanden".
-            return null;
-        }
+        $value = TemporaryUpload::query()
+            ->where('storage_key', $prefix)
+            ->where('is_tombstone', false)
+            ->value(self::COLUMN);
 
         return is_string($value) && $value !== '' ? $value : null;
     }
 
+    /**
+     * Ein Praefix ohne Datensatz behaelt seinen Schluessel nur im Prozess
+     * (siehe Klassenkommentar). Ein Datenbankfehler wird weitergereicht.
+     */
     private function persistIfRecordExists(string $prefix): void
     {
-        try {
-            TemporaryUpload::query()
-                ->where('storage_key', $prefix)
-                ->where('is_tombstone', false)
-                ->whereNull(self::COLUMN)
-                ->update([self::COLUMN => $this->cipher->wrapKey(self::$keys[$prefix], $this->masterKey())]);
-        } catch (Throwable) {
-            // Kein Datensatz oder keine Datenbank: der Schluessel bleibt im
-            // Prozess, siehe Klassenkommentar.
-        }
+        TemporaryUpload::query()
+            ->where('storage_key', $prefix)
+            ->where('is_tombstone', false)
+            ->whereNull(self::COLUMN)
+            ->update([self::COLUMN => $this->cipher->wrapKey(self::$keys[$prefix], $this->masterKey())]);
     }
 
     /**

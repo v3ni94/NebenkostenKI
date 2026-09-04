@@ -6,6 +6,7 @@ namespace App\Jobs;
 
 use App\Application\Documents\FailDocument;
 use App\Application\Documents\StartExtraction;
+use App\Application\Documents\Support\ActiveJobHeartbeat;
 use App\Enums\DocumentProcessingStatus;
 use App\Jobs\Concerns\ResolvesDocumentFromPayload;
 use App\Models\Document;
@@ -47,12 +48,20 @@ final class ExtractDocumentJob implements ProcessingJobHandler
             return;
         }
 
+        // Die KI-Anbindung verlaengert ueber diesen Heartbeat das Lease vor
+        // jedem einzelnen Providerrequest, damit ein langer Aufruf nicht von
+        // einem zweiten Lauf uebernommen und das Dokument doppelt uebertragen
+        // wird.
+        ActiveJobHeartbeat::bind(static fn (): bool => $context->heartbeat());
+
         try {
             $outcome = ($this->startExtraction)($document);
         } catch (UploadRejectedException $exception) {
             ($this->failDocument)($document, $exception->errorCode);
 
             throw JobFailedException::permanent($exception->errorCode);
+        } finally {
+            ActiveJobHeartbeat::release();
         }
 
         if ($outcome->successful && $outcome->schemaValid) {

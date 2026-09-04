@@ -9,7 +9,9 @@ use App\Services\Storage\Crypto\SodiumSecretstreamCipher;
 use App\Services\Storage\Crypto\TemporaryUploadKeyring;
 use App\Services\Storage\TemporaryFileKind;
 use App\Services\Storage\TemporaryUploadStorage;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -17,9 +19,15 @@ use Tests\TestCase;
  * Prueft die Eigenschaften des Kurzzeitbereichs: zufaellige Pfade, keine
  * Originaldateinamen, vollstaendige Loeschung aller Ableitungen und
  * Verschluesselung jeder Datei auf der Platte.
+ *
+ * Die Datenbank wird benoetigt, weil der Schluesselbund einen fehlenden
+ * Prozessschluessel in temporary_uploads nachschlaegt und einen
+ * Datenbankfehler dabei bewusst nicht verschluckt.
  */
 class TemporaryUploadStorageTest extends TestCase
 {
+    use RefreshDatabase;
+
     private const MARKER = 'VERTRAULICHER-INHALT-4711';
 
     private TemporaryUploadStorage $storage;
@@ -232,6 +240,81 @@ class TemporaryUploadStorageTest extends TestCase
         } catch (RuntimeException) {
             $this->assertSame([$key], Storage::disk(TemporaryUploadStorage::DISK)->allFiles($prefix));
         }
+    }
+
+    public function test_gleichzeitige_schreibvorgaenge_auf_denselben_abschnitt_erzeugen_kein_korruptes_chiffrat(): void
+    {
+        $prefix = $this->storage->newPrefix();
+        $key = $this->storage->chunkKey($prefix, 7);
+
+        // Zwei Requests fuer denselben Abschnitt, etwa eine Wiederholung des
+        // Browsers nach Zeitueberschreitung, waehrend der erste noch schreibt.
+        $erster = $this->storage->openWriter($key);
+        $zweiter = $this->storage->openWriter($key);
+
+        $this->assertFalse($this->storage->exists($key), 'Vor dem Abschluss darf keine Zieldatei unter dem endgueltigen Pfad liegen.');
+
+        $erster->write(str_repeat('A', 3000));
+        $zweiter->write(str_repeat('B', 3000));
+
+        $erster->finish();
+        $zweiter->finish();
+
+        $this->assertSame(str_repeat('B', 3000), $this->storage->read($key), 'Der zuletzt abgeschlossene Vorgang gewinnt vollstaendig, kein Mischchiffrat.');
+        $this->assertSame([$key], Storage::disk(TemporaryUploadStorage::DISK)->allFiles($prefix), 'Es bleibt keine Zwischendatei liegen.');
+    }
+
+    public function test_abgebrochener_schreibvorgang_hinterlaesst_keine_datei(): void
+    {
+        $prefix = $this->storage->newPrefix();
+        $key = $this->storage->chunkKey($prefix, 0);
+
+        $writer = $this->storage->openWriter($key);
+        $writer->write('unvollstaendig');
+        $writer->abort();
+
+        $this->assertFalse($this->storage->exists($key));
+        $this->assertSame([], Storage::disk(TemporaryUploadStorage::DISK)->allFiles($prefix));
+    }
+
+    public function test_arbeitskopie_wird_bei_vollem_datentraeger_nicht_abgeschnitten_an_die_pruefung_gegeben(): void
+    {
+        if (! file_exists('/dev/full') || ! function_exists('symlink')) {
+            $this->markTestSkipped('Der Test benoetigt /dev/full, um einen vollen Datentraeger nachzustellen.');
+        }
+
+        $prefix = $this->storage->newPrefix();
+        $key = $this->storage->originalKey($prefix);
+
+        $this->storage->put($key, SampleFiles::pdf(2));
+
+        // Der Name der Arbeitskopie wird festgelegt, damit sie vorab als
+        // Verweis auf /dev/full angelegt werden kann: jeder Schreibversuch
+        // scheitert dort mit "kein Speicherplatz".
+        $arbeitsverzeichnis = Storage::disk(TemporaryUploadStorage::DISK)->path($prefix.'/arbeit');
+        mkdir($arbeitsverzeichnis, 0700, true);
+
+        $this->assertTrue(symlink('/dev/full', $arbeitsverzeichnis.'/vollerdatentraeger.tmp'));
+
+        Str::createRandomStringsUsing(static fn (): string => 'vollerdatentraeger');
+
+        $aufgerufen = false;
+
+        try {
+            $this->storage->withDecryptedCopy($key, static function () use (&$aufgerufen): int {
+                $aufgerufen = true;
+
+                return 0;
+            });
+            $this->fail('Eine unvollstaendige Arbeitskopie darf nicht an die Pruefung gegeben werden.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('Arbeitskopie', $exception->getMessage());
+        } finally {
+            Str::createRandomStringsNormally();
+        }
+
+        $this->assertFalse($aufgerufen, 'Der Callback darf bei einer abgeschnittenen Kopie nicht laufen.');
+        $this->assertSame([$key], Storage::disk(TemporaryUploadStorage::DISK)->allFiles($prefix), 'Die Arbeitskopie wird auch im Fehlerfall entfernt.');
     }
 
     public function test_loeschung_vergisst_den_dateischluessel(): void

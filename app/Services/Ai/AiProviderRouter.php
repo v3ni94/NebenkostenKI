@@ -238,7 +238,13 @@ final class AiProviderRouter implements AiDocumentProviderInterface
             return $result;
         }
 
-        return $this->callWithFallbackMetadata($call, $primaryKey, $fallbackKey, self::FALLBACK_REASON_SCHEMA);
+        // Das Ergebnis des Primaerproviders wird verworfen, sein Verbrauch
+        // aber nicht: der Primaerprovider hat bis zu maxRetries + 1 Anfragen
+        // mit Dokument gesendet. Die Metadaten wandern als vorangegangener
+        // Aufruf mit, damit ai_calls, Tagesbudget und Kostenuebersicht
+        // vollstaendig bleiben.
+        return $this->callWithFallbackMetadata($call, $primaryKey, $fallbackKey, self::FALLBACK_REASON_SCHEMA)
+            ->withPrecedingCall($result->metadata);
     }
 
     /**

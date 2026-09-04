@@ -352,11 +352,21 @@ abstract class AbstractHttpAiProvider implements AiDocumentProviderInterface
 
         try {
             if ($plan->document !== null && ! $this->canSendInline($plan->document)) {
+                $this->notifyBeforeRequest($plan);
+
                 $fileHandle = $this->uploadDocumentForPlan($plan, $plan->document);
+
+                // Die ID wird sofort gemeldet, damit sie waehrend der
+                // Verarbeitung ausserhalb des Arbeitsspeichers nachverfolgbar
+                // ist. Scheitert die Meldung, loescht der finally-Zweig die
+                // Datei wieder: keine Providerdatei ohne Nachweis.
+                $plan->context->observer?->providerFileCreated($this->providerKey(), $fileHandle->fileId);
             }
 
             for ($attempt = 0; $attempt <= $this->maxRetries; $attempt++) {
                 $attempts = $attempt + 1;
+
+                $this->notifyBeforeRequest($plan);
 
                 $raw = $this->sendSchemaRequest($plan, $fileHandle, $repairInstruction);
 
@@ -400,10 +410,41 @@ abstract class AbstractHttpAiProvider implements AiDocumentProviderInterface
                     'correlation_id' => $plan->context->correlationId,
                 ]);
             }
+        } catch (Throwable $exception) {
+            // Wurde bereits mindestens ein Verarbeitungsrequest gesendet, ist
+            // Verbrauch entstanden, der nicht verloren gehen darf.
+            if ($attempts > 0) {
+                $abortedEstimate = $this->costEstimator->estimate($plan->model, $inputTokens, $outputTokens);
+
+                $plan->context->observer?->providerCallAborted(new AiCallMetadata(
+                    $this->providerKey(),
+                    $plan->model,
+                    $plan->purpose,
+                    $exception instanceof RateLimitException ? AiCallStatus::RATE_LIMIT : AiCallStatus::TECHNISCHER_FEHLER,
+                    $plan->prompt->version,
+                    $plan->prompt->hash(),
+                    $plan->schema->key,
+                    $plan->schema->version,
+                    $plan->schema->hash(),
+                    $inputTokens,
+                    $outputTokens,
+                    $abortedEstimate->costCent(),
+                    $abortedEstimate->costMilliCentOrNull(),
+                    $abortedEstimate->basisAvailable,
+                    self::elapsedMs($start),
+                    $requestIds === [] ? null : $requestIds[array_key_last($requestIds)],
+                    $requestIds,
+                    $plan->context->correlationId,
+                    $attempts,
+                    $httpStatusCode,
+                ));
+            }
+
+            throw $exception;
         } finally {
             $deletions[] = $fileHandle === null
                 ? ProviderFileDeletionOutcome::notRequired($this->providerKey())
-                : $this->deleteProviderFileSafely($fileHandle);
+                : $this->deleteProviderFileSafely($plan, $fileHandle);
         }
 
         $estimate = $this->costEstimator->estimate($plan->model, $inputTokens, $outputTokens);
@@ -616,9 +657,11 @@ abstract class AbstractHttpAiProvider implements AiDocumentProviderInterface
         return $this->uploadProviderFile($document);
     }
 
-    private function deleteProviderFileSafely(ProviderFileHandle $handle): ProviderFileDeletionOutcome
+    private function deleteProviderFileSafely(SchemaCallPlan $plan, ProviderFileHandle $handle): ProviderFileDeletionOutcome
     {
         try {
+            $this->notifyBeforeRequest($plan);
+
             $outcome = $this->deleteProviderFile($handle);
         } catch (Throwable) {
             $outcome = ProviderFileDeletionOutcome::failed(
@@ -635,7 +678,18 @@ abstract class AbstractHttpAiProvider implements AiDocumentProviderInterface
             );
         }
 
+        $plan->context->observer?->providerFileReleased($this->providerKey(), $handle->fileId, $outcome);
+
         return $outcome;
+    }
+
+    /**
+     * Heartbeat vor jedem einzelnen HTTP-Request, damit das Lease des
+     * laufenden Teiljobs einen langen Aufruf mit mehreren Requests ueberdauert.
+     */
+    private function notifyBeforeRequest(SchemaCallPlan $plan): void
+    {
+        $plan->context->observer?->beforeProviderRequest($this->providerKey());
     }
 
     /**
