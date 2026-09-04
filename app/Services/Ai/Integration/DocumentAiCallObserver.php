@@ -13,6 +13,7 @@ use App\Services\Ai\AiCallObserver;
 use App\Services\Ai\AiProviderKey;
 use App\Services\Ai\Dto\AiCallMetadata;
 use App\Services\Ai\Dto\ProviderFileDeletionOutcome;
+use App\Services\Ai\Exceptions\ProviderFileNotReleasedException;
 use App\Services\Ai\RedactingLogger;
 use Illuminate\Support\Carbon;
 
@@ -66,6 +67,20 @@ final class DocumentAiCallObserver implements AiCallObserver
             return;
         }
 
+        if ($this->tracksOtherProviderFile($providerFileId)) {
+            // Die Spalte fuehrt genau eine ID. Eine zweite Datei, etwa aus
+            // Schema-Fallback oder Dual Review, darf die erste nicht
+            // ueberschreiben, sonst gaelte die erste spaeter als geloescht.
+            // Die Ausnahme laesst den Provider die zweite Datei im
+            // finally-Zweig sofort wieder loeschen und bricht den Aufruf ab.
+            $this->logger->error('Zweite Providerdatei waehrend offener Loeschung, Aufruf wird abgebrochen', [
+                'provider' => $providerKey,
+                'correlation_id' => (string) $this->document->getKey(),
+            ]);
+
+            throw ProviderFileNotReleasedException::trackingConflict($providerKey);
+        }
+
         $this->upload->forceFill([
             'provider' => $provider,
             'provider_file_id' => $providerFileId,
@@ -76,6 +91,21 @@ final class DocumentAiCallObserver implements AiCallObserver
 
     public function providerFileReleased(string $providerKey, string $providerFileId, ProviderFileDeletionOutcome $outcome): void
     {
+        if ($this->tracksOtherProviderFile($providerFileId)) {
+            // Der Datensatz fuehrt eine andere, weiterhin offene Datei. Deren
+            // Nachweis bleibt unveraendert; das Ergebnis der zweiten Datei wird
+            // nur protokolliert.
+            $this->logger->log(
+                $outcome->isPrivacyAlert() ? 'error' : 'info',
+                $outcome->isPrivacyAlert()
+                    ? 'Zweite Providerdatei nicht geloescht, ausserhalb des Kurzzeitdatensatzes nicht nachverfolgbar'
+                    : 'Zweite Providerdatei sofort wieder geloescht',
+                $outcome->toLogContext() + ['correlation_id' => (string) $this->document->getKey()],
+            );
+
+            return;
+        }
+
         if ($outcome->status === DeletionStatus::ERFOLGREICH) {
             $this->upload->forceFill([
                 'provider_file_id' => null,
@@ -141,5 +171,15 @@ final class DocumentAiCallObserver implements AiCallObserver
         $fileId = $upload->getAttribute('provider_file_id');
 
         return is_string($fileId) && $fileId !== '';
+    }
+
+    /**
+     * Fuehrt der Kurzzeitdatensatz eine andere, noch offene Datei-ID?
+     */
+    private function tracksOtherProviderFile(string $providerFileId): bool
+    {
+        $stored = $this->upload->getAttribute('provider_file_id');
+
+        return is_string($stored) && $stored !== '' && $stored !== $providerFileId;
     }
 }

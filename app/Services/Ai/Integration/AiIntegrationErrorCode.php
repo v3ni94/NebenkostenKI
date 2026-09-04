@@ -50,6 +50,15 @@ enum AiIntegrationErrorCode: string
     /** Technischer Fehler der Provideranbindung. */
     case PROVIDER_NICHT_ERREICHBAR = 'PROVIDER_NICHT_ERREICHBAR';
 
+    /**
+     * Eine fruehere Providerdatei ist noch nicht bestaetigt geloescht; es wird
+     * keine weitere angelegt. Der Aufruf wartet auf die Wiederholung.
+     */
+    case PROVIDER_LOESCHUNG_OFFEN = 'PROVIDER_LOESCHUNG_OFFEN';
+
+    /** Tagesbudget aktiv, aber fuer das Modell fehlt die Kalkulationsbasis. */
+    case KALKULATIONSBASIS_FEHLT = 'KALKULATIONSBASIS_FEHLT';
+
     /** Unerwarteter Fehler der Adapterschicht. */
     case UNERWARTETER_FEHLER = 'UNERWARTETER_FEHLER';
 
@@ -65,7 +74,9 @@ enum AiIntegrationErrorCode: string
             self::SCHEMA_UNGUELTIG => UploadErrorCode::SCHEMA_UNGUELTIG,
             self::PROVIDER_NICHT_FREIGEGEBEN,
             self::PROVIDER_RATE_LIMIT,
-            self::PROVIDER_NICHT_ERREICHBAR => UploadErrorCode::KI_SCHICHT_NICHT_VERFUEGBAR,
+            self::PROVIDER_NICHT_ERREICHBAR,
+            self::KALKULATIONSBASIS_FEHLT => UploadErrorCode::KI_SCHICHT_NICHT_VERFUEGBAR,
+            self::PROVIDER_LOESCHUNG_OFFEN => UploadErrorCode::PROVIDER_LOESCHUNG_OFFEN,
             self::UNERWARTETER_FEHLER => UploadErrorCode::EXTRAKTION_FEHLGESCHLAGEN,
             self::TAGESLIMIT_ERREICHT => null,
         };
@@ -95,6 +106,8 @@ enum AiIntegrationErrorCode: string
             self::PROVIDER_NICHT_FREIGEGEBEN,
             self::PROVIDER_RATE_LIMIT,
             self::PROVIDER_NICHT_ERREICHBAR,
+            self::PROVIDER_LOESCHUNG_OFFEN,
+            self::KALKULATIONSBASIS_FEHLT,
             self::UNERWARTETER_FEHLER => false,
             default => true,
         };
@@ -114,6 +127,8 @@ enum AiIntegrationErrorCode: string
             self::PROVIDER_NICHT_FREIGEGEBEN => 'Die automatische Auswertung ist gesperrt, weil die Datenschutzfreigabe für den Auswertungsdienst nicht vorliegt. Bitte erfassen Sie die Werte manuell.',
             self::PROVIDER_RATE_LIMIT => 'Die automatische Auswertung ist derzeit ausgelastet. Der Vorgang wird automatisch wiederholt.',
             self::PROVIDER_NICHT_ERREICHBAR => 'Die automatische Auswertung ist derzeit nicht verfügbar. Bitte versuchen Sie es später erneut.',
+            self::PROVIDER_LOESCHUNG_OFFEN => 'Eine temporäre Auswertungsdatei aus einem früheren Schritt ist noch nicht bestätigt gelöscht. Die Auswertung wird automatisch wiederholt, sobald die Löschung bestätigt ist.',
+            self::KALKULATIONSBASIS_FEHLT => 'Das Tagesbudget ist aktiv, für das konfigurierte Modell fehlt aber die Kalkulationsbasis. Der Aufruf wurde nicht ausgeführt. Der Betreiber muss die Kalkulationsbasis ergänzen oder das Tagesbudget bewusst abschalten.',
             self::UNERWARTETER_FEHLER => 'Es ist ein technischer Fehler aufgetreten. Bitte versuchen Sie es erneut.',
         };
     }

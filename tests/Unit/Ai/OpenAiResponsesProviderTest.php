@@ -7,6 +7,8 @@ namespace Tests\Unit\Ai;
 use App\Enums\AiCallStatus;
 use App\Enums\DeletionStatus;
 use App\Enums\DocumentType;
+use App\Services\Ai\AiProviderKey;
+use App\Services\Ai\CostEstimator;
 use App\Services\Ai\Dto\AnalyzeContractRequest;
 use App\Services\Ai\Dto\AnalyzePriorStatementRequest;
 use App\Services\Ai\Dto\ClassifyDocumentRequest;
@@ -15,6 +17,7 @@ use App\Services\Ai\Dto\ExtractStructuredDataRequest;
 use App\Services\Ai\Dto\HealthCheckRequest;
 use App\Services\Ai\Dto\ReconcileDocumentsRequest;
 use App\Services\Ai\Dto\ReconciliationSubject;
+use App\Services\Ai\Exceptions\CostBasisMissingException;
 use App\Services\Ai\Exceptions\DailyCostLimitExceededException;
 use App\Services\Ai\Exceptions\ProviderFileDeletionFailedException;
 use App\Services\Ai\Exceptions\ProviderTransportException;
@@ -631,6 +634,64 @@ final class OpenAiResponsesProviderTest extends TestCase
         } catch (DailyCostLimitExceededException) {
             self::assertSame(0, $http->callCount(), 'Bei ausgeschoepftem Budget wird nichts uebertragen.');
         }
+    }
+
+    public function test_aktives_tagesbudget_ohne_kalkulationsbasis_verweigert_den_aufruf(): void
+    {
+        $http = new RecordingAiHttpClient;
+
+        $provider = new OpenAiResponsesProvider(
+            AiTestFactory::providerConfig(AiProviderKey::OPENAI),
+            $http,
+            AiTestFactory::schemas(),
+            AiTestFactory::prompts(),
+            AiTestFactory::validator(),
+            AiTestFactory::confidence(),
+            new CostEstimator([]),
+            AiTestFactory::costLimiter(100),
+            AiTestFactory::logger(),
+        );
+
+        try {
+            $provider->extractStructuredData(new ExtractStructuredDataRequest(
+                AiTestFactory::pdfPayload(),
+                'rechnung_bescheid',
+                AiTestFactory::context(),
+            ));
+            self::fail('Es wurde keine Ausnahme geworfen.');
+        } catch (CostBasisMissingException $exception) {
+            self::assertSame(0, $http->callCount(), 'Ohne Kalkulationsbasis darf bei aktivem Tagesbudget nichts uebertragen werden.');
+            self::assertStringContainsString('gpt-5.6-luna', $exception->getMessage());
+            self::assertStringContainsString('Kalkulationsbasis', $exception->getMessage());
+        }
+    }
+
+    public function test_ohne_tagesbudget_blockiert_die_fehlende_kalkulationsbasis_nicht(): void
+    {
+        $http = (new RecordingAiHttpClient)->pushJson(
+            AiTestFactory::openAiResponseBody(AiTestFactory::fixture('rechnung_bescheid.json')),
+        );
+
+        $provider = new OpenAiResponsesProvider(
+            AiTestFactory::providerConfig(AiProviderKey::OPENAI),
+            $http,
+            AiTestFactory::schemas(),
+            AiTestFactory::prompts(),
+            AiTestFactory::validator(),
+            AiTestFactory::confidence(),
+            new CostEstimator([]),
+            AiTestFactory::costLimiter(null),
+            AiTestFactory::logger(),
+        );
+
+        $result = $provider->extractStructuredData(new ExtractStructuredDataRequest(
+            AiTestFactory::pdfPayload(),
+            'rechnung_bescheid',
+            AiTestFactory::context(),
+        ));
+
+        self::assertTrue($result->isValidated());
+        self::assertFalse($result->metadata->costBasisAvailable);
     }
 
     public function test_healthcheck_prueft_die_modellverfuegbarkeit(): void

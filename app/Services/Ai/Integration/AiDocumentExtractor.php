@@ -17,7 +17,9 @@ use App\Services\Ai\Dto\AnalyzePriorStatementRequest;
 use App\Services\Ai\Dto\DocumentPayload;
 use App\Services\Ai\Dto\ExtractionResult;
 use App\Services\Ai\Dto\ExtractStructuredDataRequest;
+use App\Services\Ai\Exceptions\CostBasisMissingException;
 use App\Services\Ai\Exceptions\DailyCostLimitExceededException;
+use App\Services\Ai\Exceptions\ProviderFileNotReleasedException;
 use App\Services\Ai\Exceptions\ProviderNotReleasedException;
 use App\Services\Ai\Exceptions\ProviderTransportException;
 use App\Services\Ai\Exceptions\RateLimitException;
@@ -68,6 +70,7 @@ final class AiDocumentExtractor implements DocumentExtractor
         private readonly AiCallRecorder $calls,
         private readonly ExtractedFieldPersister $persister,
         private readonly RedactingLogger $logger,
+        private readonly OpenProviderFileGuard $providerFiles,
     ) {}
 
     public function extract(Document $document, TemporaryUpload $upload): ExtractionOutcome
@@ -88,6 +91,13 @@ final class AiDocumentExtractor implements DocumentExtractor
 
         if ($payload === null) {
             return $this->fail($document, AiIntegrationErrorCode::QUELLE_NICHT_LESBAR);
+        }
+
+        // Eine offene Providerdatei aus der Klassifikation wird zuerst erneut
+        // geloescht. Gelingt das nicht, wartet der Aufruf auf die Wiederholung;
+        // ein gueltiges Dokument wird deshalb nie als Dateiformat abgelehnt.
+        if (! $this->providerFiles->release($document, $upload)) {
+            return $this->fail($document, AiIntegrationErrorCode::PROVIDER_LOESCHUNG_OFFEN);
         }
 
         $spentMilliCent = $this->ledger->spentMilliCentToday($document);
@@ -210,6 +220,8 @@ final class AiDocumentExtractor implements DocumentExtractor
             $exception instanceof ProviderNotReleasedException => AiIntegrationErrorCode::PROVIDER_NICHT_FREIGEGEBEN,
             $exception instanceof RateLimitException => AiIntegrationErrorCode::PROVIDER_RATE_LIMIT,
             $exception instanceof UnsupportedFileTypeException => AiIntegrationErrorCode::DATEITYP_NICHT_UNTERSTUETZT,
+            $exception instanceof ProviderFileNotReleasedException => AiIntegrationErrorCode::PROVIDER_LOESCHUNG_OFFEN,
+            $exception instanceof CostBasisMissingException => AiIntegrationErrorCode::KALKULATIONSBASIS_FEHLT,
             $exception instanceof ProviderTransportException => AiIntegrationErrorCode::PROVIDER_NICHT_ERREICHBAR,
             default => AiIntegrationErrorCode::UNERWARTETER_FEHLER,
         };

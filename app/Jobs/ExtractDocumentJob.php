@@ -16,6 +16,7 @@ use App\Services\Queue\JobFailedException;
 use App\Services\Queue\ProcessingJobHandler;
 use App\Services\Storage\Exceptions\UploadRejectedException;
 use App\Services\Storage\UploadErrorCode;
+use Throwable;
 
 /**
  * Teiljob: Werte auslesen und die Quelldaten anschliessend sofort loeschen.
@@ -60,6 +61,13 @@ final class ExtractDocumentJob implements ProcessingJobHandler
             ($this->failDocument)($document, $exception->errorCode);
 
             throw JobFailedException::permanent($exception->errorCode);
+        } catch (JobFailedException $exception) {
+            throw $exception;
+        } catch (Throwable) {
+            // Unbekannter technischer Fehler, ohne Meldung weitergereicht. Nach
+            // dem letzten Versuch wird das Dokument gekennzeichnet und
+            // geloescht, statt in EXTRAKTION stehen zu bleiben.
+            $this->failOnLastAttempt($document, $context);
         } finally {
             ActiveJobHeartbeat::release();
         }
@@ -83,5 +91,19 @@ final class ExtractDocumentJob implements ProcessingJobHandler
         }
 
         throw JobFailedException::retryable($errorCode);
+    }
+
+    /**
+     * @throws JobFailedException
+     */
+    private function failOnLastAttempt(Document $document, JobContext $context): never
+    {
+        if ($context->isLastAttempt()) {
+            ($this->failDocument)($document, UploadErrorCode::UNERWARTETER_FEHLER);
+
+            throw JobFailedException::permanent(UploadErrorCode::UNERWARTETER_FEHLER);
+        }
+
+        throw JobFailedException::retryable(UploadErrorCode::UNERWARTETER_FEHLER);
     }
 }

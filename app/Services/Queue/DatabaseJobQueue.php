@@ -42,10 +42,15 @@ final class DatabaseJobQueue
      */
     public const DEFAULT_LEASE_SECONDS = 300;
 
+    /**
+     * @param  DeadLetterListener|null  $deadLetterListener  schliesst das zugehoerige Dokument ab,
+     *                                                       sobald ein Job endgueltig in DEAD_LETTER geht
+     */
     public function __construct(
         private readonly BackoffStrategy $backoff = new BackoffStrategy,
         private readonly JobPayloadGuard $payloadGuard = new JobPayloadGuard,
         private readonly int $leaseSeconds = self::DEFAULT_LEASE_SECONDS,
+        private readonly ?DeadLetterListener $deadLetterListener = null,
     ) {}
 
     /**
@@ -232,6 +237,10 @@ final class DatabaseJobQueue
             'last_error' => $errorCode->message(),
         ])->save();
 
+        if ($status === ProcessingJobStatus::DEAD_LETTER) {
+            $this->deadLetterListener?->deadLettered($job);
+        }
+
         return $status;
     }
 
@@ -283,6 +292,10 @@ final class DatabaseJobQueue
                     'error_code' => UploadErrorCode::LEASE_ABGELAUFEN->value,
                     'last_error' => UploadErrorCode::LEASE_ABGELAUFEN->message(),
                 ])->save();
+
+                // Der Uebergang nach DEAD_LETTER ist endgueltig: das Dokument
+                // wird abgeschlossen und die Quelldaten werden geloescht.
+                $this->deadLetterListener?->deadLettered($job);
             } else {
                 $job->forceFill([
                     'status' => ProcessingJobStatus::BEREIT,

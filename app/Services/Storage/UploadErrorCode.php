@@ -43,6 +43,8 @@ enum UploadErrorCode: string
     case QUELLE_NICHT_LESBAR = 'QUELLE_NICHT_LESBAR';
     case LOESCHUNG_FEHLGESCHLAGEN = 'LOESCHUNG_FEHLGESCHLAGEN';
     case PROVIDER_LOESCHUNG_FEHLGESCHLAGEN = 'PROVIDER_LOESCHUNG_FEHLGESCHLAGEN';
+    case PROVIDER_LOESCHUNG_OFFEN = 'PROVIDER_LOESCHUNG_OFFEN';
+    case KURZZEITBEREICH_SCHREIBFEHLER = 'KURZZEITBEREICH_SCHREIBFEHLER';
     case TTL_ABGELAUFEN = 'TTL_ABGELAUFEN';
     case KI_SCHICHT_NICHT_VERFUEGBAR = 'KI_SCHICHT_NICHT_VERFUEGBAR';
     case KLASSIFIKATION_FEHLGESCHLAGEN = 'KLASSIFIKATION_FEHLGESCHLAGEN';
@@ -87,6 +89,8 @@ enum UploadErrorCode: string
             self::QUELLE_NICHT_LESBAR => 'Die Datei konnte im Kurzzeitbereich nicht mehr gelesen werden und wurde gelöscht. Bitte laden Sie die Unterlage erneut hoch.',
             self::LOESCHUNG_FEHLGESCHLAGEN => 'Die Löschung der Quelldatei ist fehlgeschlagen. Der Vorgang wird automatisch wiederholt.',
             self::PROVIDER_LOESCHUNG_FEHLGESCHLAGEN => 'Die Löschung der temporären Auswertungsdatei ist fehlgeschlagen. Der Vorgang wird automatisch wiederholt.',
+            self::PROVIDER_LOESCHUNG_OFFEN => 'Eine temporäre Auswertungsdatei aus einem früheren Schritt ist noch nicht bestätigt gelöscht. Die Auswertung wird automatisch wiederholt, sobald die Löschung bestätigt ist.',
+            self::KURZZEITBEREICH_SCHREIBFEHLER => 'Die Datei konnte im Kurzzeitbereich nicht gespeichert werden. Bitte versuchen Sie es erneut.',
             self::TTL_ABGELAUFEN => 'Die Auswertung wurde nicht rechtzeitig abgeschlossen. Die Datei wurde gelöscht. Bitte laden Sie sie erneut hoch.',
             self::KI_SCHICHT_NICHT_VERFUEGBAR => 'Die automatische Auswertung ist derzeit nicht verfügbar. Bitte versuchen Sie es später erneut.',
             self::KLASSIFIKATION_FEHLGESCHLAGEN => 'Die Art der Unterlage konnte nicht bestimmt werden. Bitte ordnen Sie die Unterlage manuell zu.',
@@ -108,6 +112,8 @@ enum UploadErrorCode: string
             self::MALWARE_PRUEFUNG_FEHLGESCHLAGEN,
             self::LOESCHUNG_FEHLGESCHLAGEN,
             self::PROVIDER_LOESCHUNG_FEHLGESCHLAGEN,
+            self::PROVIDER_LOESCHUNG_OFFEN,
+            self::KURZZEITBEREICH_SCHREIBFEHLER,
             self::KI_SCHICHT_NICHT_VERFUEGBAR,
             self::LEASE_ABGELAUFEN,
             self::UNERWARTETER_FEHLER => false,

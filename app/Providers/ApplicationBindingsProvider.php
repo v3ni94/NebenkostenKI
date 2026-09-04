@@ -7,11 +7,13 @@ namespace App\Providers;
 use App\Application\Calculation\FinalDocumentViewsFromSnapshot;
 use App\Application\Payment\Contracts\FinalDocumentViews;
 use App\Application\Payment\Events\BillingRunFinalized;
+use App\Jobs\FailDocumentOnDeadLetter;
 use App\Listeners\SendFinalizationMails;
 use App\Listeners\SendProcessingStatusMails;
 use App\Models\Document;
 use App\Services\Payment\Contracts\CheckoutClient;
 use App\Services\Payment\StripeGateway;
+use App\Services\Queue\DeadLetterListener;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
@@ -64,6 +66,10 @@ final class ApplicationBindingsProvider extends ServiceProvider
          * dagegen erst im Betrieb auffallen.
          */
         $this->app->bind(CheckoutClient::class, StripeGateway::class);
+
+        // Schliesst ein Dokument ab, dessen Teiljob endgueltig in Dead Letter
+        // geht: Kennzeichnung und sofortige Loeschung der Quelldaten.
+        $this->app->bind(DeadLetterListener::class, FailDocumentOnDeadLetter::class);
     }
 
     public function boot(): void

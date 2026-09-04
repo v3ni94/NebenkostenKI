@@ -15,8 +15,13 @@ use App\Models\AiCall;
 use App\Models\ExtractedField;
 use App\Models\TemporaryUpload;
 use App\Services\Ai\AiProviderKey;
+use App\Services\Ai\CostEstimator;
+use App\Services\Ai\DailyCostLimiter;
 use App\Services\Ai\Integration\AiIntegrationErrorCode;
+use App\Services\Ai\Providers\OpenAiResponsesProvider;
+use App\Services\Ai\RedactingLogger;
 use App\Services\Storage\TemporaryUploadStorage;
+use App\Services\Storage\UploadErrorCode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
@@ -166,6 +171,38 @@ class CostLimitAndReleaseGateTest extends TestCase
 
         $this->assertTrue($outcome->successful, $outcome->errorCode ?? '');
         $this->assertSame(1, $http->callCount());
+    }
+
+    public function test_aktives_tagesbudget_ohne_kalkulationsbasis_verweigert_den_aufruf_voruebergehend(): void
+    {
+        [$document, $upload, $prefix] = $this->dokumentMitQuelldatei();
+
+        $http = new RecordingAiHttpClient;
+
+        // Tagesbudget gesetzt, aber fuer kein Modell eine Kalkulationsbasis.
+        $provider = new OpenAiResponsesProvider(
+            AiTestFactory::providerConfig(AiProviderKey::OPENAI),
+            $http,
+            AiTestFactory::schemas(),
+            AiTestFactory::prompts(),
+            AiTestFactory::validator(),
+            AiTestFactory::confidence(),
+            new CostEstimator([]),
+            new DailyCostLimiter(100),
+            new RedactingLogger,
+        );
+
+        $outcome = $this->extractor($this->router($provider, AiProviderKey::OPENAI), dailyLimitCent: 100)
+            ->extract($document, $upload);
+
+        $this->assertFalse($outcome->successful);
+        $this->assertFalse($outcome->permanent, 'Die fehlende Kalkulationsbasis ist ein Betreiberfehler und kein Grund, die Unterlage endgueltig zu verwerfen.');
+        $this->assertSame(UploadErrorCode::KI_SCHICHT_NICHT_VERFUEGBAR->value, $outcome->errorCode);
+
+        // Es wurde nichts uebertragen und nichts ungezaehlt verbraucht.
+        $this->assertSame(0, $http->callCount());
+        $this->assertSame(0, AiCall::query()->count());
+        $this->assertNotSame([], Storage::disk(TemporaryUploadStorage::DISK)->allFiles($prefix));
     }
 
     public function test_produktive_umgebung_ohne_datenschutzfreigabe_blockiert_die_extraktion(): void
