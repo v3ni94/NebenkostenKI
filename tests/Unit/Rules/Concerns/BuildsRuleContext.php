@@ -60,6 +60,7 @@ trait BuildsRuleContext
         ?RuleSupplierHistory $supplierHistory = null,
         ?RuleFinalizationState $finalizationState = null,
         ?RuleEnvironment $environment = null,
+        bool $landlordPresent = true,
     ): RuleContext {
         return new RuleContext(
             'lauf-2025',
@@ -78,6 +79,7 @@ trait BuildsRuleContext
             $supplierHistory ?? new RuleSupplierHistory,
             $finalizationState ?? new RuleFinalizationState,
             $environment ?? new RuleEnvironment,
+            $landlordPresent,
         );
     }
 

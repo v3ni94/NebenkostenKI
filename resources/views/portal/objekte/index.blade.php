@@ -28,6 +28,13 @@
                                 {{ $objekt->kind->label() }}, {{ $objekt->units_count }}
                                 {{ $objekt->units_count === 1 ? 'Einheit' : 'Einheiten' }}
                             </p>
+                            <p class="mt-1 text-sm text-hvm-anthrazit">
+                                @if ($objekt->landlord !== null)
+                                    Vermieter: {{ $objekt->landlord->company_name !== null ? $objekt->landlord->company_name.', ' : '' }}{{ $objekt->landlord->sender_name }}
+                                @else
+                                    Vermieter: noch nicht erfasst. Ohne Vermieter kann die Abrechnung nicht erzeugt werden.
+                                @endif
+                            </p>
                             <div class="mt-3">
                                 @include('portal.partials.status', ['status' => $hinweise[$objekt->getKey()]])
                             </div>
@@ -36,6 +43,8 @@
                         <div class="flex flex-wrap gap-2">
                             <x-hvm.button href="{{ route('portal.einheiten.index', ['property' => $objekt->getKey()]) }}"
                                           variant="secondary" size="sm">Einheiten</x-hvm.button>
+                            <x-hvm.button href="{{ route('portal.objekte.vermieter.edit', ['property' => $objekt->getKey()]) }}"
+                                          variant="secondary" size="sm">Vermieter</x-hvm.button>
                             <x-hvm.button href="{{ route('portal.objekte.edit', ['property' => $objekt->getKey()]) }}"
                                           variant="secondary" size="sm">Bearbeiten</x-hvm.button>
                             <form method="POST" action="{{ route('portal.objekte.destroy', ['property' => $objekt->getKey()]) }}">

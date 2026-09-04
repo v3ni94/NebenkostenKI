@@ -10,6 +10,7 @@ use App\Http\Controllers\Portal\DashboardController;
 use App\Http\Controllers\Portal\Download\CompletionController;
 use App\Http\Controllers\Portal\DownloadController;
 use App\Http\Controllers\Portal\FollowUpYearController;
+use App\Http\Controllers\Portal\LandlordController;
 use App\Http\Controllers\Portal\PrivacyController;
 use App\Http\Controllers\Portal\PropertyController;
 use App\Http\Controllers\Portal\Review\AnalysisStatusController;
@@ -314,6 +315,17 @@ Route::middleware('organisation')->group(function (): void {
     Route::put('/konto', [AccountController::class, 'update'])->name('konto.update');
     Route::put('/konto/e-mail', [AccountController::class, 'updateEmail'])->name('konto.email');
     Route::put('/konto/erinnerungen', [AccountController::class, 'updateReminders'])->name('konto.erinnerungen');
+
+    // --- Vermieter je Objekt (Schritt 4, Absender der Mieterabrechnung) ------
+    //
+    // Der Vermieter wird ausschliesslich ueber sein Objekt erreicht; das Objekt
+    // wird mandantensicher geladen, zusaetzlich greifen PropertyPolicy und
+    // LandlordPolicy. Ohne Vermieter meldet der Pruefbericht einen Blocker.
+
+    Route::get('/objekte/{property}/vermieter', [LandlordController::class, 'edit'])
+        ->name('objekte.vermieter.edit');
+    Route::put('/objekte/{property}/vermieter', [LandlordController::class, 'update'])
+        ->name('objekte.vermieter.update');
 });
 
 // --- Signierter Download ------------------------------------------------------

@@ -177,7 +177,21 @@ abstract class EndToEndTestCase extends TestCase
             'mea_denominator' => '1000',
         ])->assertRedirect();
 
-        return Property::query()->where('label', 'Beispielweg 7')->firstOrFail();
+        $objekt = Property::query()->where('label', 'Beispielweg 7')->firstOrFail();
+
+        // Schritt 4: der Vermieter als Absender der Mieterabrechnung, ueber die
+        // echte Route erfasst. Ohne ihn sperrt der Pruefbericht den Ablauf.
+        $this->actingAs($nutzer)->put(
+            route('portal.objekte.vermieter.update', ['property' => $objekt->getKey()]),
+            [
+                'sender_name' => 'Maria Beispiel',
+                'address_line' => 'Beispielweg 7',
+                'postal_code' => '40000',
+                'city' => 'Musterstadt',
+            ]
+        )->assertRedirect();
+
+        return $objekt->refresh();
     }
 
     protected function legeEinheitAn(User $nutzer, Property $objekt): Unit

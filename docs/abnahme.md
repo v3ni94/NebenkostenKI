@@ -366,6 +366,16 @@ Livegang zu erledigen:
 | O4 | Logeinträge der Zahlungs- und Mailschicht enthalten `getMessage()` einer Ausnahme, also Fremdtext | niedrig | akzeptiert. Die Dokumentpipeline ist davon nicht betroffen. Bei Anbindung eines Error Monitorings erneut bewerten | technische Betreuung |
 | O5 | `GET up` ist ohne Middleware erreichbar | niedrig | am Zielsystem auf die Monitoring-Adresse einschränken | technische Betreuung |
 
+### 8.1 Bewusst offener Punkt: Extraktionsdaten aus Mietvertrag, Vorjahresabrechnung, Mieterliste, Zahlungsübersicht und Zählerliste (Befund B32)
+
+Die genannten Dokumentarten werden klassifiziert und kostenpflichtig ausgewertet, die Ergebnisse werden aber nicht in Fachdaten überführt. Vorauszahlungen, Mietvertragsschlüssel, Zählerstände, Einheiten und Mieter sowie der Vorjahresvergleich entstehen ausschließlich aus manueller Erfassung; die Vorjahresregeln weisen im Prüfbericht `bestanden` aus, obwohl kein Vergleich stattfindet.
+
+Entscheidung der Steuerung: Die Überführung wird für den Start nicht umgesetzt. Die Berechnung bleibt dadurch auf bestätigte Nutzerwerte beschränkt, es entsteht kein Geldfehler. Der Punkt wird als offen geführt, nicht als erledigt. Einzelheiten, Begründung und Folgen stehen in `ARCHITECTURE.md` Abschnitt 11.1.
+
+Bis zur Umsetzung sind vom zuständigen Arbeitspaket anzupassen: der Uploadhinweis in `resources/views/portal/upload/index.blade.php`, die Zusagen auf `site/home`, `site/ablauf` und `site/faq` sowie die Transaktionsmail `dokumentverarbeitung-abgeschlossen`. Eine zentrale Textstelle in `app/` oder `lang/` für diesen Hinweis existiert nicht.
+
+Offene Entscheidung der Geschäftsführung: ob die fünf Dokumentarten bis zur Umsetzung von der Feldextraktion ausgenommen werden, um KI-Kosten und die zwecklose Speicherung personenbezogener Daten zu vermeiden.
+
 ---
 
 ## 9. In dieser Prüfung vorgenommene Änderungen

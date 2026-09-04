@@ -45,6 +45,7 @@ class PropertyController extends Controller
 
         /** @var list<Property> $objekte */
         $objekte = $this->context->properties()
+            ->with('landlord')
             ->withCount('units')
             ->orderBy('label')
             ->get()

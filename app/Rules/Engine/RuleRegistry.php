@@ -17,6 +17,7 @@ use App\Rules\Definitions\IncompleteMeasurementRule;
 use App\Rules\Definitions\InvalidDenominatorRule;
 use App\Rules\Definitions\MalwareScannerDisabledRule;
 use App\Rules\Definitions\MissingDeliveryAddressRule;
+use App\Rules\Definitions\MissingLandlordRule;
 use App\Rules\Definitions\MissingPreviousYearCategoryRule;
 use App\Rules\Definitions\MissingServicePeriodRule;
 use App\Rules\Definitions\NotApportionableCostRule;
@@ -75,6 +76,7 @@ final class RuleRegistry
             new HeatingCo2ShareStatusRule,
             new Paragraph35aLaborShareRule,
             new MalwareScannerDisabledRule,
+            new MissingLandlordRule,
         ];
     }
 

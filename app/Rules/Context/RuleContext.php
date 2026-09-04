@@ -46,6 +46,11 @@ final readonly class RuleContext
         public RuleSupplierHistory $supplierHistory = new RuleSupplierHistory,
         public RuleFinalizationState $finalizationState = new RuleFinalizationState,
         public RuleEnvironment $environment = new RuleEnvironment,
+        /**
+         * Ist fuer den Lauf ein Vermieter mit Name und Anschrift als Absender
+         * hinterlegt (am Lauf oder am Objekt)?
+         */
+        public bool $landlordPresent = false,
     ) {}
 
     /**
