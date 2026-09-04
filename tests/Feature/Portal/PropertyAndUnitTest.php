@@ -4,14 +4,24 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Portal;
 
+use App\Application\Review\CostItemDecisions;
+use App\Enums\AllocationKeySource;
+use App\Enums\AllocationKeyType;
+use App\Enums\BillingRunStatus;
+use App\Enums\CostItemStatus;
 use App\Enums\ValueSource;
 use App\Http\Controllers\Portal\PropertyController;
+use App\Models\AllocationKey;
+use App\Models\AllocationKeyValue;
 use App\Models\AuditLog;
 use App\Models\BillingRun;
+use App\Models\CostItem;
+use App\Models\ManualOverride;
 use App\Models\OccupancyPeriod;
 use App\Models\Property;
 use App\Models\Tenancy;
 use App\Models\Unit;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * Objekte und Einheiten: Anlegen, Bearbeiten, Loeschen und Plausibilitaet.
@@ -314,6 +324,182 @@ final class PropertyAndUnitTest extends PortalTestCase
 
         self::assertNull(Unit::withTrashed()->find($mandant['unit']->getKey()));
         self::assertSame(1, Unit::withTrashed()->where('property_id', $mandant['property']->getKey())->count());
+
+        // Befund R5: Das endgueltige Entfernen ist protokolliert.
+        self::assertTrue(
+            AuditLog::query()
+                ->where('action', 'unit.purged')
+                ->where('subject_id', $mandant['unit']->getKey())
+                ->exists()
+        );
+    }
+
+    /**
+     * Befund R5: Eine Kostenposition, die der entfernten Einheit direkt
+     * zugeordnet war, faellt nicht still auf den Kategorieschluessel zurueck.
+     * Sie wird wieder pruefpflichtig, die Zuordnung wird geloest und der
+     * Vorgang wird nachvollziehbar festgehalten.
+     */
+    public function test_direkt_zugeordnete_position_wird_beim_entfernen_der_einheit_pruefpflichtig(): void
+    {
+        $mandant = $this->mandant();
+
+        /** @var BillingRun $lauf */
+        $lauf = BillingRun::factory()->create([
+            'organization_id' => $mandant['organization']->getKey(),
+            'property_id' => $mandant['property']->getKey(),
+            'created_by_user_id' => $mandant['user']->getKey(),
+            'status' => BillingRunStatus::REVIEW_REQUIRED,
+        ]);
+
+        /** @var CostItem $position */
+        $position = CostItem::factory()->create([
+            'organization_id' => $mandant['organization']->getKey(),
+            'billing_run_id' => $lauf->getKey(),
+            'description' => 'Grundsteuer Wohnung 1',
+            'status' => CostItemStatus::BESTAETIGT,
+            'confirmed_by_user_id' => $mandant['user']->getKey(),
+            'confirmed_at' => now(),
+            'direct_unit_id' => $mandant['unit']->getKey(),
+        ]);
+
+        $this->actingAs($mandant['user'])
+            ->delete(route('portal.einheiten.destroy', ['unit' => $mandant['unit']->getKey()]))
+            ->assertRedirect();
+
+        $position->refresh();
+
+        self::assertSame(CostItemStatus::VORGESCHLAGEN, $position->status);
+        self::assertNull($position->direct_unit_id);
+        self::assertNull($position->confirmed_at);
+
+        $vermerk = ManualOverride::query()
+            ->where('subject_type', CostItem::class)
+            ->where('subject_id', $position->getKey())
+            ->where('field', 'direct_unit_id')
+            ->first();
+
+        self::assertNotNull($vermerk);
+        self::assertStringContainsString('Zieleinheit', (string) $vermerk->reason);
+        self::assertSame($mandant['unit']->getKey(), $vermerk->old_value['einheit'] ?? null);
+        self::assertTrue(
+            AuditLog::query()->where('action', CostItemDecisions::AUDIT_DIRECT_UNIT_REMOVED)->exists()
+        );
+    }
+
+    /**
+     * Befund R5: Positionen eines bereits finalisierten Laufs bleiben
+     * unangetastet; ihr Berechnungsstand ist gesperrt.
+     */
+    public function test_positionen_finalisierter_laeufe_bleiben_beim_entfernen_der_einheit_unveraendert(): void
+    {
+        $mandant = $this->mandant();
+
+        /** @var BillingRun $lauf */
+        $lauf = BillingRun::factory()->create([
+            'organization_id' => $mandant['organization']->getKey(),
+            'property_id' => $mandant['property']->getKey(),
+            'created_by_user_id' => $mandant['user']->getKey(),
+            'status' => BillingRunStatus::FINALIZED,
+        ]);
+
+        /** @var CostItem $position */
+        $position = CostItem::factory()->create([
+            'organization_id' => $mandant['organization']->getKey(),
+            'billing_run_id' => $lauf->getKey(),
+            'status' => CostItemStatus::BESTAETIGT,
+            'confirmed_at' => now(),
+            'direct_unit_id' => $mandant['unit']->getKey(),
+        ]);
+
+        $this->actingAs($mandant['user'])
+            ->delete(route('portal.einheiten.destroy', ['unit' => $mandant['unit']->getKey()]))
+            ->assertRedirect();
+
+        $position->refresh();
+
+        self::assertSame(CostItemStatus::BESTAETIGT, $position->status);
+        self::assertSame($mandant['unit']->getKey(), $position->direct_unit_id);
+    }
+
+    /**
+     * Befund R5: Eine entfernte Einheit mit direkt zugeordneter Kostenposition
+     * oder mit Schluesselwerten wird beim Wiederanlegen der Bezeichnung nicht
+     * endgueltig geloescht. Sonst setzte die Datenbank direct_unit_id still
+     * auf null und die Position fiele auf den Kategorieschluessel zurueck.
+     *
+     * @return array<string, array{0: string}>
+     */
+    public static function abrechnungsbezuege(): array
+    {
+        return [
+            'direkt zugeordnete Kostenposition' => ['kostenposition'],
+            'Schluesselwert der Einheit' => ['schluesselwert'],
+        ];
+    }
+
+    #[DataProvider('abrechnungsbezuege')]
+    public function test_entfernte_einheit_mit_abrechnungsbezug_wird_beim_wiederanlegen_nicht_endgueltig_entfernt(string $bezug): void
+    {
+        $mandant = $this->mandant();
+        $mandant['tenancy']->forceDelete();
+        $bezeichnung = (string) $mandant['unit']->getAttribute('label');
+
+        /** @var BillingRun $lauf */
+        $lauf = BillingRun::factory()->create([
+            'organization_id' => $mandant['organization']->getKey(),
+            'property_id' => $mandant['property']->getKey(),
+            'created_by_user_id' => $mandant['user']->getKey(),
+            'status' => BillingRunStatus::FINALIZED,
+        ]);
+
+        if ($bezug === 'kostenposition') {
+            CostItem::factory()->create([
+                'organization_id' => $mandant['organization']->getKey(),
+                'billing_run_id' => $lauf->getKey(),
+                'status' => CostItemStatus::BESTAETIGT,
+                'direct_unit_id' => $mandant['unit']->getKey(),
+            ]);
+        } else {
+            /** @var AllocationKey $schluessel */
+            $schluessel = AllocationKey::factory()->create([
+                'organization_id' => $mandant['organization']->getKey(),
+                'billing_run_id' => $lauf->getKey(),
+                'key_type' => AllocationKeyType::WOHNFLAECHE,
+                'source' => AllocationKeySource::MANUELL,
+            ]);
+
+            AllocationKeyValue::query()->create([
+                'organization_id' => $mandant['organization']->getKey(),
+                'allocation_key_id' => $schluessel->getKey(),
+                'unit_id' => $mandant['unit']->getKey(),
+                'numerator' => '72.5000',
+                'source' => ValueSource::MANUELL,
+            ]);
+        }
+
+        $this->actingAs($mandant['user'])
+            ->delete(route('portal.einheiten.destroy', ['unit' => $mandant['unit']->getKey()]))
+            ->assertRedirect();
+
+        $this->actingAs($mandant['user'])
+            ->post(route('portal.einheiten.store', ['property' => $mandant['property']->getKey()]), [
+                'label' => $bezeichnung,
+                'living_area_sqm' => '55',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $alt = Unit::withTrashed()->find($mandant['unit']->getKey());
+
+        self::assertNotNull($alt);
+        self::assertStringStartsWith($bezeichnung.' (entfernt', (string) $alt->getAttribute('label'));
+        self::assertSame(2, Unit::withTrashed()->where('property_id', $mandant['property']->getKey())->count());
+
+        if ($bezug === 'kostenposition') {
+            self::assertSame(1, CostItem::query()->where('direct_unit_id', $mandant['unit']->getKey())->count());
+        } else {
+            self::assertSame(1, AllocationKeyValue::query()->where('unit_id', $mandant['unit']->getKey())->count());
+        }
     }
 
     public function test_einheit_wird_mit_allen_schluesselwerten_angelegt(): void

@@ -23,6 +23,9 @@ use Brick\Math\RoundingMode;
  *   Hinweis druckt. Das gilt auch bei unvollständigen Zwischenablesungen:
  *   Mietverhältnisse mit Ablesung erhalten ihren Wert, die übrigen teilen den
  *   Rest des Jahreswerts der Einheit taggenau und werden gekennzeichnet.
+ * - ergeben die Ablesungen mehr als der Jahreswert der Einheit, wird
+ *   ReadingsExceedUnitTotalException geworfen; ein negativer Rest wird nicht
+ *   still auf null gesetzt.
  *
  * Beteiligte des Eigentümers (erfasster Leerstand) verlangen keine
  * Zwischenablesung: Liegen Ablesewerte je Mietverhältnis vor, erhält ein
@@ -129,7 +132,18 @@ final class ConsumptionKeyBuilder
                 }
 
                 if ($withoutReading !== []) {
-                    $rest = $unitTotal instanceof BigDecimal && $unitTotal->isGreaterThan($assigned)
+                    // Ergeben die Ablesungen mehr als der Jahreswert, gibt es
+                    // keinen Rest, der still auf null gesetzt werden dürfte:
+                    // Die Werte widersprechen sich und sind zu klären.
+                    if ($unitTotal instanceof BigDecimal && $assigned->isGreaterThan($unitTotal)) {
+                        throw ReadingsExceedUnitTotalException::forUnit(
+                            $unitKey,
+                            (string) $assigned,
+                            (string) $unitTotal
+                        );
+                    }
+
+                    $rest = $unitTotal instanceof BigDecimal
                         ? $unitTotal->minus($assigned)
                         : BigDecimal::zero();
 

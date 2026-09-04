@@ -7,6 +7,7 @@ namespace Tests\Unit\Domain\Allocation;
 use App\Domain\Allocation\ConsumptionKeyBuilder;
 use App\Domain\Allocation\ConsumptionRecord;
 use App\Domain\Allocation\MissingInterimReadingException;
+use App\Domain\Allocation\ReadingsExceedUnitTotalException;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -106,6 +107,27 @@ final class ConsumptionKeyBuilderTest extends TestCase
         $this->assertSame('120.000', (string) $key->denominator());
         $this->assertFalse($key->usesSubstituteDistributionFor('mv-2'));
         $this->assertTrue($key->usesSubstituteDistributionFor('mv-3'));
+    }
+
+    /**
+     * Befund R1: Uebersteigt die Summe der Ablesungen den Jahreswert der
+     * Einheit, wird der Rest nicht still auf null gesetzt.
+     */
+    #[Test]
+    public function ablesungen_ueber_dem_jahreswert_loesen_auch_mit_bestaetigung_eine_domain_exception_aus(): void
+    {
+        $this->expectException(ReadingsExceedUnitTotalException::class);
+        $this->expectExceptionMessage('ergeben zusammen 130.000');
+
+        $this->builder->build(
+            [
+                ConsumptionRecord::forUnit('W-2', '120.000'),
+                ConsumptionRecord::forOccupancy('W-2', 'mv-2', '130.000'),
+            ],
+            ['W-2' => ['mv-2' => 181, 'mv-3' => 184]],
+            'm³',
+            ['W-2']
+        );
     }
 
     #[Test]

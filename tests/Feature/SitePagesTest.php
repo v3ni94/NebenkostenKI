@@ -139,6 +139,21 @@ final class SitePagesTest extends TestCase
         $ablauf->assertSee('von Ihnen erfasste und bestätigte Regelung', false);
     }
 
+    /**
+     * Befund R14: Die Startseite beschreibt nur den umgesetzten Umfang. Ein
+     * Abgleich mit Vorjahreswerten findet nicht statt (ARCHITECTURE 11.1),
+     * und Personentage sind bei Leerstand gesperrt.
+     */
+    public function test_startseite_verspricht_keinen_vorjahresabgleich_und_benennt_die_leerstandsgrenze(): void
+    {
+        $start = $this->get(route('site.home'));
+
+        $start->assertOk();
+        $start->assertDontSee('Vorjahreswerten und Prüfsummen', false);
+        $start->assertSee('den Abgleich von Belegsummen und Prüfsummen', false);
+        $start->assertSee('Personentage ist deshalb bei Leerstand nicht verwendbar', false);
+    }
+
     public function test_startseite_zeigt_die_betreiberangaben_unveraendert(): void
     {
         $antwort = $this->get(route('site.home'));

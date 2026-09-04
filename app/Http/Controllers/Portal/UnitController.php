@@ -7,9 +7,12 @@ namespace App\Http\Controllers\Portal;
 use App\Application\Account\AuditRecorder;
 use App\Application\Account\OrganizationContext;
 use App\Application\BillingRun\PortalStatusResolver;
+use App\Application\Review\CostItemDecisions;
 use App\Application\Wizard\PreviewInvalidator;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Portal\UnitRequest;
+use App\Models\AllocationKeyValue;
+use App\Models\CostItem;
 use App\Models\Property;
 use App\Models\Unit;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -38,6 +41,7 @@ class UnitController extends Controller
         private readonly PortalStatusResolver $status,
         private readonly AuditRecorder $audit,
         private readonly PreviewInvalidator $invalidator,
+        private readonly CostItemDecisions $decisions,
     ) {}
 
     public function index(string $property): View
@@ -160,6 +164,11 @@ class UnitController extends Controller
             organization: $this->context->organizationId(),
         );
 
+        // Direkt dieser Einheit zugeordnete Kostenpositionen offener Laeufe
+        // werden wieder pruefpflichtig; sie fallen nicht still auf den
+        // Kategorieschluessel zurueck (Befund R5).
+        $this->decisions->markDirectUnitRemoved($einheit, $this->context->user());
+
         $this->invalidator->forUnit($einheit, $this->context->user());
 
         return redirect()
@@ -172,9 +181,13 @@ class UnitController extends Controller
      *
      * Bestehen zu der entfernten Einheit keine Abrechnungsbezuege (keine
      * Mietverhaeltnisse, keine Mieterabrechnungen, keine Zaehler, keine
-     * Leerstaende), wird die Zeile endgueltig entfernt. Sonst bleibt sie fuer
-     * die Nachvollziehbarkeit erhalten und erhaelt eine Bezeichnung mit
-     * Zusatz, damit der Unique-Index die neue Einheit zulaesst.
+     * Leerstaende, keine direkt zugeordneten Kostenpositionen, keine
+     * Schluesselwerte), wird die Zeile endgueltig entfernt und das
+     * protokolliert. Sonst bleibt sie fuer die Nachvollziehbarkeit erhalten
+     * und erhaelt eine Bezeichnung mit Zusatz, damit der Unique-Index die neue
+     * Einheit zulaesst. Ein endgueltiges Entfernen trotz Bezuegen wuerde
+     * direct_unit_id ueber den Fremdschluessel still auf null setzen und
+     * Schluesselwerte kaskadiert loeschen (Befund R5).
      */
     private function gebeBezeichnungFrei(Property $objekt, string $label): void
     {
@@ -194,10 +207,22 @@ class UnitController extends Controller
                 $bezuege = $entfernt->tenancies()->withTrashed()->exists()
                     || $entfernt->unitStatements()->exists()
                     || $entfernt->meterDevices()->withTrashed()->exists()
-                    || $entfernt->vacancyPeriods()->exists();
+                    || $entfernt->vacancyPeriods()->exists()
+                    || CostItem::query()->where('direct_unit_id', $entfernt->getKey())->exists()
+                    || AllocationKeyValue::query()->where('unit_id', $entfernt->getKey())->exists();
 
                 if (! $bezuege) {
                     $entfernt->forceDelete();
+
+                    $this->audit->record(
+                        action: 'unit.purged',
+                        subject: $entfernt,
+                        actor: $this->context->user(),
+                        organization: $this->context->organizationId(),
+                        metadata: ['bezeichnung' => $label],
+                        reason: 'Die entfernte Einheit hatte keine Abrechnungsbezuege und wurde beim Wiederanlegen '
+                            .'der Bezeichnung endgueltig entfernt.',
+                    );
 
                     continue;
                 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Wizard;
 
 use App\Application\Calculation\BillingRunInputAssembler;
+use App\Application\Calculation\CalculationInputException;
 use App\Application\Wizard\AllocationKeyWorkspace;
 use App\Domain\Allocation\ConsumptionKey;
 use App\Domain\Calculation\StatementCalculator;
@@ -473,6 +474,178 @@ final class AllocationKeyStepTest extends CalculationTestCase
         // Nenner: 61 + 59 m³ der Wohnung A und 30 m³ der Wohnung B.
         self::assertSame(0, $schluessel->denominator()->compareTo('150'));
         self::assertSame([(string) $szenario['tenancies'][2]->getKey()], $schluessel->substituteParticipants());
+    }
+
+    /**
+     * Befund R1: Ergeben die Zwischenablesungen mehr als der Jahresverbrauch
+     * der Einheit, wird der Rest nicht still auf null gesetzt. Schritt 8
+     * blockiert mit verständlichem Text, der Aufbau bricht mit einer
+     * Prüfaufgabe ab.
+     */
+    public function test_zwischenablesungen_ueber_dem_jahresverbrauch_blockieren_statt_still_null_zu_verteilen(): void
+    {
+        $szenario = $this->verbrauchMitNutzerwechsel();
+
+        // Jahreswert 120,000 m³, die Vormieterin hat angeblich 130,000 m³
+        // abgelesen; der Nachmieter hat keine Ablesung.
+        $this->schluesselwert($szenario['key'], '130.000', null, $szenario['tenancies'][0]);
+
+        $arbeitsflaeche = app(AllocationKeyWorkspace::class);
+        $lauf = $szenario['billingRun']->refresh();
+
+        $arbeitsflaeche->confirmSubstituteDistribution($lauf, (string) $szenario['units'][0]->getKey(), $szenario['user']);
+
+        $gruende = $arbeitsflaeche->blockingReasons($lauf->refresh());
+
+        self::assertNotSame([], $gruende);
+        self::assertStringContainsString('ergeben die Zwischenablesungen zusammen 130,000', implode(' ', $gruende));
+        self::assertStringContainsString('beträgt jedoch nur 120,000', implode(' ', $gruende));
+
+        $this->actingAs($szenario['user'])->post(
+            route('portal.wizard.schluessel.weiter', ['billingRun' => $lauf->getKey()])
+        )->assertSessionHasErrors('weiter');
+
+        $this->expectException(CalculationInputException::class);
+        $this->expectExceptionMessage('Für die Einheit Wohnung A ergeben die Zwischenablesungen zusammen 130,000');
+
+        app(BillingRunInputAssembler::class)->assemble($lauf->refresh());
+    }
+
+    /**
+     * Befund R2: Ein negativer Betrag der Direktzuordnung wird mit deutscher
+     * Meldung abgewiesen und nicht gespeichert.
+     */
+    public function test_ein_negativer_betrag_der_direktzuordnung_wird_abgewiesen(): void
+    {
+        $szenario = $this->szenario();
+
+        $antwort = $this->actingAs($szenario['user'])->post(
+            route('portal.wizard.schluessel.speichern', ['billingRun' => $szenario['billingRun']->getKey()]),
+            [
+                'kostenarten' => [
+                    (string) $szenario['category']->getKey() => [
+                        'key_type' => AllocationKeyType::DIREKT->value,
+                        'werte' => [
+                            (string) $szenario['tenancies'][0]->getKey() => '-12,50',
+                            (string) $szenario['tenancies'][1]->getKey() => '1.212,50',
+                        ],
+                    ],
+                ],
+            ]
+        );
+
+        $antwort->assertRedirect();
+
+        $feld = sprintf('kostenarten.%s.werte.%s', $szenario['category']->getKey(), $szenario['tenancies'][0]->getKey());
+        $antwort->assertSessionHasErrors($feld);
+        self::assertStringContainsString('ist negativ', (string) session('errors')?->first($feld));
+
+        self::assertSame(
+            0,
+            AllocationKey::query()
+                ->where('billing_run_id', $szenario['billingRun']->getKey())
+                ->where('source', AllocationKeySource::MANUELL->value)
+                ->count()
+        );
+    }
+
+    /**
+     * Befund R3: Bei der Direktzuordnung heißt die Wertspalte nicht Zähler,
+     * sondern Betrag in EUR; der Nenner wird nicht abgefragt, der Hinweis auf
+     * den Positionsbetrag erscheint.
+     */
+    public function test_die_maske_beschriftet_die_direktzuordnung_als_betrag_in_euro(): void
+    {
+        $szenario = $this->szenario();
+
+        $szenario['key']->forceFill([
+            'key_type' => AllocationKeyType::DIREKT,
+            'source' => AllocationKeySource::MANUELL,
+            'denominator' => null,
+        ])->save();
+
+        $antwort = $this->actingAs($szenario['user'])->get(
+            route('portal.wizard.schluessel', ['billingRun' => $szenario['billingRun']->getKey()])
+        );
+
+        $antwort->assertOk();
+        $antwort->assertSee('Betrag in EUR');
+        $antwort->assertSee('300,50');
+        $antwort->assertSee('darf den Positionsbetrag der Kostenart nicht übersteigen');
+        $antwort->assertDontSee('Nenner, optional abweichend');
+        $antwort->assertDontSee('>Zähler<', false);
+
+        // Alle anderen Schlüssel behalten die Spalte Zähler und den Nenner.
+        $szenario['key']->forceFill(['key_type' => AllocationKeyType::WOHNFLAECHE])->save();
+
+        $antwort = $this->actingAs($szenario['user'])->get(
+            route('portal.wizard.schluessel', ['billingRun' => $szenario['billingRun']->getKey()])
+        );
+
+        $antwort->assertOk();
+        $antwort->assertSee('>Zähler<', false);
+        $antwort->assertSee('Nenner, optional abweichend');
+        $antwort->assertDontSee('Betrag in EUR');
+    }
+
+    /**
+     * Befund R13: Personentage bei nicht durchgehend vermieteter Einheit
+     * blockieren bereits Schritt 8 mit derselben Begründung wie der Aufbau in
+     * Schritt 10.
+     */
+    public function test_personentage_bei_nicht_durchgehend_vermieteter_einheit_blockieren_bereits_schritt_8(): void
+    {
+        $szenario = $this->szenario();
+
+        Tenancy::query()
+            ->whereKey($szenario['tenancies'][1]->getKey())
+            ->update(['ends_on' => '2025-06-30']);
+
+        $szenario['key']->forceFill([
+            'key_type' => AllocationKeyType::PERSONENTAGE,
+            'source' => AllocationKeySource::MANUELL,
+            'denominator' => null,
+        ])->save();
+
+        $arbeitsflaeche = app(AllocationKeyWorkspace::class);
+        $lauf = $szenario['billingRun']->refresh();
+
+        $gruende = $arbeitsflaeche->blockingReasons($lauf);
+
+        self::assertNotSame([], $gruende);
+        self::assertStringContainsString(
+            'Wohnung B im Abrechnungszeitraum nicht durchgehend vermietet',
+            implode(' ', $gruende)
+        );
+        self::assertStringNotContainsString('Wohnung A im Abrechnungszeitraum', implode(' ', $gruende));
+
+        $this->actingAs($szenario['user'])->post(
+            route('portal.wizard.schluessel.weiter', ['billingRun' => $lauf->getKey()])
+        )->assertSessionHasErrors('weiter');
+
+        $antwort = $this->actingAs($szenario['user'])->get(
+            route('portal.wizard.schluessel', ['billingRun' => $lauf->getKey()])
+        );
+
+        $antwort->assertOk();
+        $antwort->assertSee('Blockiert die Abrechnung');
+        $antwort->assertSee('nicht durchgehend vermietet');
+
+        // Ein erfasster Leerstand blockiert ebenso.
+        Tenancy::query()
+            ->whereKey($szenario['tenancies'][1]->getKey())
+            ->update(['ends_on' => null]);
+
+        VacancyPeriod::factory()->create([
+            'organization_id' => $szenario['organization']->getKey(),
+            'unit_id' => $szenario['units'][0]->getKey(),
+            'starts_on' => '2025-09-01',
+            'ends_on' => '2025-12-31',
+        ]);
+
+        $gruende = $arbeitsflaeche->blockingReasons($szenario['billingRun']->refresh());
+
+        self::assertStringContainsString('Wohnung A im Abrechnungszeitraum nicht durchgehend vermietet', implode(' ', $gruende));
     }
 
     public function test_direktzuordnung_in_schritt_8_nimmt_betraege_in_euro_entgegen(): void

@@ -18,6 +18,7 @@ use App\Domain\Allocation\MissingInterimReadingException;
 use App\Domain\Allocation\PersonCountKey;
 use App\Domain\Allocation\PersonDaysKey;
 use App\Domain\Allocation\PersonDaysSegment;
+use App\Domain\Allocation\ReadingsExceedUnitTotalException;
 use App\Domain\Allocation\UnitCountKey;
 use App\Domain\Calculation\AllocabilityStatus;
 use App\Domain\Calculation\Dto\CostItemInput;
@@ -953,6 +954,12 @@ final class BillingRunInputAssembler
         } catch (MissingInterimReadingException $exception) {
             throw CalculationInputException::unconfirmedSubstituteDistribution(
                 $this->unitLabel($units, $exception->getMessage())
+            );
+        } catch (ReadingsExceedUnitTotalException $exception) {
+            throw CalculationInputException::readingsExceedUnitTotal(
+                $this->unitLabel($units, $exception->unitKey),
+                GermanNumberFormatter::decimal($exception->readingsSum, 3),
+                GermanNumberFormatter::decimal($exception->unitTotal, 3)
             );
         }
     }

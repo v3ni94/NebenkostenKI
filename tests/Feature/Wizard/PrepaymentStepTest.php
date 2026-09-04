@@ -265,6 +265,72 @@ final class PrepaymentStepTest extends CalculationTestCase
         self::assertSame(280000, $zeilen[0]->actualTotal?->cents);
     }
 
+    /**
+     * Befund R6: Traegt nur eine von zwei Zeilen eine Annahme Ist gleich Soll,
+     * wird nur diese Zeile wieder geoeffnet. Die Zeile mit erfasstem Ist-Wert
+     * behaelt ihn und erhaelt lediglich den neuen Sollanteil.
+     */
+    public function test_nur_annahmezeilen_werden_bei_geaendertem_monatsbetrag_wieder_geoeffnet(): void
+    {
+        $szenario = $this->szenario();
+        $mietverhaeltnis = $szenario['tenancies'][0];
+
+        Prepayment::query()->where('tenancy_id', $mietverhaeltnis->getKey())->update([
+            'kind' => PrepaymentKind::BETRIEBSKOSTEN->value,
+            'target_cent' => 180000,
+            'actual_cent' => 180000,
+            'source' => ValueSource::SOLL_ANNAHME->value,
+            'assumed_equal_to_target' => true,
+        ]);
+
+        Prepayment::query()->create([
+            'organization_id' => $szenario['organization']->getKey(),
+            'billing_run_id' => $szenario['billingRun']->getKey(),
+            'tenancy_id' => $mietverhaeltnis->getKey(),
+            'kind' => PrepaymentKind::HEIZKOSTEN,
+            'period_start' => '2025-01-01',
+            'period_end' => '2025-12-31',
+            'target_cent' => 108000,
+            'actual_cent' => 100000,
+            'source' => ValueSource::ZAHLUNGSUEBERSICHT,
+            'assumed_equal_to_target' => false,
+            'confirmed_at' => now(),
+        ]);
+
+        $this->actingAs($szenario['user'])->put(
+            route('portal.mietverhaeltnisse.update', ['tenancy' => $mietverhaeltnis->getKey()]),
+            [
+                'tenant_display_name' => $mietverhaeltnis->tenant_display_name,
+                'kind' => 'WOHNRAUM',
+                'starts_on' => '2025-01-01',
+                'heating_prepayment_separate' => '1',
+                'monthly_operating_prepayment_eur' => '200,00',
+                'monthly_heating_prepayment_eur' => '100,00',
+            ]
+        )->assertRedirect();
+
+        $betrieb = Prepayment::query()
+            ->where('tenancy_id', $mietverhaeltnis->getKey())
+            ->where('kind', PrepaymentKind::BETRIEBSKOSTEN->value)
+            ->firstOrFail();
+        $heizung = Prepayment::query()
+            ->where('tenancy_id', $mietverhaeltnis->getKey())
+            ->where('kind', PrepaymentKind::HEIZKOSTEN->value)
+            ->firstOrFail();
+
+        // Die Annahmezeile ist offen.
+        self::assertSame(240000, $betrieb->target_cent);
+        self::assertNull($betrieb->actual_cent);
+        self::assertFalse($betrieb->assumed_equal_to_target);
+        self::assertNull($betrieb->confirmed_at);
+
+        // Der erfasste Ist-Wert der Heizkostenzeile bleibt bestehen.
+        self::assertSame(120000, $heizung->target_cent);
+        self::assertSame(100000, $heizung->actual_cent);
+        self::assertSame(ValueSource::ZAHLUNGSUEBERSICHT, $heizung->source);
+        self::assertNotNull($heizung->confirmed_at);
+    }
+
     public function test_die_annahme_ist_gleich_soll_ist_nicht_vorangekreuzt(): void
     {
         $szenario = $this->szenario();
