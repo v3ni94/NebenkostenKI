@@ -135,10 +135,6 @@ final class TenantIsolationTest extends PortalTestCase
                 'person_count' => 2,
             ]],
             ['delete', route('portal.belegung.destroy', ['occupancy' => $fremdeBelegung->getKey()]), []],
-            ['post', route('portal.abrechnungen.bestaetigen', ['billingRun' => $fremderLauf->getKey()]), [
-                'werte_geprueft' => '1',
-                'verantwortung_uebernommen' => '1',
-            ]],
             ['post', route('portal.abrechnungen.abbrechen', ['billingRun' => $fremderLauf->getKey()]), []],
             ['delete', route('portal.abrechnungen.destroy', ['billingRun' => $fremderLauf->getKey()]), []],
         ];

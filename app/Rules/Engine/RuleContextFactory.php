@@ -12,6 +12,7 @@ use App\Enums\CostItemStatus;
 use App\Enums\DocumentRelationType;
 use App\Enums\DocumentType;
 use App\Enums\PaymentStatus;
+use App\Enums\TenancyKind;
 use App\Models\AllocationKey;
 use App\Models\BillingRun;
 use App\Models\CalculationSnapshot;
@@ -373,6 +374,8 @@ final class RuleContextFactory
                     $this->hasMovedOut($tenancy, $billingPeriod),
                     $this->hasDeliveryAddress($tenancy),
                     $tenancy->other_operating_costs_agreed,
+                    [],
+                    $tenancy->kind === TenancyKind::GEWERBE,
                 );
             }
         }

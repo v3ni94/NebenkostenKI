@@ -8,6 +8,14 @@
         title="Kostenprüfung"
         lead="Die Kosten sind nach Kostenart gruppiert. Jede Gruppe lässt sich auf die einzelnen Belege aufklappen. Bitte bestätigen oder verwerfen Sie jede Position." />
 
+    <div class="mt-6">
+        @include('portal.wizard.partials.fortschritt', [
+            'fortschritt' => $schritte,
+            'billingRun' => $billingRun,
+            'wiedereinstieg' => $wiedereinstieg,
+        ])
+    </div>
+
     @if (session('status'))
         <x-hvm.alert variant="success" class="mt-6">
             <p>{{ session('status') }}</p>

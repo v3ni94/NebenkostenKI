@@ -7,6 +7,8 @@ namespace App\Http\Controllers\Portal\Review;
 use App\Application\Heating\ManualHeatingConflictScanner;
 use App\Application\Heating\ManualHeatingWorkspace;
 use App\Application\Heating\StoreManualHeatingEntries;
+use App\Application\Wizard\PreviewBuilder;
+use App\Application\Wizard\ReviewConfirmation;
 use App\Domain\Calculation\Heating\ManualHeatingReconciler;
 use App\Domain\Money\Money;
 use App\Http\Controllers\Controller;
@@ -35,6 +37,8 @@ class ManualHeatingController extends Controller
         private readonly ManualHeatingReconciler $reconciler,
         private readonly ManualHeatingConflictScanner $conflicts,
         private readonly StoreManualHeatingEntries $store,
+        private readonly PreviewBuilder $preview,
+        private readonly ReviewConfirmation $confirmation,
     ) {}
 
     public function edit(BillingRun $billingRun): View
@@ -68,6 +72,12 @@ class ManualHeatingController extends Controller
             $request->calculationOrigin(),
             $request->sourceDecision(),
         );
+
+        // Manuell erfasste Heizkosten sind abrechnungsrelevant: eine
+        // bestehende Vorschau wird ungueltig, eine Bestaetigung entfaellt
+        // (PreviewBuilder Regel 3).
+        $this->preview->invalidate($billingRun);
+        $this->confirmation->reset($billingRun);
 
         $meldung = 'Die erfassten Heizkosten sind gespeichert und werden unverändert übernommen.';
 

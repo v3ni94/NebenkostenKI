@@ -6,6 +6,7 @@ namespace App\Rules\Engine;
 
 use App\Rules\Definitions\BillingPeriodDeadlineRule;
 use App\Rules\Definitions\CategoryChecksumRule;
+use App\Rules\Definitions\CommercialTenancyRule;
 use App\Rules\Definitions\CostOutsideBillingPeriodRule;
 use App\Rules\Definitions\CreditNoteRule;
 use App\Rules\Definitions\DuplicateCostRule;
@@ -66,6 +67,7 @@ final class RuleRegistry
             new PrepaymentOutsideTenancyRule,
             new TenancyOverlapRule,
             new TenancyCoverageGapRule,
+            new CommercialTenancyRule,
             new MissingDeliveryAddressRule,
             new NotApportionableCostRule,
             new OtherOperatingCostsRule,

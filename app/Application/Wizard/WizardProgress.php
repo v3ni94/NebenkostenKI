@@ -6,6 +6,7 @@ namespace App\Application\Wizard;
 
 use App\Application\BillingRun\PortalStatusCategory;
 use App\Application\Wizard\Dto\WizardStepView;
+use App\Enums\BillingRunStatus;
 use App\Enums\CostItemStatus;
 use App\Models\BillingRun;
 use App\Models\Document;
@@ -162,5 +163,55 @@ final class WizardProgress
             $step->label(),
             $step->hint()
         );
+    }
+
+    /**
+     * Schritt, mit dem der Nutzer von der Detailseite aus weiterarbeitet.
+     *
+     * Grundlage ist der gespeicherte Schritt. Der Laufstatus hebt ihn an,
+     * wenn ein Schritt bereits fachlich abgeschlossen ist, ohne dass seine
+     * Seite besucht wurde (etwa die Kostenprüfung, die auf die Detailseite
+     * zurückführt). Schritte ohne eigene Seite (1, 4 und 5) verweisen auf die
+     * Detailseite selbst und werden deshalb auf den nächsten Schritt mit
+     * eigener Seite weitergeschaltet.
+     */
+    public function resumeStep(BillingRun $billingRun): WizardStep
+    {
+        $step = $this->currentStep($billingRun);
+        $status = $billingRun->getAttribute('status');
+
+        $minimum = match ($status) {
+            BillingRunStatus::EXTRACTING => WizardStep::ANALYSE,
+            BillingRunStatus::REVIEW_REQUIRED => WizardStep::KOSTENPRUEFUNG,
+            BillingRunStatus::READY_FOR_CALCULATION,
+            BillingRunStatus::CALCULATED => WizardStep::VORAUSZAHLUNGEN,
+            BillingRunStatus::PREVIEW_READY => WizardStep::VORSCHAU,
+            default => WizardStep::UPLOAD,
+        };
+
+        if ($step->value < $minimum->value) {
+            $step = $minimum;
+        }
+
+        while ($step->routeName() === 'portal.abrechnungen.show') {
+            $next = $step->next();
+
+            if ($next === null) {
+                break;
+            }
+
+            $step = $next;
+        }
+
+        return $step;
+    }
+
+    /**
+     * Liegt eine gültige und bestätigte Vorschau vor, kann der Nutzer zur
+     * Zahlung fortfahren.
+     */
+    public function checkoutReady(BillingRun $billingRun): bool
+    {
+        return $this->preview->isValid($billingRun) && $this->confirmation->isConfirmed($billingRun);
     }
 }

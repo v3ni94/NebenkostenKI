@@ -15,12 +15,23 @@
 --}}
 @extends('layouts.portal')
 
+@inject('wizardProgress', 'App\Application\Wizard\WizardProgress')
+
 @section('titel', 'Unterlagen hochladen')
 
 @section('content')
     <x-hvm.section-heading
+        eyebrow="Schritt 2"
         title="Unterlagen hochladen"
         lead="Laden Sie alles hoch, was Sie haben. Die Reihenfolge ist gleichgültig, das System ordnet die Unterlagen selbst zu." />
+
+    <div class="mt-6">
+        @include('portal.wizard.partials.fortschritt', [
+            'fortschritt' => $wizardProgress->bar($billingRun, \App\Application\Wizard\WizardStep::UPLOAD),
+            'billingRun' => $billingRun,
+            'wiedereinstieg' => null,
+        ])
+    </div>
 
     {{-- Verbindlicher Loeschhinweis nach Abschnitt 6.4 ------------------------ --}}
 
@@ -114,5 +125,16 @@
 
     <h2 class="mt-12 text-xl font-bold text-hvm-anthrazit">Verarbeitungsstand</h2>
 
+    <p class="mt-2 text-sm text-hvm-anthrazit">
+        Die Auswertung läuft im Hintergrund in festen Abständen. Hochgeladene Unterlagen werden spätestens nach
+        {{ max(1, (int) config('smartabrechnen.scheduler_interval_minutes', 5)) }} Minuten
+        verarbeitet. Den Stand sehen Sie nach dem Neuladen dieser Seite oder auf der Seite der Analyse.
+    </p>
+
     @include('portal.upload.partials.statusliste', ['dokumente' => $dokumente])
+
+    <div class="mt-8">
+        <x-hvm.button href="{{ route('portal.pruefung.analyse', ['billingRun' => $billingRun->getKey()]) }}"
+                      variant="primary">Weiter zur Analyse</x-hvm.button>
+    </div>
 @endsection

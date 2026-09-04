@@ -10,6 +10,8 @@ use App\Application\Review\BulkConfirmation;
 use App\Application\Review\CostItemDecisions;
 use App\Application\Review\CostReviewPresenter;
 use App\Application\Review\ReviewGate;
+use App\Application\Wizard\WizardProgress;
+use App\Application\Wizard\WizardStep;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Review\AssignUnitRequest;
 use App\Http\Requests\Review\BulkConfirmRequest;
@@ -45,14 +47,19 @@ class CostReviewController extends Controller
         private readonly ReviewGate $gate,
         private readonly CategoryResolver $categories,
         private readonly BillingRunProgress $progress,
+        private readonly WizardProgress $wizard,
     ) {}
 
     public function index(BillingRun $billingRun): View
     {
         Gate::authorize('view', $billingRun);
 
+        $this->wizard->remember($billingRun, WizardStep::KOSTENPRUEFUNG);
+
         return view('portal.pruefung.kosten', [
             'billingRun' => $billingRun,
+            'schritte' => $this->wizard->bar($billingRun, WizardStep::KOSTENPRUEFUNG),
+            'wiedereinstieg' => $this->wizard->resumeHint($billingRun),
             'uebersicht' => $this->presenter->overview($billingRun),
             'kategorien' => $this->categories->selectable($billingRun),
             'einheiten' => $this->units($billingRun),

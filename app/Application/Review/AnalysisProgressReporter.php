@@ -38,6 +38,29 @@ final class AnalysisProgressReporter
             ->where('processing_status', DocumentProcessingStatus::FEHLGESCHLAGEN->value)
             ->count();
 
+        // Weitere Endzustaende ohne Auswertung: Dubletten und abgelehnte
+        // Unterlagen (ABGELEHNT) sowie Unterlagen, deren Frist abgelaufen ist
+        // (ABGEBROCHEN). Sie zaehlen als nicht ausgewertet, damit die
+        // Auswertung als beendet erkannt wird und die Ursache genannt ist.
+        $duplicates = Document::query()
+            ->where('billing_run_id', $billingRun->getKey())
+            ->where('processing_status', DocumentProcessingStatus::ABGELEHNT->value)
+            ->whereNotNull('duplicate_of_document_id')
+            ->count();
+
+        $rejected = Document::query()
+            ->where('billing_run_id', $billingRun->getKey())
+            ->where('processing_status', DocumentProcessingStatus::ABGELEHNT->value)
+            ->whereNull('duplicate_of_document_id')
+            ->count();
+
+        $aborted = Document::query()
+            ->where('billing_run_id', $billingRun->getKey())
+            ->where('processing_status', DocumentProcessingStatus::ABGEBROCHEN->value)
+            ->count();
+
+        $notEvaluated = $failed + $duplicates + $rejected + $aborted;
+
         $units = Unit::query()
             ->where('organization_id', $billingRun->getAttribute('organization_id'))
             ->where('property_id', $billingRun->getAttribute('property_id'))
@@ -70,6 +93,29 @@ final class AnalysisProgressReporter
             );
         }
 
+        if ($duplicates > 0) {
+            $lines[] = sprintf(
+                '%d Unterlagen wurden als Dublette erkannt und nicht erneut ausgewertet.',
+                $duplicates
+            );
+        }
+
+        if ($rejected > 0) {
+            $lines[] = sprintf(
+                '%d Unterlagen wurden abgelehnt, etwa weil die Datei beschädigt oder nicht lesbar war. Bitte '
+                .'laden Sie eine lesbare Fassung hoch oder erfassen Sie die Werte manuell.',
+                $rejected
+            );
+        }
+
+        if ($aborted > 0) {
+            $lines[] = sprintf(
+                '%d Unterlagen konnten nicht innerhalb der Aufbewahrungsfrist ausgewertet werden und wurden '
+                .'gelöscht. Bitte laden Sie diese Unterlagen erneut hoch.',
+                $aborted
+            );
+        }
+
         if ($blocking > 0) {
             $lines[] = sprintf('%d Punkte blockieren die Abrechnung', $blocking);
         }
@@ -77,12 +123,12 @@ final class AnalysisProgressReporter
         return new AnalysisProgress(
             $total,
             $evaluated,
-            $failed,
+            $notEvaluated,
             $units,
             $costItems,
             $openIssues,
             $blocking,
-            $total > 0 && $evaluated + $failed >= $total,
+            $total > 0 && $evaluated + $notEvaluated >= $total,
             $lines,
         );
     }

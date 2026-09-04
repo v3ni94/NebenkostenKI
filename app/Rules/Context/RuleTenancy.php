@@ -12,6 +12,9 @@ use App\Domain\Period\DatePeriodRange;
  * "hasMovedOut" bedeutet, dass das Mietverhaeltnis vor dem Ende des
  * Abrechnungszeitraums geendet hat. In diesem Fall ist eine Zustellanschrift
  * erforderlich, damit die Abrechnung den Mieter erreicht.
+ *
+ * "isCommercial" kennzeichnet ein gewerbliches Mietverhaeltnis. Gewerbe wird
+ * nicht nach Wohnraumlogik abgerechnet und blockiert die Finalisierung.
  */
 final readonly class RuleTenancy
 {
@@ -27,5 +30,6 @@ final readonly class RuleTenancy
         public bool $hasDeliveryAddress = true,
         public ?bool $otherOperatingCostsAgreed = null,
         public array $occupancyPeriods = [],
+        public bool $isCommercial = false,
     ) {}
 }

@@ -17,6 +17,7 @@ use App\Notifications\VerifyEmailAddress;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
 
@@ -177,51 +178,46 @@ final class EmailVerificationTest extends TestCase
         Notification::assertSentTo($welt['user'], VerifyEmailAddress::class);
     }
 
-    public function test_verifizierungspflicht_blockiert_die_bestaetigung_vor_der_finalisierung(): void
+    /**
+     * Die Verifizierungspflicht greift vor der Zahlung (Masterprompt 8.1).
+     * Die Pruefbestaetigung selbst gibt es nur noch in Schritt 10 ueber die
+     * Vorschau; der fruehere Weg ueber die Detailseite ist entfernt.
+     */
+    public function test_verifizierungspflicht_blockiert_die_zahlung(): void
     {
         $welt = $this->welt(false);
         $lauf = $this->lauf($welt['organization'], $welt['user']);
 
         $antwort = $this->actingAs($welt['user'])->post(
-            route('portal.abrechnungen.bestaetigen', ['billingRun' => $lauf->getKey()]),
-            ['werte_geprueft' => '1', 'verantwortung_uebernommen' => '1']
+            route('portal.checkout.store', ['billingRun' => $lauf->getKey()]),
+            ['sofortige_ausfuehrung' => '1', 'vertragsgrundlagen' => '1']
         );
 
         $antwort->assertForbidden();
-        self::assertNull($lauf->fresh()?->getAttribute('review_confirmed_at'));
+        self::assertNull($lauf->fresh()?->getAttribute('paid_at'));
     }
 
-    public function test_bestaetigter_nutzer_darf_die_pruefung_bestaetigen(): void
+    public function test_die_pruefbestaetigung_gibt_es_nur_ueber_die_vorschau(): void
     {
         $welt = $this->welt(true);
         $lauf = $this->lauf($welt['organization'], $welt['user']);
 
+        self::assertFalse(Route::has('portal.abrechnungen.bestaetigen'));
+
         $antwort = $this->actingAs($welt['user'])->post(
-            route('portal.abrechnungen.bestaetigen', ['billingRun' => $lauf->getKey()]),
+            '/app/abrechnungen/'.$lauf->getKey().'/bestaetigen',
             ['werte_geprueft' => '1', 'verantwortung_uebernommen' => '1']
         );
 
-        $antwort->assertRedirect(route('portal.abrechnungen.show', ['billingRun' => $lauf->getKey()]));
+        self::assertContains($antwort->getStatusCode(), [404, 405]);
+        self::assertNull($lauf->fresh()?->getAttribute('review_confirmed_at'));
 
-        $frisch = $lauf->fresh();
-        self::assertInstanceOf(BillingRun::class, $frisch);
-        self::assertNotNull($frisch->getAttribute('review_confirmed_at'));
-        self::assertNotNull($frisch->getAttribute('responsibility_confirmed_at'));
-    }
+        // Ohne gueltige Vorschau ist auch der eine Weg gesperrt.
+        $this->actingAs($welt['user'])->post(
+            route('portal.wizard.vorschau.bestaetigen', ['billingRun' => $lauf->getKey()]),
+            ['bestaetigung' => '1']
+        )->assertSessionHasErrors('bestaetigung');
 
-    public function test_ohne_beide_haken_wird_die_bestaetigung_nicht_gespeichert(): void
-    {
-        $welt = $this->welt(true);
-        $lauf = $this->lauf($welt['organization'], $welt['user']);
-
-        $antwort = $this->actingAs($welt['user'])
-            ->from(route('portal.abrechnungen.show', ['billingRun' => $lauf->getKey()]))
-            ->post(
-                route('portal.abrechnungen.bestaetigen', ['billingRun' => $lauf->getKey()]),
-                ['werte_geprueft' => '1']
-            );
-
-        $antwort->assertSessionHasErrors('werte_geprueft');
         self::assertNull($lauf->fresh()?->getAttribute('review_confirmed_at'));
     }
 

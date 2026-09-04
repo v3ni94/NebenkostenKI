@@ -85,6 +85,13 @@
                 <x-hvm.alert variant="success" label="Erledigt">
                     <p>Ihre Bestätigung ist protokolliert. Sie können zur Zahlung fortfahren.</p>
                 </x-hvm.alert>
+
+                <div class="mt-4">
+                    <x-hvm.button href="{{ route('portal.checkout.show', ['billingRun' => $billingRun->getKey()]) }}"
+                                  variant="primary">
+                        Zur Zahlung
+                    </x-hvm.button>
+                </div>
             @else
                 <form method="POST"
                       action="{{ route('portal.wizard.vorschau.bestaetigen', ['billingRun' => $billingRun->getKey()]) }}">

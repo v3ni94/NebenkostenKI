@@ -113,11 +113,9 @@ Route::middleware('organisation')->group(function (): void {
     Route::post('/abrechnungen', [BillingRunController::class, 'store'])->name('abrechnungen.store');
     Route::get('/abrechnungen/{billingRun}', [BillingRunController::class, 'show'])->name('abrechnungen.show');
 
-    // Die Nutzerbestaetigung ist der letzte Schritt vor der Zahlung. Die
-    // E-Mail-Verifizierung ist ab hier verbindlich (Masterprompt 8.1).
-    Route::post('/abrechnungen/{billingRun}/bestaetigen', [BillingRunController::class, 'confirm'])
-        ->middleware('can:email-verified')
-        ->name('abrechnungen.bestaetigen');
+    // Die Nutzerbestaetigung vor der Zahlung erfolgt ausschliesslich in
+    // Schritt 10 (wizard.vorschau.bestaetigen), weil nur dort die Gueltigkeit
+    // der Vorschau geprueft und der Nachweis protokolliert wird.
 
     Route::post('/abrechnungen/{billingRun}/abbrechen', [BillingRunController::class, 'cancel'])
         ->name('abrechnungen.abbrechen');
@@ -204,9 +202,10 @@ Route::middleware('organisation')->group(function (): void {
     // Ausgeliefert werden ausschliesslich vom System erzeugte Dateien, niemals
     // Originaluploads. Jeder Abruf prueft die Eigentuemerschaft. Die
     // E-Mail-Verifizierung ist fuer den finalen Download verbindlich
-    // (Masterprompt 8.1).
+    // (Masterprompt 8.1); die Vorschau mit Wasserzeichen ist davor abrufbar.
+    // Der Controller prueft das Gate email-verified deshalb je Variante.
 
-    Route::middleware(['throttle:downloads', 'can:email-verified'])->group(function (): void {
+    Route::middleware(['throttle:downloads'])->group(function (): void {
         Route::get('/downloads/{generatedDocument}', [DownloadController::class, 'stream'])
             ->name('downloads.stream');
     });
