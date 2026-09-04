@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Ai\Exceptions;
 
+use App\Services\Ai\Dto\AiCallMetadata;
 use RuntimeException;
 
 /**
@@ -45,5 +46,33 @@ abstract class AiException extends RuntimeException
     final public function metadata(): array
     {
         return $this->metadata;
+    }
+
+    /**
+     * Metadaten vorangegangener Provideraufrufe desselben Vorgangs, deren
+     * Ergebnis verworfen wurde, bevor der Folgeaufruf mit dieser Ausnahme
+     * endete (Schema-Fallback). Jeder dieser Aufrufe hat das Dokument
+     * uebertragen und Tokens verbraucht; die Application-Schicht weist ihn
+     * auch im Fehlerpfad in ai_calls nach.
+     *
+     * @var list<AiCallMetadata>
+     */
+    private array $precedingCalls = [];
+
+    final public function withPrecedingCall(AiCallMetadata $metadata): static
+    {
+        // Kein clone: Ausnahmen sind in PHP nicht klonbar. Die Ausnahme wird
+        // ergaenzt und erneut geworfen.
+        $this->precedingCalls = [...$this->precedingCalls, $metadata];
+
+        return $this;
+    }
+
+    /**
+     * @return list<AiCallMetadata>
+     */
+    final public function precedingCalls(): array
+    {
+        return $this->precedingCalls;
     }
 }

@@ -656,6 +656,16 @@ abstract class AbstractHttpAiProvider implements AiDocumentProviderInterface
             throw ProviderFileNotReleasedException::uploadBlocked($this->providerKey());
         }
 
+        // Zweite Pruefung mit aktuellem Stand: Der Kontextwert wurde vor dem
+        // ersten Aufruf berechnet. Ein vorangegangener Aufruf desselben
+        // Vorgangs (Schema-Fallback) kann inzwischen eine Datei hinterlassen
+        // haben, deren Loeschung nicht bestaetigt ist. Dann wird gar nicht
+        // erst hochgeladen, statt die zweite Datei nach dem Upload sofort
+        // wieder zu loeschen.
+        if ($plan->context->observer?->mayCreateProviderFile($this->providerKey()) === false) {
+            throw ProviderFileNotReleasedException::uploadBlocked($this->providerKey());
+        }
+
         return $this->uploadProviderFile($document);
     }
 

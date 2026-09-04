@@ -59,6 +59,26 @@ final class DocumentAiCallObserver implements AiCallObserver
         }
     }
 
+    public function mayCreateProviderFile(string $providerKey): bool
+    {
+        // Frischer Stand aus der Datenbank: Ein vorangegangener Aufruf
+        // desselben Vorgangs kann inzwischen eine offene Datei hinterlassen
+        // haben. Solange sie nicht bestaetigt geloescht ist, wird keine
+        // weitere uebertragen.
+        $this->upload->refresh();
+
+        if (! self::hasUnresolvedProviderFile($this->upload)) {
+            return true;
+        }
+
+        $this->logger->warning('Upload einer weiteren Providerdatei bei offener Loeschung verhindert', [
+            'provider' => $providerKey,
+            'correlation_id' => (string) $this->document->getKey(),
+        ]);
+
+        return false;
+    }
+
     public function providerFileCreated(string $providerKey, string $providerFileId): void
     {
         $provider = AiProviderKey::tryFromKey($providerKey)?->toAiProviderEnum();

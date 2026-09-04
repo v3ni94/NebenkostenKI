@@ -36,6 +36,7 @@ use App\Services\Ai\Providers\AbstractHttpAiProvider;
 use App\Services\Ai\RedactingLogger;
 use App\Services\Queue\DatabaseJobQueue;
 use App\Services\Queue\JobContext;
+use App\Services\Queue\JobFailedException;
 use App\Services\Storage\TemporaryUploadStorage;
 use App\Services\Storage\UploadErrorCode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -348,8 +349,9 @@ class ProviderFileLifecycleTest extends TestCase
             ->pushJson(AiTestFactory::openAiResponseBody($fehlerhaft))
             ->pushJson(['error' => ['code' => 'server_error']], 500);
 
-        // Fallbackprovider: Datei B wird angelegt und muss sofort wieder
-        // geloescht werden, ohne dass ein Verarbeitungsrequest folgt.
+        // Fallbackprovider: Solange Datei A offen ist, darf beim zweiten
+        // Provider gar keine Datei angelegt werden (R10). Waere ein Upload
+        // erreichbar, wuerde er hier beantwortet.
         $anthropic = (new RecordingAiHttpClient)
             ->pushJson(['id' => 'file_b_zweit', 'type' => 'file'])
             ->pushJson(['id' => 'file_b_zweit', 'type' => 'file_deleted']);
@@ -361,10 +363,23 @@ class ProviderFileLifecycleTest extends TestCase
         $this->assertFalse($outcome->permanent);
         $this->assertSame(UploadErrorCode::PROVIDER_LOESCHUNG_OFFEN->value, $outcome->errorCode);
 
-        $this->assertSame([
-            'POST https://api.anthropic.com/v1/files',
-            'DELETE https://api.anthropic.com/v1/files/file_b_zweit',
-        ], $anthropic->urls(), 'Die zweite Datei wird sofort geloescht, ein Verarbeitungsrequest findet nicht statt.');
+        $this->assertSame(
+            [],
+            $anthropic->urls(),
+            'Bei offener Erstdatei erhaelt der Fallbackprovider keinen Request, auch keinen Upload.',
+        );
+
+        // R11: Der Verbrauch des schemafehlerhaften Primaeraufrufs bleibt
+        // trotz des abgebrochenen Zweitaufrufs in ai_calls nachgewiesen.
+        $calls = AiCall::query()->get();
+        $this->assertCount(1, $calls, 'Genau der Primaeraufruf ist nachgewiesen.');
+
+        $primaer = $calls->first();
+        $this->assertNotNull($primaer);
+        $this->assertSame(AiProvider::OPENAI, $primaer->getAttribute('provider'));
+        $this->assertSame(AiCallStatus::SCHEMA_FEHLER, $primaer->getAttribute('status'));
+        $this->assertSame(3, $primaer->getAttribute('attempt'));
+        $this->assertSame(AiIntegrationErrorCode::SCHEMA_UNGUELTIG->value, $primaer->getAttribute('error_code'));
 
         $upload->refresh();
 
@@ -511,6 +526,61 @@ class ProviderFileLifecycleTest extends TestCase
             DocumentProcessingStatus::ABGESCHLOSSEN,
             Document::query()->whereKey($document->getKey())->firstOrFail()->getAttribute('processing_status'),
         );
+    }
+
+    public function test_endgueltig_fehlgeschlagenes_dokument_traegt_nach_dem_letzten_versuch_keine_wiederholungszusage(): void
+    {
+        // R12: Der letzte Versuch scheitert an einem voruebergehenden Code.
+        // Der Code bleibt zur Nachverfolgung erhalten, die Meldung darf aber
+        // keine automatische Wiederholung mehr versprechen, weil die
+        // Quelldatei geloescht ist.
+        [$document, $upload, $prefix] = $this->dokumentMitQuelldatei();
+
+        $upload->forceFill([
+            'provider' => AiProvider::OPENAI,
+            'provider_file_id' => 'file_klassifikation_offen',
+            'provider_deletion_status' => DeletionStatus::FEHLGESCHLAGEN,
+        ])->save();
+
+        $this->app->instance(
+            ProviderFileDeleter::class,
+            $this->deleter((new RecordingAiHttpClient)->setDefaultJson(['error' => ['code' => 'server_error']], 500)),
+        );
+        $this->app->instance(
+            DocumentExtractor::class,
+            $this->extractor($this->router(AiTestFactory::openAiProvider(new RecordingAiHttpClient, inlineMaxBytes: self::FILES_API_GRENZE), AiProviderKey::OPENAI)),
+        );
+
+        $queue = $this->app->make(DatabaseJobQueue::class);
+        $this->app->make(DocumentPipeline::class)->queueExtraction($document);
+
+        $job = $queue->claim('lauf-letzter');
+        $this->assertInstanceOf(ProcessingJob::class, $job);
+
+        // Der geleaste Versuch ist der letzte zulaessige.
+        $job->forceFill(['max_attempts' => (int) $job->getAttribute('attempts')])->save();
+
+        $context = new JobContext($queue, $job, 'lauf-letzter', microtime(true) + 30.0);
+        $this->assertTrue($context->isLastAttempt());
+
+        try {
+            $this->app->make(ExtractDocumentJob::class)->handle($job, $context);
+            $this->fail('Der letzte Versuch muss als endgueltiger Fehler enden.');
+        } catch (JobFailedException $exception) {
+            $this->assertTrue($exception->permanent);
+            $this->assertSame(UploadErrorCode::PROVIDER_LOESCHUNG_OFFEN, $exception->errorCode);
+        }
+
+        $document->refresh();
+
+        $this->assertSame(DocumentProcessingStatus::FEHLGESCHLAGEN, $document->getAttribute('processing_status'));
+        $this->assertSame(UploadErrorCode::PROVIDER_LOESCHUNG_OFFEN->value, $document->getAttribute('failure_code'), 'Der fachliche Code bleibt zur Nachverfolgung erhalten.');
+        $this->assertSame([], Storage::disk(TemporaryUploadStorage::DISK)->allFiles($prefix), 'Die Quelldatei ist geloescht.');
+
+        $meldung = (string) $document->getAttribute('failure_message');
+        $this->assertStringNotContainsString('automatisch wiederholt', $meldung);
+        $this->assertStringContainsString('Quelldatei wurde gelöscht', $meldung);
+        $this->assertStringContainsString('erneut hoch', $meldung);
     }
 
     /**

@@ -7,8 +7,12 @@ namespace Tests\Feature\Privacy;
 use App\Application\Privacy\CreateDataExport;
 use App\Application\Privacy\Dto\DataExportResult;
 use App\Enums\GeneratedDocumentKind;
+use App\Enums\LegalDocumentPurpose;
+use App\Enums\OrganizationRole;
 use App\Models\GeneratedDocument;
+use App\Models\LegalAcceptance;
 use App\Models\Organization;
+use App\Models\OrganizationUser;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
 
@@ -285,6 +289,65 @@ final class DataExportTest extends PrivacyTestCase
 
         $this->assertDatabaseHas('generated_documents', ['id' => $fremd->document->getKey()]);
         self::assertTrue(Storage::disk('local')->exists((string) $fremd->document->getAttribute('storage_path')));
+    }
+
+    public function test_export_im_geteilten_mandanten_enthaelt_nur_eigene_rechtsnachweise_und_eigene_exportanforderungen(): void
+    {
+        // R7: Rechtsnachweise (mit gekuerzter IP und User-Agent-Hash) und die
+        // Metadaten fremder Exportanforderungen gehoeren der jeweiligen
+        // Person, nicht dem Mandanten. Ein Mitglied darf sie nicht erhalten.
+        $a = $this->mandant('A');
+
+        /** @var User $mitglied */
+        $mitglied = User::factory()->create([
+            'name' => 'Mitglied M',
+            'email' => 'm.mitglied@example.test',
+        ]);
+
+        OrganizationUser::query()->create([
+            'organization_id' => $a['organization']->getKey(),
+            'user_id' => $mitglied->getKey(),
+            'role' => OrganizationRole::OWNER,
+            'joined_at' => now(),
+        ]);
+
+        $eigener = $this->rechtsnachweis($a['user'], $a['organization'], '203.0.113.0', 'ua-hash-eigen-a1');
+        $fremder = $this->rechtsnachweis($mitglied, $a['organization'], '198.51.100.0', 'ua-hash-fremd-m1');
+
+        $fremderExport = $this->exportiere($mitglied, $a['organization']);
+        $ergebnis = $this->exportiere($a['user'], $a['organization']);
+
+        $eintraege = $this->zipEintraege((string) $ergebnis->document->getAttribute('storage_path'));
+
+        $rechtsnachweise = $eintraege['daten/rechtsnachweise.json'];
+        self::assertStringContainsString((string) $eigener->getKey(), $rechtsnachweise);
+        self::assertStringContainsString('ua-hash-eigen-a1', $rechtsnachweise);
+        self::assertStringNotContainsString((string) $fremder->getKey(), $rechtsnachweise);
+        self::assertStringNotContainsString('198.51.100.0', $rechtsnachweise);
+        self::assertStringNotContainsString('ua-hash-fremd-m1', $rechtsnachweise);
+
+        $dokumente = $eintraege['daten/erzeugte_dokumente.json'];
+        self::assertStringContainsString((string) $a['statementPdf']->getKey(), $dokumente);
+        self::assertStringContainsString((string) $a['invoicePdf']->getKey(), $dokumente);
+        self::assertStringNotContainsString((string) $fremderExport->document->getKey(), $dokumente);
+        self::assertStringNotContainsString((string) $mitglied->getKey(), $dokumente);
+    }
+
+    private function rechtsnachweis(User $nutzer, Organization $organisation, string $ip, string $userAgentHash): LegalAcceptance
+    {
+        /** @var LegalAcceptance $eintrag */
+        $eintrag = LegalAcceptance::query()->create([
+            'user_id' => $nutzer->getKey(),
+            'organization_id' => $organisation->getKey(),
+            'purpose' => LegalDocumentPurpose::AGB,
+            'document_version' => '2026-01',
+            'document_hash' => hash('sha256', 'agb'),
+            'accepted_at' => now(),
+            'ip_truncated' => $ip,
+            'user_agent_hash' => $userAgentHash,
+        ]);
+
+        return $eintrag;
     }
 
     private function exportiere(User $nutzer, Organization $organisation): DataExportResult

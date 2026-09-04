@@ -25,9 +25,16 @@ final class RecordingAiCallObserver implements AiCallObserver
     /** @var list<AiCallMetadata> */
     public array $aborted = [];
 
+    public bool $allowProviderFile = true;
+
     public function beforeProviderRequest(string $providerKey): void
     {
         $this->heartbeats++;
+    }
+
+    public function mayCreateProviderFile(string $providerKey): bool
+    {
+        return $this->allowProviderFile;
     }
 
     public function providerFileCreated(string $providerKey, string $providerFileId): void

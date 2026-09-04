@@ -17,6 +17,7 @@ use App\Services\Ai\Dto\AnalyzePriorStatementRequest;
 use App\Services\Ai\Dto\DocumentPayload;
 use App\Services\Ai\Dto\ExtractionResult;
 use App\Services\Ai\Dto\ExtractStructuredDataRequest;
+use App\Services\Ai\Exceptions\AiException;
 use App\Services\Ai\Exceptions\CostBasisMissingException;
 use App\Services\Ai\Exceptions\DailyCostLimitExceededException;
 use App\Services\Ai\Exceptions\ProviderFileNotReleasedException;
@@ -108,6 +109,12 @@ final class AiDocumentExtractor implements DocumentExtractor
 
             $result = $this->callProvider($document, $upload, $payload, $type, $schemaKey, $spentMilliCent, $observer);
         } catch (Throwable $exception) {
+            // Auch im Fehlerpfad bleibt der Verbrauch verworfener
+            // Primaeraufrufe (Schema-Fallback) nachgewiesen.
+            if ($exception instanceof AiException) {
+                $this->calls->recordPreceding($document, $exception->precedingCalls());
+            }
+
             return $this->fail($document, $this->failureFor($exception));
         }
 

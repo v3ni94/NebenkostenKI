@@ -102,6 +102,31 @@ enum UploadErrorCode: string
     }
 
     /**
+     * Meldung fuer den Endzustand eines Dokuments.
+     *
+     * Ein voruebergehender Code verspricht in message() eine automatische
+     * Wiederholung. Scheitert der letzte zulaessige Versuch mit diesem Code,
+     * ist die Quelldatei geloescht und es findet keine Wiederholung mehr
+     * statt. Das Dokument traegt dann weiterhin den fachlichen Code zur
+     * Nachverfolgung, aber eine Meldung, die den Endzustand richtig
+     * beschreibt. Endgueltige Codes behalten ihre Meldung.
+     */
+    public function finalMessage(): string
+    {
+        return match ($this) {
+            self::MALWARE_PRUEFUNG_FEHLGESCHLAGEN => 'Die Sicherheitsprüfung war auch nach mehreren Versuchen technisch nicht möglich. Die Quelldatei wurde gelöscht. Bitte laden Sie die Unterlage später erneut hoch.',
+            self::KURZZEITBEREICH_SCHREIBFEHLER => 'Die Datei konnte auch nach mehreren Versuchen nicht im Kurzzeitbereich gespeichert werden. Die Quelldatei wurde gelöscht. Bitte laden Sie die Unterlage erneut hoch.',
+            self::PROVIDER_LOESCHUNG_OFFEN,
+            self::KI_SCHICHT_NICHT_VERFUEGBAR,
+            self::LEASE_ABGELAUFEN,
+            self::UNERWARTETER_FEHLER => 'Die automatische Auswertung war nach mehreren Versuchen nicht möglich. Die Quelldatei wurde gelöscht. Bitte laden Sie die Unterlage erneut hoch oder erfassen Sie die Werte manuell.',
+            // Die Loeschung wird unabhaengig vom Dokumentzustand weiter
+            // wiederholt; die Zusage in message() bleibt zutreffend.
+            default => $this->message(),
+        };
+    }
+
+    /**
      * Endgueltige Fehler werden nicht wiederholt. Die Quelldaten werden sofort
      * geloescht, ein neuer Versuch erfordert einen neuen Upload
      * (Abschnitt 6.3 Schritt 16).
