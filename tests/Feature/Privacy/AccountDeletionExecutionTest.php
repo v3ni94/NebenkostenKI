@@ -383,10 +383,13 @@ final class AccountDeletionExecutionTest extends PrivacyTestCase
             }
         });
 
-        TemporaryUpload::query()->whereKey($this->offenerUploadId)->update([
+        // Ueber das Modell, damit der verschluesselnde Cast auf
+        // provider_file_id greift (ein Query-Builder-Update schriebe Klartext,
+        // den das Modell beim Lesen nicht entschluesseln kann).
+        TemporaryUpload::query()->whereKey($this->offenerUploadId)->firstOrFail()->forceFill([
             'provider' => AiProvider::OPENAI->value,
             'provider_file_id' => 'file-testfall-0815',
-        ]);
+        ])->save();
 
         $this->beantrageUndWarte($a);
 

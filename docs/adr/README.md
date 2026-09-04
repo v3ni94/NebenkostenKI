@@ -25,6 +25,9 @@ mit Messwerten.
 | ADR-013 | Final-PDFs entstehen auf demselben Renderweg wie die Vorschau | ARCHITECTURE.md |
 | ADR-014 | Heizkostenfall B wird manuell erfasst, nicht selbst gerechnet | ARCHITECTURE.md |
 | ADR-015 | Zweitfaktor selbst implementiert, ohne neue Abhängigkeit | ARCHITECTURE.md |
+| ADR-016 | Korrektur nach Zahlung ist zum Start nicht verfügbar | ARCHITECTURE.md |
+| ADR-017 | XLSX wird zum Start nicht ausgewertet | ARCHITECTURE.md |
+| ADR-018 | Anwendungszeitzone Europe/Berlin | ARCHITECTURE.md |
 
 ## Vorlage für eine neue Entscheidung
 

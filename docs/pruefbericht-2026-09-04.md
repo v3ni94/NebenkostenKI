@@ -150,3 +150,40 @@ Steuer- und Bankdaten mit `HVM_MASTERDATA_CONFIRMED`, Stripe-Schlüssel, KI-Frei
 5. H14, H17, H18, H19, H20 und die mittleren Sicherheitspunkte (TOTP-Replay, Sitzungen, Bestätigungslink).
 6. Entscheidung Geschäftsführung zu H5 (Korrektur nach Zahlung), H15 (Vermieterdaten), H16 (Überführung weiterer Dokumentarten): umsetzen oder für den Start ausdrücklich ausschließen und in Doku, Preisseite und Livegang-Blockern kennzeichnen.
 7. Verifikation der 23 ungeprüften Meldungen, dann zweiter Prüflauf für die Bereiche mit nur einer Runde.
+
+## 11. Stand der Behebung (04.09.2026, abends)
+
+Alle 85 bestätigten Befunde und alle 23 ungeprüften Meldungen wurden bearbeitet. Die 23 ungeprüften Meldungen wurden vor der Behebung im Code nachverifiziert; alle 23 erwiesen sich als real, darunter der Blocker zur externen Heizkostenabrechnung (Fall A). Kein Befund wurde als widerlegt zurückgegeben.
+
+Vorgehen: acht Arbeitspakete nach Dateizuständigkeit (Geld und Verteilung, Betragseingaben, Zahlung und Webhook, Wizard und Klickpfad, Betrieb und Konfiguration, KI und Kurzzeitbereich, Konto und Datenschutz, Vermieterdaten), je Paket eine eigene Git-Arbeitskopie, je Befund ein Regressionstest auf dem Anwendungsweg, danach Zusammenführung mit drei aufgelösten Konflikten und ein Gesamtlauf.
+
+| Prüfung nach Zusammenführung | Ergebnis |
+|---|---|
+| Pint | bestanden |
+| PHPStan Level 6 | keine Fehler |
+| PHPUnit | 2.279 Tests, 14.253 Assertions (vorher 2.011 Tests) |
+
+Drei Punkte wurden nicht als Funktion umgesetzt, sondern für den Start bewusst ausgeschlossen und überall ehrlich gekennzeichnet: Korrektur nach Zahlung (ADR-016), XLSX-Auswertung (ADR-017), Überführung von Mietvertrag, Vorjahresabrechnung, Mieterliste, Zahlungsübersicht und Zählerliste in Fachdaten (ARCHITECTURE.md Abschnitt 11.1). Vermieterdaten als Absender wurden umgesetzt.
+
+Aus der Behebung neu bekannte, noch offene Punkte stehen in ARCHITECTURE.md Abschnitt 11 (Personentage bei Leerstand, Dezimaleingabe bei Direktzuordnung, Lease-Inhaber der Jobwarteschlange, Sperre beim Entpacken von Archiven, Notfallbefehl für den Zweitfaktor).
+
+Entscheidungen, die die Geschäftsführung bestätigen sollte, sind in Abschnitt 12 gesammelt.
+
+## 12. Vorlagen für die Geschäftsführung aus der Behebung
+
+1. Steuerzerlegung der Betreiberrechnung: Netto und Umsatzsteuer werden jetzt je Einzelpreis zurückgerechnet und summiert, nicht aus der Bruttosumme. Das verschiebt bei mehreren Abrechnungen einzelne Cent zwischen Netto und Steuer. Mit dem Steuerberater bestätigen.
+2. Zahlungseingang ohne freischaltbaren Lauf (Abbruch, Löschung, geänderter Berechnungsstand): Das System hält die Zahlung fest und zeigt sie unter Zahlungsnachlauf im Adminbereich. Erstattung oder Zuordnung wird je Fall kaufmännisch entschieden. Bei unverändertem Berechnungsstand nach Nutzerabbruch wird der Lauf freigeschaltet und die Leistung geliefert.
+3. Rechnungsanschrift ist für jeden Checkout Pflicht, nicht nur oberhalb von 250 EUR.
+4. Finalisierung und Rechnung werden alle 15 Minuten automatisch nachgeholt, die Rechnungsmail wird dabei automatisch gesendet.
+5. Gewerbliche Mietverhältnisse sind technisch gesperrt, bis eine Gewerbeumsetzung erfolgt. Hinweistext freigeben.
+6. Kalkulationsbasis für die OpenAI-Modelle in config/ai.php aus der offiziellen Preisliste eintragen, sonst meldet check-config bei gesetztem Tageslimit einen Fehler. Alternativ Anthropic als Primärprovider oder Betrieb ohne Tageslimit.
+7. Höhe des Tagesbudgets je Nutzer festlegen oder bewusst ohne Limit betreiben.
+8. Anwendungszeitzone Europe/Berlin: Produktionsdatenbank vor dem Livegang frisch aufsetzen.
+9. Vor Livegang manueller Browserlauf des Bezahlschritts gegen Stripe im Testmodus in Chrome und Safari, weil die browserseitige CSP-Prüfung nicht per HTTP-Test abbildbar ist.
+10. Betriebliche Festlegungen bestätigen: 3 Datenexporte je Nutzer und Tag, nur der jüngste Export wird bereitgehalten; Erinnerung 5 Tage vor Kontolöschung; Löschantrag verlangt das aktuelle Passwort; Verarbeitungsfehler-Mail gilt als kritische Kontonachricht und geht auch an abgemeldete Adressen.
+11. Rechtematrix der Adminrollen: SUPPORT darf Kundenkonten sperren und Zweitfaktor zurücksetzen, aber keine Stornorechnungen und keine internen Kennungen anfassen; FINANCE darf Stornorechnungen, aber keine Nutzerverwaltung. Ob FINANCE Supportzugriff auf Kundendaten braucht, ist offen.
+12. Objekte mit abgeschlossenen oder abgebrochenen Läufen sind nicht mehr löschbar. Ob ein Archivierungsweg gewünscht ist, ist zu entscheiden.
+13. Sollsumme der Vorauszahlungen bei angebrochenen Monaten wird taggenau innerhalb des Monats gebildet. Falls die volle Monatsrate ab Einzug gelten soll, ist das anzupassen.
+14. Unbestätigte Vorjahresschlüssel aus der Folgejahresübernahme blockieren Schritt 8 bis zur Bestätigung.
+15. Externe Heizkostenanteile (Fall A) werden als Vorschläge mit Kategorie Heizung erzeugt, ohne Trennung Heizung und Warmwasser. Bei gewünschter Trennung ist das Extraktionsschema zu erweitern.
+16. Bestandsnutzer mit offenen Läufen ohne Vermieter müssen den Vermieter nachtragen, bevor Vorschau und Zahlung möglich sind.

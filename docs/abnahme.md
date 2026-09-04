@@ -24,7 +24,7 @@ In der Prüfung wurde **ein echter Fehler** gefunden und behoben: die Umrechnung
 eines Eurobetrags aus der Kostenprüfung lief über einen `float`-Zwischenschritt
 und verstieß damit gegen Grundsatz 8. Dazu ist ein Test entstanden.
 
-Prüfstand nach der Korrektur:
+Prüfstand nach der Korrektur (die spätere Vollprüfung vom 04.09.2026 mit ihren Ergebnissen ist in [pruefbericht-2026-09-04.md](pruefbericht-2026-09-04.md) protokolliert):
 
 ```
 php artisan test
@@ -341,7 +341,7 @@ abgeschrieben, sondern ausgeführt.
 | B4 | blockierend | Uploads | `MALWARE_SCANNER_DRIVER=disabled`. Zu entscheiden ist `clamav`, `external` oder eine schriftliche Risikobewertung | Betreiber |
 | B5 | blockierend | Recht | Impressum, Datenschutzerklärung, AGB und Widerrufsbelehrung sind Platzhalterfassungen | Betreiber über die beauftragte Rechtsanwaltskanzlei |
 | B6 | blockierend | Gestaltung | in `public/ci` fehlt `Logo_HVM.svg` oder `Logo_HVM.jpg` | Betreiber; es wird kein Logo erzeugt oder nachgezeichnet |
-| B7 | Entscheidung | Preis | `PRICE_CORRECTION_FREE_DAYS` ist nicht gesetzt, es gilt der Standard von null Tagen kostenfreier Korrektur | Geschäftsführung, kaufmännische Entscheidung |
+| B7 | entfallen | Preis | Die Korrektur nach Zahlung ist zum Start nicht verfügbar (ADR-016), `PRICE_CORRECTION_FREE_DAYS` hat keine Wirkung und ist kein Blocker mehr | Geschäftsführung entscheidet über eine spätere Umsetzung |
 
 Nicht technisch erkennbar und deshalb nicht in der Blockerliste, aber vor dem
 Livegang zu erledigen:

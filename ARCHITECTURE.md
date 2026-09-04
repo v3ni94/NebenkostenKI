@@ -3,13 +3,17 @@
 **Projekt:** KI-gestütztes Nebenkostenabrechnungsportal
 **Kanonische Domain:** `https://smart-abrechnen.de`
 **Betreiber:** Hausverwaltung Müller GmbH
-**Stand dieses Dokuments:** 01.09.2026
+**Stand dieses Dokuments:** 04.09.2026
 **Status:** Phasen 0 bis 5 umgesetzt, dazu die manuelle Heizkostenerfassung für
 Fall B (ADR-014), der Zweitfaktor (ADR-015), die Verschlüsselung des
-Kurzzeitbereichs und das Installationspaket für IONOS. 2.008 Tests mit 12.672 Assertions grün,
-PHPStan Level 6 projektweit fehlerfrei, Pint sauber. Der Livegang ist
-ausschließlich durch Betreiberangaben blockiert, nicht durch offene
-Entwicklungsarbeit. Die unabhängige Abschlussprüfung ist in
+Kurzzeitbereichs und das Installationspaket für IONOS. Am 04.09.2026 wurde eine
+Vollprüfung mit adversarialer Gegenprüfung durchgeführt
+([docs/pruefbericht-2026-09-04.md](docs/pruefbericht-2026-09-04.md)); alle 85
+bestätigten und 23 nachverifizierten Befunde sind behoben, drei Funktionen sind
+für den Start bewusst ausgeschlossen (ADR-016 bis ADR-018). 2.279 Tests mit
+14.253 Assertions grün, PHPStan Level 6 projektweit fehlerfrei, Pint sauber. Der
+Livegang ist durch Betreiberangaben und den Staging-Nachweis blockiert, nicht
+durch offene Entwicklungsarbeit. Die frühere Abschlussprüfung ist in
 [docs/abnahme.md](docs/abnahme.md) protokolliert.
 
 Dieses Dokument hält die Architekturentscheidungen fest. Es ist die
@@ -378,6 +382,62 @@ gehasht; ein verbrauchter Code ist entwertet. Ein QR-Bild wird bewusst nicht
 erzeugt, weil es eine weitere Abhängigkeit erfordern würde; die otpauth-URI und
 der abtippbare Schlüssel genügen.
 
+### ADR-016: Korrektur nach Zahlung ist zum Start nicht verfügbar
+
+**Kontext.** Der Masterprompt sieht eine Korrektur einer bezahlten Abrechnung vor,
+kostenfrei innerhalb einer Frist, danach gegen Entgelt. Im Code waren
+`CorrectionPriceRule`, `RecordCorrection` und `FinalizeBillingRun::markReplaced`
+vorbereitet, aber ohne Einstieg: keine Route, kein Statusübergang aus
+`FINALIZED`, keine Neuberechnung. Die Prüfung vom 04.09.2026 (Befunde B16 und
+B35) hat gezeigt, dass die Konfiguration `PRICE_CORRECTION_FREE_DAYS` damit eine
+Zusage darstellte, die technisch nicht eingelöst wurde.
+
+**Entscheidung.** Die Korrektur nach Zahlung wird für den Start nicht umgesetzt.
+Korrekturen erfolgen über einen neuen Abrechnungslauf zum regulären Preis. Die
+Funktion ist überall ehrlich als nicht verfügbar gekennzeichnet: kein
+Livegang-Blocker zur Korrekturfrist, Hinweis im Downloadbereich, Kommentar in
+`.env.example`. Die vorbereiteten Klassen bleiben als Grundlage einer späteren
+Umsetzung im Code.
+
+**Alternativen.** Vollständige Umsetzung mit Statusübergang `FINALIZED` nach
+Korrektur, Snapshot-Neuversion, Preisentscheid und zweiter Finalisierung. Abgelehnt
+für den Start wegen des Umfangs (mehrere Tage) und der Wechselwirkung mit
+Rechnungsstellung und Stornologik.
+
+**Konsequenzen.** Ob und wann die Funktion kommt, entscheidet die
+Geschäftsführung. Bis dahin darf keine Website- oder Vertragsformulierung eine
+kostenfreie Korrekturfrist zusagen.
+
+### ADR-017: XLSX wird zum Start nicht ausgewertet
+
+**Kontext.** Der Uploaddialog nahm `.xlsx` an, die Auswertung scheiterte
+anschließend, weil die Provider Tabellen nicht verarbeiten und keine serverseitige
+Umwandlung existiert (Befund B60).
+
+**Entscheidung.** XLSX wird bereits bei der Uploadanfrage mit klarer
+Handlungsanweisung abgelehnt (CSV oder PDF). Eine serverseitige Umwandlung ist
+nicht Teil des Startumfangs.
+
+**Konsequenzen.** Der Hinweistext im Uploaddialog und das `accept`-Attribut nennen
+XLSX nicht mehr. Eine spätere Umwandlung je Tabellenblatt in Text bleibt möglich,
+ohne die Uploadkette zu ändern.
+
+### ADR-018: Anwendungszeitzone Europe/Berlin
+
+**Kontext.** Die Anwendung lief fest in UTC. Rechnungsdatum, Nummernkreisjahr und
+der Tageswechsel des KI-Budgets wurden in UTC bestimmt; eine Zahlung am
+01.01. um 00:30 Uhr deutscher Zeit erhielt eine Rechnung des Vorjahres
+(Befunde B41, B64, B74).
+
+**Entscheidung.** `config/app.php` setzt die Zeitzone auf `APP_TIMEZONE` mit
+Standard `Europe/Berlin`. Rechnungsdatum, Nummernkreisjahr und Tagesgrenzen
+werden in dieser Zeitzone gebildet.
+
+**Konsequenzen.** Eloquent speichert Zeitstempel in Ortszeit. Vor dem Livegang
+wird die Produktionsdatenbank frisch aufgesetzt; bestehende Staging-Datenbanken
+zeigen bis dahin um ein bis zwei Stunden verschobene Zeitstempel.
+
+
 ## 4. Ordnerstruktur
 
 Ist-Zustand nach Abschluss der Phasen 0 bis 5.
@@ -728,7 +788,7 @@ mit einem MariaDB-Service. Ein grüner lokaler Lauf ist kein Ersatz dafür.
 
 ## 10. Umsetzungsphasen und Status
 
-Stand 01.09.2026, nachgeprüft in der Abschlussprüfung.
+Stand 04.09.2026, nachgeprüft in der Abschlussprüfung vom 01.09.2026 und der Vollprüfung vom 04.09.2026.
 
 | Phase | Inhalt | Status |
 | --- | --- | --- |
@@ -737,7 +797,8 @@ Stand 01.09.2026, nachgeprüft in der Abschlussprüfung.
 | 2 | Providerinterface, OpenAI, Anthropic, Schemata mit Quellenbezug, Hausgeld-, Grundsteuer-, Mietvertrags-, Vorjahres- und Heizkostenextraktion, Dubletten und Reconciliation, Prüfoberfläche | abgeschlossen; produktiver Betrieb bleibt bis zur Datenschutzfreigabe des Providers technisch blockiert |
 | 3 | Domain-Engine, Regeln und Warnungen, Wizard, Schnellweg, Vollobjektweg, PDF mit Wasserzeichen und Eigentümerübersicht | abgeschlossen |
 | 4 | Preislogik, Stripe Checkout und Webhooks, Finalisierung und ZIP, HVM-Rechnung, IONOS-SMTP und Templates, Folgejahresübernahme und Erinnerungen | abgeschlossen; SMTP und Stripe sind gegen Fakes und mit Signaturprüfung getestet, der Nachweis am echten Postfach und am echten Stripe-Konto steht aus |
-| 5 | Adminbereich und Blocker, DSGVO-Export und Löschung, Backups und Restore-Test, GitHub Actions und SFTP-Deployment, Last-, Sicherheits- und E2E-Tests, Abnahme | abgeschlossen mit einer benannten Lücke: der Übertragungsschritt in `deploy.yml` ist bewusst noch nicht aktiviert und wartet auf Zielpfad und Zugangsdaten des IONOS-Kontos |
+| 5 | Adminbereich und Blocker, DSGVO-Export und Löschung, Backups und Restore-Test, GitHub Actions und SFTP-Deployment, Last-, Sicherheits- und E2E-Tests, Abnahme | abgeschlossen; der Übertragungsschritt in `deploy.yml` ist aktiviert und wartet auf die SFTP-Secrets des IONOS-Kontos |
+| Prüfung | Vollprüfung vom 04.09.2026 mit 15 Suchagenten und dreifacher Gegenprüfung, Behebung in acht Arbeitspaketen (Geld, Betragseingaben, Zahlung, Wizard, Betrieb, KI und Kurzzeitbereich, Konto, Vermieter) | abgeschlossen; 85 bestätigte und 23 nachverifizierte Befunde behoben, drei Ausschlüsse per ADR-016 bis ADR-018 |
 
 Die Berechnungsengine aus Phase 3 wurde bewusst früh gebaut, weil sie die
 fachliche Grundlage ist und ohne Infrastruktur testbar bleibt.
@@ -761,15 +822,20 @@ ausschließlich in der Blockerliste des Adminbereichs und in
 | Rechtstexte ohne anwaltliche Freigabe | hoch, blockiert Livegang | Platzhalter mit Blocker im Adminbereich |
 | Steuer- und Bankdaten der HVM nicht bestätigt | hoch, blockiert Rechnungserzeugung | sichtbarer Platzhalter und Admin-Blocker |
 | Externe Heizkostenabrechnungen sind formatvielfältig | mittel, Extraktionsqualität | Prüfsumme gegen Gesamtbetrag, Abweichung blockiert Finalisierung |
-| Gewerbemietverhältnisse | mittel | im Datenmodell vorbereitet, keine automatische Finalisierung, klarer Hinweis |
+| Gewerbemietverhältnisse | mittel | technisch gesperrt: Regel `GEWERBE_MIETVERHAELTNIS` ist ein nicht auflösbarer Blocker, Vorschau und Zahlung sind für Läufe mit Gewerbeeinheit nicht möglich (Befund B33). Gesonderte Gewerbeumsetzung offen |
 | mPDF-Layouttreue bei sehr langen Tabellen | niedrig | Seitenumbruchtests je Template, konservatives CSS |
 | mPDF verändert `mb_internal_encoding` global und lässt es auf Windows-1252 stehen | behoben | `PdfEngine` sichert und restauriert die mbstring-Einstellungen in einem `finally`; Regressionstest vorhanden. Ohne diese Sicherung wurden `.env`-Werte beim nächsten Bootvorgang doppelt kodiert. |
 | Tests sind bei gleichzeitig laufenden Testprozessen nicht isoliert | niedrig | Gemeinsam genutzt werden `storage/framework/testing` (`Storage::fake`), `storage/framework/views` (kompilierte Templates) und der Anwendungslog. Der Standardlauf ist sequenziell und stabil. Vor einer Parallelisierung in der CI ist je Prozess ein eigenes Verzeichnis für Testdisks und View-Cache zu setzen. |
 | CSP benötigt `unsafe-eval` für den Alpine-Standardbuild | mittel | **offen.** `SecurityHeaders` setzt `script-src` weiterhin mit `'unsafe-eval'` (Zeile 103). Umgang: Wechsel auf `@alpinejs/csp` und Umschreiben der `x-data`-Ausdrücke, danach `unsafe-eval` entfernen. Verantwortlich: technische Betreuung |
-| Registrierung verrät über die Eindeutigkeitsprüfung, ob eine E-Mail bereits ein Konto hat | mittel | **offen.** Die Meldung `email.unique` ist neutral formuliert, die Prüfung selbst bleibt aber unterscheidbar. Umgang: bei vorhandener Adresse dieselbe Bestätigungsseite ausliefern und stattdessen eine Hinweismail an die bestehende Adresse senden. Berührt den Mailversand. Verantwortlich: technische Betreuung |
+| Registrierung und Adressänderung verraten, ob eine E-Mail bereits ein Konto hat | niedrig | Registrierung und Adressänderung antworten identisch, bei belegter Adresse geht eine Hinweismail an die Bestandsadresse (Befund B68). Ein Restorakel über die Kontoseite bleibt, bis ein Pending-E-Mail-Verfahren (Wechsel erst nach Bestätigung der neuen Adresse) umgesetzt ist. Verantwortlich: technische Betreuung |
 | Einwilligungen werden nicht in `legal_acceptances` protokolliert | **erledigt** | `StartCheckout` und `ReviewConfirmation` schreiben Textversion, Zweck und Zeitpunkt. Nachweis: `Feature/Payment/CheckoutTest::test_die_zustimmungen_landen_datensparsam_in_legal_acceptances` und `Feature/Wizard/PreviewStepTest::test_die_bestaetigung_wird_in_legal_acceptances_protokolliert` |
 | Eurobeträge aus der Kostenprüfung wurden über `float` in Cent umgerechnet | **erledigt** | Verstoß gegen Grundsatz 8, in der Abschlussprüfung am 01.09.2026 festgestellt und behoben. `UpdateCostItemRequest::cent()` rechnet jetzt wie `StorePrepaymentsRequest` ausschließlich über `BigDecimal`. Nachweis: `Feature/Review/CostReviewTest::test_eurobetraege_werden_exakt_in_cent_umgerechnet` mit sechs Betragsvarianten |
-| Der Übertragungsschritt des SFTP-Deployments ist nicht aktiviert | mittel, blockiert den Livegang | **offen.** `deploy.yml` baut und testet das Releasepaket vollständig, der Auslieferungsjob gibt bislang nur die Schrittfolge aus. Umgang: Aktivierung erst mit bestätigtem Zielpfad und Zugangsdaten, danach ein Smoke-Test gegen ein neues Releaseverzeichnis vor dem Umschalten des Releasezeigers. Verantwortlich: Betreiber stellt Zugang, technische Betreuung aktiviert |
+| Der Übertragungsschritt des SFTP-Deployments ist aktiviert, aber ohne Zugangsdaten | mittel, blockiert den Livegang | `deploy.yml` liefert per `bin/deploy-sftp.php` aus, sobald die Secrets gesetzt sind. Ein abgebrochener Upload wird verworfen und ist kein Rollback-Ziel (Befund B54). Verantwortlich: Betreiber stellt Zugang |
+| Personentage-Schlüssel gibt erfassten Leerständen das Gewicht null | mittel | **offen.** Beobachtung aus der Behebung vom 04.09.2026: Der Nenner ist die Zählersumme der Mieter, der Leerstandsanteil geht auf die Mieter über. Umgang: Leerstand als eigener Beteiligter mit Personentagen null führen und den Restanteil beim Eigentümer ausweisen, analog zur Behebung bei Verbrauch und manuellen Heizkosten. Verantwortlich: technische Betreuung |
+| Direktzuordnung in Schritt 8 interpretiert Dezimaleingaben als Cent | mittel | **offen.** `DirectAssignmentKey` kann bei einer Eingabe wie 300,50 in `amountFor()` eine Rundungsausnahme auslösen. Umgang: Eingabe über `EuroAmountInput` in Cent wandeln, wie bei den übrigen Betragsfeldern. Verantwortlich: technische Betreuung |
+| `DatabaseJobQueue::succeed()` und `fail()` prüfen den Lease-Inhaber nicht | niedrig | **offen.** Nach Lease-Ablauf könnte ein verspäteter Erstprozess den Job eines zweiten Prozesses abschließen. Der Heartbeat (Befund B51) verkleinert das Fenster. Umgang: Lease-Token beim Abschluss vergleichen. Verantwortlich: technische Betreuung |
+| `ExpandArchive::nextSequenceNumber()` vergibt Nummern ohne Sperre | niedrig | **offen.** `StartUpload` sperrt den Lauf (Befund B57), das Entpacken von Archiven noch nicht. Umgang: dieselbe Sperre je Eintrag. Verantwortlich: technische Betreuung |
+| Kein Notfallbefehl für den einzigen Administrator ohne Zweitfaktor | niedrig | **offen.** Der Zweitfaktor-Reset ist als Admin-Aktion mit Begründung und Audit umgesetzt (Befund B62). Verliert die einzige Adminkennung ihren Zweitfaktor, hilft nur `smartabrechnen:admin:create` für eine zweite Kennung. Umgang: `smartabrechnen:admin:reset-2fa` ergänzen und im Betriebshandbuch beschreiben. Verantwortlich: technische Betreuung |
 | Der Nachweis „kein Dateiinhalt in der Datenbank“ prüft eine feste Tabellenliste | niedrig | **offen.** `NoOriginalLeakTest::test_kein_dateiinhalt_in_der_gesamten_datenbank` prüft fünf namentlich genannte Tabellen. Eine künftig ergänzte Tabelle fällt nicht automatisch in die Prüfung. Umgang: Tabellenliste aus dem Schema ableiten, sobald der Testlauf verbindlich gegen MariaDB fährt. Verantwortlich: technische Betreuung |
 | Ausnahmemeldungen in Logeinträgen der Zahlungs- und Mailschicht | niedrig | akzeptiert. Protokolliert werden Referenz-IDs und `getMessage()` einer Ausnahme, nicht Dokumentinhalte. Die Dokumentpipeline schreibt keine Ausnahmetexte in den Log. `Feature/Deletion/NoOriginalLeakTest::test_kein_dateiinhalt_in_den_logs` belegt, dass der Verarbeitungsweg log-frei von Inhalten bleibt |
 
