@@ -32,6 +32,7 @@ use App\Services\Ai\Http\AiHttpResponse;
 use App\Services\Ai\Integration\AiIntegrationErrorCode;
 use App\Services\Ai\Integration\AiProviderFileDeleter;
 use App\Services\Ai\ProviderReleaseGate;
+use App\Services\Ai\Providers\AbstractHttpAiProvider;
 use App\Services\Ai\RedactingLogger;
 use App\Services\Queue\DatabaseJobQueue;
 use App\Services\Queue\JobContext;
@@ -249,6 +250,10 @@ class ProviderFileLifecycleTest extends TestCase
             'provider_deletion_status' => DeletionStatus::FEHLGESCHLAGEN,
         ])->save();
 
+        // Der Loeschpfad erreicht den Provider weiterhin nicht.
+        $loeschversuche = (new RecordingAiHttpClient)->setDefaultJson(['error' => ['code' => 'server_error']], 500);
+        $this->app->instance(ProviderFileDeleter::class, $this->deleter($loeschversuche));
+
         $http = new RecordingAiHttpClient;
 
         $outcome = $this->extractor($this->router(AiTestFactory::openAiProvider($http, inlineMaxBytes: self::FILES_API_GRENZE), AiProviderKey::OPENAI))
@@ -257,6 +262,123 @@ class ProviderFileLifecycleTest extends TestCase
         $this->assertFalse($outcome->successful);
         $this->assertSame(0, $http->callCount(), 'Es darf keine zweite Providerdatei angelegt werden, solange die erste offen ist.');
         $this->assertSame('file_klassifikation_offen', $upload->refresh()->getAttribute('provider_file_id'), 'Die offene ID bleibt erhalten.');
+
+        // N27: Die Loeschung wurde mit der bekannten ID erneut versucht, und der
+        // Wartefall ist ein voruebergehender Fehler ohne Dateiformatmeldung.
+        $this->assertSame('DELETE https://api.openai.com/v1/files/file_klassifikation_offen', $loeschversuche->urls()[0]);
+        $this->assertSame(UploadErrorCode::PROVIDER_LOESCHUNG_OFFEN->value, $outcome->errorCode);
+        $this->assertFalse($outcome->permanent, 'Ein gueltiges PDF darf wegen einer offenen Providerdatei nicht endgueltig scheitern.');
+        $this->assertNotSame(UploadErrorCode::ERWEITERUNG_UNZULAESSIG->value, $outcome->errorCode);
+    }
+
+    public function test_offene_klassifikationsdatei_wird_vor_der_extraktion_geloescht_und_die_extraktion_laeuft_normal(): void
+    {
+        [$document, $upload] = $this->dokumentMitQuelldatei();
+
+        $upload->forceFill([
+            'provider' => AiProvider::OPENAI,
+            'provider_file_id' => 'file_klassifikation_offen',
+            'provider_deletion_status' => DeletionStatus::FEHLGESCHLAGEN,
+        ])->save();
+
+        // Der Loeschpfad erreicht den Provider jetzt.
+        $loescher = (new RecordingAiHttpClient)->setDefaultJson(['id' => 'file_klassifikation_offen', 'deleted' => true]);
+        $this->app->instance(ProviderFileDeleter::class, $this->deleter($loescher));
+
+        $http = (new RecordingAiHttpClient)
+            ->pushJson(['id' => 'file_extraktion_0001', 'object' => 'file'])
+            ->pushJson(AiTestFactory::openAiResponseBody(AiTestFactory::fixture('hausgeldabrechnung.json')))
+            ->pushJson(['id' => 'file_extraktion_0001', 'deleted' => true]);
+
+        $outcome = $this->extractor($this->router(AiTestFactory::openAiProvider($http, inlineMaxBytes: self::FILES_API_GRENZE), AiProviderKey::OPENAI))
+            ->extract($document, $upload);
+
+        $this->assertTrue($outcome->successful, $outcome->errorCode ?? '');
+        $this->assertSame(['DELETE https://api.openai.com/v1/files/file_klassifikation_offen'], $loescher->urls());
+        $this->assertSame(3, $http->callCount(), 'Nach bestaetigter Loeschung darf die Extraktion ueber die Files-API laufen.');
+
+        $upload->refresh();
+
+        $this->assertNull($upload->getAttribute('provider_file_id'));
+        $this->assertSame(DeletionStatus::ERFOLGREICH, $upload->getAttribute('provider_deletion_status'));
+    }
+
+    public function test_offene_providerdatei_laesst_das_dokument_fuer_die_wiederholung_in_der_extraktion(): void
+    {
+        [$document, $upload, $prefix] = $this->dokumentMitQuelldatei();
+
+        $upload->forceFill([
+            'provider' => AiProvider::OPENAI,
+            'provider_file_id' => 'file_klassifikation_offen',
+            'provider_deletion_status' => DeletionStatus::FEHLGESCHLAGEN,
+        ])->save();
+
+        $this->app->instance(
+            ProviderFileDeleter::class,
+            $this->deleter((new RecordingAiHttpClient)->setDefaultJson(['error' => ['code' => 'server_error']], 500)),
+        );
+        $this->app->instance(
+            DocumentExtractor::class,
+            $this->extractor($this->router(AiTestFactory::openAiProvider(new RecordingAiHttpClient, inlineMaxBytes: self::FILES_API_GRENZE), AiProviderKey::OPENAI)),
+        );
+
+        $outcome = $this->app->make(StartExtraction::class)($document);
+
+        $document->refresh();
+
+        $this->assertFalse($outcome->successful);
+        $this->assertFalse($outcome->permanent);
+        $this->assertSame(DocumentProcessingStatus::EXTRAKTION, $document->getAttribute('processing_status'), 'Das Dokument wartet auf die Wiederholung.');
+        $this->assertNull($document->getAttribute('failure_code'));
+        $this->assertNotSame([], Storage::disk(TemporaryUploadStorage::DISK)->allFiles($prefix), 'Die Quelldatei bleibt fuer den naechsten Versuch erhalten.');
+    }
+
+    public function test_zweite_providerdatei_im_schema_fallback_ueberschreibt_die_offene_erste_nicht(): void
+    {
+        [$document, $upload] = $this->dokumentMitQuelldatei(DocumentType::RECHNUNG);
+
+        $fehlerhaft = AiTestFactory::fixture('rechnung_bescheid_schemaverletzung.json');
+
+        // Primaerprovider: Datei A wird angelegt, drei Antworten verletzen das
+        // Schema, die Loeschung von A scheitert.
+        $openai = (new RecordingAiHttpClient)
+            ->pushJson(['id' => 'file_a_offen', 'object' => 'file'])
+            ->pushJson(AiTestFactory::openAiResponseBody($fehlerhaft))
+            ->pushJson(AiTestFactory::openAiResponseBody($fehlerhaft))
+            ->pushJson(AiTestFactory::openAiResponseBody($fehlerhaft))
+            ->pushJson(['error' => ['code' => 'server_error']], 500);
+
+        // Fallbackprovider: Datei B wird angelegt und muss sofort wieder
+        // geloescht werden, ohne dass ein Verarbeitungsrequest folgt.
+        $anthropic = (new RecordingAiHttpClient)
+            ->pushJson(['id' => 'file_b_zweit', 'type' => 'file'])
+            ->pushJson(['id' => 'file_b_zweit', 'type' => 'file_deleted']);
+
+        $outcome = $this->extractor($this->routerMitFallback($openai, $anthropic, self::FILES_API_GRENZE))
+            ->extract($document, $upload);
+
+        $this->assertFalse($outcome->successful);
+        $this->assertFalse($outcome->permanent);
+        $this->assertSame(UploadErrorCode::PROVIDER_LOESCHUNG_OFFEN->value, $outcome->errorCode);
+
+        $this->assertSame([
+            'POST https://api.anthropic.com/v1/files',
+            'DELETE https://api.anthropic.com/v1/files/file_b_zweit',
+        ], $anthropic->urls(), 'Die zweite Datei wird sofort geloescht, ein Verarbeitungsrequest findet nicht statt.');
+
+        $upload->refresh();
+
+        // Die erste, nicht bestaetigt geloeschte Datei bleibt nachverfolgbar
+        // und wird nicht als geloescht ausgewiesen.
+        $this->assertSame('file_a_offen', $upload->getAttribute('provider_file_id'));
+        $this->assertSame(DeletionStatus::FEHLGESCHLAGEN, $upload->getAttribute('provider_deletion_status'));
+        $this->assertNull($upload->getAttribute('provider_file_deleted_at'));
+        $this->assertSame(AiProvider::OPENAI, $upload->getAttribute('provider'));
+        $this->assertSame(
+            1,
+            TemporaryUpload::query()->where('provider_deletion_status', DeletionStatus::FEHLGESCHLAGEN->value)->count(),
+            'Der offene Fall bleibt fuer RetryFailedDeletions sichtbar.',
+        );
     }
 
     public function test_verbrauch_des_primaerproviders_bleibt_bei_schema_fallback_nachgewiesen(): void
@@ -395,8 +517,11 @@ class ProviderFileLifecycleTest extends TestCase
      * Router mit Primaer- und Fallbackprovider, Fallback aktiv. Beide Provider
      * laufen ueber aufgezeichnete Transportadapter.
      */
-    private function routerMitFallback(RecordingAiHttpClient $openai, RecordingAiHttpClient $anthropic): AiProviderRouter
-    {
+    private function routerMitFallback(
+        RecordingAiHttpClient $openai,
+        RecordingAiHttpClient $anthropic,
+        int $inlineMaxBytes = AbstractHttpAiProvider::DEFAULT_INLINE_MAX_BYTES,
+    ): AiProviderRouter {
         $config = AiConfig::fromArray(AiTestFactory::configArray([
             'primary_provider' => 'openai',
             'fallback_provider' => 'anthropic',
@@ -410,8 +535,8 @@ class ProviderFileLifecycleTest extends TestCase
             new DualReviewComparator,
             new RedactingLogger,
             [
-                'openai' => AiTestFactory::openAiProvider($openai),
-                'anthropic' => AiTestFactory::anthropicProvider($anthropic),
+                'openai' => AiTestFactory::openAiProvider($openai, inlineMaxBytes: $inlineMaxBytes),
+                'anthropic' => AiTestFactory::anthropicProvider($anthropic, inlineMaxBytes: $inlineMaxBytes),
             ],
         );
     }

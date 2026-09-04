@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Ai\Concerns;
 
+use App\Application\Documents\Support\ProviderFileDeleterResolver;
 use App\Enums\DocumentProcessingStatus;
 use App\Enums\DocumentType;
 use App\Enums\OrganizationRole;
@@ -27,6 +28,7 @@ use App\Services\Ai\Integration\DailyCostLedger;
 use App\Services\Ai\Integration\DocumentPayloadFactory;
 use App\Services\Ai\Integration\DocumentSchemaMap;
 use App\Services\Ai\Integration\ExtractedFieldPersister;
+use App\Services\Ai\Integration\OpenProviderFileGuard;
 use App\Services\Ai\Integration\PromptVersionRegistrar;
 use App\Services\Ai\ProviderReleaseGate;
 use App\Services\Ai\Providers\FakeAiProvider;
@@ -222,7 +224,18 @@ trait BuildsAiIntegration
             $this->callRecorder(),
             $this->persister($threshold),
             new RedactingLogger,
+            $this->providerFileGuard(),
         );
+    }
+
+    /**
+     * Raeumt offene Providerdateien ueber den im Container gebundenen
+     * Loescher weg; ohne Bindung greift NullProviderFileDeleter, der nichts
+     * bestaetigt.
+     */
+    protected function providerFileGuard(): OpenProviderFileGuard
+    {
+        return new OpenProviderFileGuard(new ProviderFileDeleterResolver($this->app), new RedactingLogger);
     }
 
     protected function classifier(AiProviderRouter $router, ?int $dailyLimitCent = null): AiDocumentClassifier
@@ -233,6 +246,7 @@ trait BuildsAiIntegration
             $this->ledger($dailyLimitCent),
             $this->callRecorder(),
             new RedactingLogger,
+            $this->providerFileGuard(),
         );
     }
 }

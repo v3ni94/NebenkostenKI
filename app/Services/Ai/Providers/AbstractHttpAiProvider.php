@@ -28,6 +28,8 @@ use App\Services\Ai\Dto\ReconcileDocumentsRequest;
 use App\Services\Ai\Dto\ReconciliationResult;
 use App\Services\Ai\Dto\ReconciliationSubject;
 use App\Services\Ai\Dto\SchemaViolation;
+use App\Services\Ai\Exceptions\CostBasisMissingException;
+use App\Services\Ai\Exceptions\ProviderFileNotReleasedException;
 use App\Services\Ai\Exceptions\ProviderTransportException;
 use App\Services\Ai\Exceptions\RateLimitException;
 use App\Services\Ai\Exceptions\UnsupportedFileTypeException;
@@ -599,9 +601,10 @@ abstract class AbstractHttpAiProvider implements AiDocumentProviderInterface
         );
 
         if (! $estimate->basisAvailable) {
-            // Ohne Kalkulationsbasis wird nichts geraten. Die fehlende Basis
-            // ist im Adminbereich zu melden, sie blockiert den Aufruf nicht.
-            $this->logger->warning('Keine Kalkulationsbasis fuer Modell konfiguriert, Tagesbudget nicht pruefbar', [
+            // Ohne Kalkulationsbasis wird nichts geraten. Bei aktivem
+            // Tagesbudget wird der Aufruf verweigert, statt ungezaehlt
+            // durchzulaufen; der Betreiber erhaelt eine klare Meldung.
+            $this->logger->error('Keine Kalkulationsbasis fuer Modell konfiguriert, Aufruf bei aktivem Tagesbudget verweigert', [
                 'provider' => $this->providerKey(),
                 'model' => $plan->model,
                 'purpose' => $plan->purpose->value,
@@ -609,7 +612,7 @@ abstract class AbstractHttpAiProvider implements AiDocumentProviderInterface
                 'correlation_id' => $plan->context->correlationId,
             ]);
 
-            return;
+            throw CostBasisMissingException::forModel($this->providerKey(), $plan->model);
         }
 
         $this->costLimiter->assertWithinLimit(
@@ -648,10 +651,9 @@ abstract class AbstractHttpAiProvider implements AiDocumentProviderInterface
     private function uploadDocumentForPlan(SchemaCallPlan $plan, DocumentPayload $document): ProviderFileHandle
     {
         if (! $plan->context->allowProviderFileUpload) {
-            throw UnsupportedFileTypeException::forMimeType(
-                $this->providerKey(),
-                sprintf('%s (%d Byte, Direktuebergabe nicht moeglich)', $document->mimeType, $document->byteSize()),
-            );
+            // Kein Dateiformatfehler: eine fruehere Providerdatei ist noch
+            // offen. Der Aufruf wartet auf die Wiederholung der Loeschung.
+            throw ProviderFileNotReleasedException::uploadBlocked($this->providerKey());
         }
 
         return $this->uploadProviderFile($document);

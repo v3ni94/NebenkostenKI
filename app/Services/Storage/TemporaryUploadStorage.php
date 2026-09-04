@@ -401,9 +401,9 @@ final class TemporaryUploadStorage
             },
             function () use ($stagingKey, $key): void {
                 if (! @rename($this->absolutePath($stagingKey), $this->absolutePath($key))) {
-                    $this->disk()->delete($stagingKey);
-
-                    throw new RuntimeException('Die Zieldatei im Kurzzeitbereich konnte nicht abgeschlossen werden.');
+                    // Wiederholbarer Fehler mit zentralem Code; die
+                    // Zwischendatei entfernt der Writer beim Abbruch.
+                    throw UploadRejectedException::because(UploadErrorCode::KURZZEITBEREICH_SCHREIBFEHLER);
                 }
             },
         );

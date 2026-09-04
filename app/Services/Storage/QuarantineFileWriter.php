@@ -6,6 +6,7 @@ namespace App\Services\Storage;
 
 use App\Services\Storage\Crypto\EncryptingWriter;
 use Closure;
+use Throwable;
 
 /**
  * Schreibvorgang auf eine Datei im Kurzzeitbereich.
@@ -39,13 +40,22 @@ final class QuarantineFileWriter
      */
     public function finish(): int
     {
-        $this->done = true;
+        try {
+            $written = $this->writer->finish();
 
-        $written = $this->writer->finish();
+            if ($this->commit !== null) {
+                ($this->commit)();
+            }
+        } catch (Throwable $exception) {
+            // Endblock oder Verschieben sind gescheitert: die Zwischendatei
+            // darf nicht als unlesbarer Rest im Kurzzeitbereich liegen bleiben.
+            $this->done = true;
+            ($this->discard)();
 
-        if ($this->commit !== null) {
-            ($this->commit)();
+            throw $exception;
         }
+
+        $this->done = true;
 
         return $written;
     }

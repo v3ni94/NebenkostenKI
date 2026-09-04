@@ -7,8 +7,10 @@ namespace Tests\Unit\Storage;
 use App\Services\Storage\Crypto\CipherIntegrityException;
 use App\Services\Storage\Crypto\SodiumSecretstreamCipher;
 use App\Services\Storage\Crypto\TemporaryUploadKeyring;
+use App\Services\Storage\Exceptions\UploadRejectedException;
 use App\Services\Storage\TemporaryFileKind;
 use App\Services\Storage\TemporaryUploadStorage;
+use App\Services\Storage\UploadErrorCode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -262,6 +264,29 @@ class TemporaryUploadStorageTest extends TestCase
 
         $this->assertSame(str_repeat('B', 3000), $this->storage->read($key), 'Der zuletzt abgeschlossene Vorgang gewinnt vollstaendig, kein Mischchiffrat.');
         $this->assertSame([$key], Storage::disk(TemporaryUploadStorage::DISK)->allFiles($prefix), 'Es bleibt keine Zwischendatei liegen.');
+    }
+
+    public function test_fehlgeschlagenes_verschieben_meldet_einen_wiederholbaren_fehlercode_und_hinterlaesst_keine_zwischendatei(): void
+    {
+        $prefix = $this->storage->newPrefix();
+        $key = $this->storage->chunkKey($prefix, 0);
+
+        // Ein Verzeichnis unter dem Zielpfad laesst rename() scheitern, wie
+        // ein voller Datentraeger oder ein Rechteproblem im Betrieb.
+        mkdir($this->storage->absolutePath($key), 0700, true);
+
+        $writer = $this->storage->openWriter($key);
+        $writer->write('abschnitt');
+
+        try {
+            $writer->finish();
+            $this->fail('Ein gescheiterter Abschluss muss gemeldet werden.');
+        } catch (UploadRejectedException $exception) {
+            $this->assertSame(UploadErrorCode::KURZZEITBEREICH_SCHREIBFEHLER, $exception->errorCode);
+            $this->assertFalse($exception->isPermanent(), 'Ein Schreibfehler im Kurzzeitbereich ist wiederholbar.');
+        }
+
+        $this->assertSame([], Storage::disk(TemporaryUploadStorage::DISK)->allFiles($prefix), 'Die Zwischendatei darf nicht liegen bleiben.');
     }
 
     public function test_abgebrochener_schreibvorgang_hinterlaesst_keine_datei(): void
