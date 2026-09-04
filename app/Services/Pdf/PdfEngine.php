@@ -7,6 +7,7 @@ namespace App\Services\Pdf;
 use App\Services\Pdf\Watermark\WatermarkStamp;
 use DateTimeImmutable;
 use Illuminate\Contracts\View\Factory as ViewFactory;
+use Mpdf\Config\FontVariables;
 use Mpdf\Mpdf;
 use Throwable;
 
@@ -14,9 +15,25 @@ use Throwable;
  * Einziger Renderweg von HTML zu PDF (ADR-005).
  *
  * Verwendet wird mPDF in reinem PHP, ohne Chromium und ohne Node-Laufzeit,
- * damit die Anwendung auf IONOS Webhosting betrieben werden kann. Der
- * Kernschriftmodus "c" bindet Helvetica beziehungsweise Arial ohne
- * Schrifteinbettung ein; das hält die Dateien klein und den Text durchsuchbar.
+ * damit die Anwendung auf IONOS Webhosting betrieben werden kann.
+ *
+ * SCHRIFT: mPDF läuft im UTF-8-Modus mit der eingebetteten Unicode-Schrift
+ * DejaVu Sans aus dem mPDF-Paket (vendor/mpdf/mpdf/ttfonts). Der frühere
+ * Kernschriftmodus ohne Einbettung hätte jeden Textknoten nach Windows-1252
+ * umkodiert; Namen und Adressen mit Zeichen außerhalb dieses Zeichensatzes
+ * (zum Beispiel Yılmaz, Łukasz, Ștefan) wären im Dokument zu "?" geworden.
+ * Eine Mieterabrechnung ist ein rechtlich relevantes Dokument, ein falsch
+ * geschriebener Empfängername ist nicht hinnehmbar. Die Schrift wird als
+ * Teilmenge eingebettet, die Dateien bleiben klein und der Text durchsuchbar.
+ * Die Vorlagen nennen weiterhin Helvetica und Arial; mPDF bildet beide auf
+ * DejaVu Sans ab.
+ *
+ * PLATZHALTER: mPDF ersetzt die Zeichenketten {PAGENO}, {nb}, {nbpg} und
+ * {DATE ...} nicht nur in Kopf- und Fußzeile, sondern in jedem Seiteninhalt.
+ * Nutzertexte (Objektname, Mietername, Verwendungszweck) dürfen dadurch
+ * nicht verändert werden. renderHtml() trennt solche Zeichenketten im Body
+ * deshalb vor der Übergabe an mPDF so auf, dass die Ersetzung nicht mehr
+ * greift; die Fußzeile verwendet die echten Platzhalter weiterhin.
  *
  * PDF/A: Es wird ausdrücklich KEINE PDF/A-Konformität behauptet oder
  * ausgewiesen. mPDF unterstützt PDF/A-1b nur eingeschränkt und setzt unter
@@ -57,10 +74,10 @@ final class PdfEngine
      */
     public function renderHtml(string $html, PdfRenderOptions $options, string $templateName = 'inline'): PdfDocument
     {
-        // mPDF stellt die Zeichensatzeinstellungen von mbstring waehrend des
-        // Renderns auf Windows-1252 um. Bleibt das bestehen, werden spaeter
-        // gelesene UTF-8-Werte doppelt kodiert. Die Einstellungen werden
-        // deshalb hier gesichert und in jedem Fall wiederhergestellt.
+        // mPDF veraendert die Zeichensatzeinstellungen von mbstring waehrend
+        // des Renderns. Bleibt das bestehen, werden spaeter gelesene Werte
+        // falsch kodiert. Die Einstellungen werden deshalb hier gesichert und
+        // in jedem Fall wiederhergestellt.
         $mbEncoding = mb_internal_encoding();
         $mbRegexEncoding = mb_regex_encoding();
 
@@ -68,7 +85,7 @@ final class PdfEngine
             $mpdf = $this->createMpdf($options);
             $this->watermark->applyTo($mpdf, $options->watermark);
             $mpdf->SetHTMLFooter($this->footerHtml($options));
-            $mpdf->WriteHTML($html);
+            $mpdf->WriteHTML(self::neutralisePlaceholders($html));
             $pageCount = $mpdf->page;
             $contents = $mpdf->Output('', 'S');
         } catch (Throwable $exception) {
@@ -128,12 +145,51 @@ final class PdfEngine
         return rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.').'pt';
     }
 
+    /**
+     * Trennt die mPDF-Platzhalter im Seiteninhalt auf, damit Nutzertexte nicht
+     * durch Seitenzahlen oder das Datum ersetzt werden.
+     *
+     * Ein Elementwechsel zwingt mPDF, den Text in getrennten Textobjekten zu
+     * schreiben. Die Ersetzung arbeitet auf dem fertigen Seiteninhalt mit
+     * einfachem Zeichenkettenvergleich und findet die getrennte Folge nicht
+     * mehr. Sichtbar aendert sich nichts, das leere span traegt keinen Stil.
+     */
+    public static function neutralisePlaceholders(string $html): string
+    {
+        return preg_replace(
+            '/\{(?=(PAGENO\}|nb\}|nbpg\}|DATE\s))/',
+            '<span>{</span>',
+            $html,
+        ) ?? $html;
+    }
+
     private function createMpdf(PdfRenderOptions $options): Mpdf
     {
+        $fontDefaults = (new FontVariables)->getDefaults();
+
+        /** @var array<string, array<string, mixed>> $fontData */
+        $fontData = $fontDefaults['fontdata'];
+        // Keine OpenType-Ligaturen (zum Beispiel "fi" zu einem Zeichen): Der
+        // Text im Dokument soll zeichengenau dem erfassten Text entsprechen
+        // und durchsuchbar bleiben.
+        $fontData['dejavusans']['useOTL'] = 0;
+        $fontData['dejavusans']['useKashida'] = 0;
+
+        /** @var array<string, string> $fontTranslations */
+        $fontTranslations = $fontDefaults['fonttrans'];
+
         $mpdf = new Mpdf([
-            'mode' => 'c',
+            'mode' => 'utf-8',
             'format' => $options->landscape ? 'A4-L' : 'A4',
-            'default_font' => 'helvetica',
+            'default_font' => 'dejavusans',
+            'fontdata' => $fontData,
+            // Die Vorlagen nennen Helvetica und Arial. Beide werden auf die
+            // eingebettete DejaVu Sans abgebildet, damit alle Dokumente
+            // dieselbe Schrift tragen.
+            'fonttrans' => [
+                'helvetica' => 'dejavusans',
+                'arial' => 'dejavusans',
+            ] + $fontTranslations,
             'margin_left' => 25,
             'margin_right' => 20,
             'margin_top' => 18,

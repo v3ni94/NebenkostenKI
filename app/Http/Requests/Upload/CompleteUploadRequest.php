@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Upload;
 
+use App\Http\Requests\GermanFormRequest;
 use App\Models\BillingRun;
 use App\Models\TemporaryUpload;
-use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
 
 /**
@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\Gate;
  * Abgleich mit den Magic Bytes benoetigt wird. Sie ist ein technischer
  * Parameter, kein Dateiname.
  */
-class CompleteUploadRequest extends FormRequest
+class CompleteUploadRequest extends GermanFormRequest
 {
     /**
      * Autorisierung vor Validierung, objektbezogen ueber den Abrechnungslauf.
@@ -51,7 +51,7 @@ class CompleteUploadRequest extends FormRequest
     /**
      * @return array<string, string>
      */
-    public function messages(): array
+    protected function eigeneMeldungen(): array
     {
         return [
             'erweiterung.required' => 'Das Dateiformat konnte nicht ermittelt werden. Bitte laden Sie die Datei erneut hoch.',

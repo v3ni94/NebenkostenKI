@@ -22,7 +22,9 @@ use Illuminate\Support\Carbon;
  * RECHENWEG, offengelegt:
  *   1. Nutzer des Dokuments = billing_runs.created_by_user_id des Laufs.
  *   2. Summe ai_calls.cost_cent aller Aufrufe zu Abrechnungslaeufen dieses
- *      Nutzers seit Tagesbeginn (Serverzeit).
+ *      Nutzers seit Tagesbeginn in der Anwendungszeitzone (config app.timezone,
+ *      Standard Europe/Berlin). Der Nutzertag endet damit um Mitternacht
+ *      deutscher Zeit und nicht um 01:00 oder 02:00 Uhr.
  *   3. Umrechnung in Tausendstel-Cent durch Multiplikation mit 1.000.
  *
  * DOKUMENTIERTE ANNAHME: ai_calls fuehrt die Kosten in ganzen Cent und je

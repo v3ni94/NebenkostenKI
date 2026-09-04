@@ -12,6 +12,7 @@ use App\Application\Install\Connectivity\StripeConnectivity;
 use App\Services\Ai\AiConfig;
 use App\Services\Ai\AiProviderKey;
 use App\Services\Ai\AiProviderRouter;
+use App\Services\Ai\CostEstimator;
 use App\Services\Ai\Dto\AiRequestContext;
 use App\Services\Ai\Dto\HealthCheckRequest;
 use App\Services\Ai\ProviderReleaseGate;
@@ -71,6 +72,8 @@ final class ConfigurationCheck
             $this->stripeKeys(),
             $this->stripeWebhookSecret(),
             $this->ai(),
+            $this->aiPipelineBinding(),
+            $this->aiDailyCostLimit(),
             $this->viteManifest(),
             $this->scheduler(),
         ];
@@ -345,7 +348,7 @@ final class ConfigurationCheck
             return CheckResult::error(
                 'SMTP',
                 'Handshake oder Anmeldung fehlgeschlagen ('.class_basename($exception).').',
-                'MAIL_HOST, MAIL_PORT, MAIL_ENCRYPTION, MAIL_USERNAME und MAIL_PASSWORD pruefen. IONOS: smtp.ionos.de, Port 465 mit ssl oder 587 mit tls.',
+                'MAIL_HOST, MAIL_PORT, MAIL_SCHEME, MAIL_USERNAME und MAIL_PASSWORD pruefen. IONOS: smtp.ionos.de, Port 465 mit MAIL_SCHEME=smtps oder Port 587 mit MAIL_SCHEME=smtp (STARTTLS).',
             );
         }
 
@@ -494,6 +497,111 @@ final class ConfigurationCheck
         }
 
         return CheckResult::ok('KI-Provider', sprintf('Provider "%s" erreichbar, Modell "%s" verfuegbar.', $result->providerKey, $result->model));
+    }
+
+    /**
+     * Verdrahtung der KI-Schicht mit der Dokumentpipeline.
+     *
+     * Ein ausdrueckliches false ist der Notschalter fuer den Betrieb. Er ist
+     * zulaessig, muss dem Betreiber aber sichtbar sein, weil sonst jeder Upload
+     * ohne Auswertung im Dead Letter endet und niemand die Ursache erkennt.
+     */
+    public function aiPipelineBinding(): CheckResult
+    {
+        if (config('ai.bind_document_pipeline') === false) {
+            return CheckResult::warning(
+                'KI-Anbindung',
+                'Die automatische Auswertung ruht: AI_BIND_DOCUMENT_PIPELINE steht auf false. Uploads laufen ohne Auswertung in den Fehlerpfad.',
+                'Fuer den Regelbetrieb die Zeile AI_BIND_DOCUMENT_PIPELINE aus der .env entfernen oder auf true setzen und die Konfiguration neu zwischenspeichern.',
+            );
+        }
+
+        return CheckResult::ok('KI-Anbindung', 'Die Dokumentpipeline ist mit der KI-Schicht verbunden.');
+    }
+
+    /**
+     * Tagesbudget je Nutzer und die dafuer notwendige Kalkulationsbasis.
+     *
+     * Ein Limit von 0 oder kleiner wuerde jede Auswertung als "Tageslimit
+     * erreicht" abweisen, ohne dass ein Cent verbraucht wurde. Ein Limit ohne
+     * Kalkulationsbasis fuer die konfigurierten Modelle ist wirkungslos, weil
+     * kein Preis geraten wird und die Aufrufe ungezaehlt durchlaufen.
+     */
+    public function aiDailyCostLimit(): CheckResult
+    {
+        $limit = config('ai.max_daily_cost_cent_per_user');
+
+        if ($limit === null) {
+            return CheckResult::warning(
+                'KI-Tageslimit',
+                'Es ist kein Tagesbudget je Nutzer gesetzt (AI_MAX_DAILY_COST_CENT_PER_USER ist leer).',
+                'Vor Livegang entscheiden: Tagesbudget in ganzen Cent eintragen oder bewusst ohne Limit betreiben.',
+            );
+        }
+
+        if (! is_numeric($limit) || (int) $limit <= 0) {
+            return CheckResult::error(
+                'KI-Tageslimit',
+                sprintf('Das Tagesbudget je Nutzer ist mit "%s" ungueltig. Jede Auswertung wuerde als "Tageslimit erreicht" abgewiesen.', is_scalar($limit) ? (string) $limit : gettype($limit)),
+                'AI_MAX_DAILY_COST_CENT_PER_USER auf einen Betrag in ganzen Cent groesser 0 setzen oder die Zeile fuer "kein Limit" leer lassen.',
+            );
+        }
+
+        $missing = $this->modelsWithoutCostBasis();
+
+        if ($missing !== []) {
+            return CheckResult::error(
+                'KI-Tageslimit',
+                'Fuer folgende konfigurierte Modelle fehlt die Kalkulationsbasis, das Tageslimit greift fuer sie nicht: '.implode(', ', $missing).'.',
+                'In config/ai.php unter cost_basis_us_cent_per_million_tokens die Preise aus der offiziellen Preisliste des Providers eintragen.',
+            );
+        }
+
+        return CheckResult::ok('KI-Tageslimit', sprintf('Tagesbudget je Nutzer: %d Cent, Kalkulationsbasis fuer alle konfigurierten Modelle vorhanden.', (int) $limit));
+    }
+
+    /**
+     * Konfigurierte Modelle des Primaer- und Fallbackproviders ohne
+     * Kalkulationsbasis, als "provider: modell".
+     *
+     * @return list<string>
+     */
+    private function modelsWithoutCostBasis(): array
+    {
+        try {
+            $config = AiConfig::fromArray($this->configArray('ai'));
+        } catch (Throwable) {
+            return [];
+        }
+
+        $estimator = CostEstimator::fromConfig($config);
+        $keys = [$config->primaryProvider];
+
+        if ($config->fallbackEnabled && $config->fallbackProvider !== null) {
+            $keys[] = $config->fallbackProvider;
+        }
+
+        $missing = [];
+
+        foreach (array_unique($keys, SORT_REGULAR) as $key) {
+            if ($key === AiProviderKey::FAKE) {
+                continue;
+            }
+
+            $provider = $config->provider($key);
+
+            if ($provider === null) {
+                continue;
+            }
+
+            foreach (array_unique([$provider->modelExtract, $provider->modelAnalyze]) as $model) {
+                if (! $estimator->hasBasisFor($model)) {
+                    $missing[] = $key->value.': '.$model;
+                }
+            }
+        }
+
+        return $missing;
     }
 
     // -----------------------------------------------------------------

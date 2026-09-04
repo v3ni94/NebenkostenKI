@@ -29,6 +29,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -251,6 +252,76 @@ final class MailVersandProtokollTest extends TestCase
         $this->assertStringNotContainsString('–', $hinweis);
 
         $this->assertTrue(AuditLog::query()->where('action', BounceHandler::AUDIT_ACTION)->exists());
+    }
+
+    /**
+     * Absenderseitige Fehler sagen nichts ueber die Empfaengeradresse aus und
+     * duerfen sie nie sperren. Die Meldungen entsprechen dem Wortlaut von
+     * Symfony Mailer.
+     *
+     * @return array<string, array{string}>
+     */
+    public static function absenderseitigeFehler(): array
+    {
+        return [
+            'Postausgangsserver nicht erreichbar, Port 587 in der Meldung' => [
+                'Connection could not be established with host "smtp.beispiel.invalid:587": stream_socket_client(): Unable to connect',
+            ],
+            'falsches Postfachpasswort, Code 535' => [
+                'Failed to authenticate on SMTP server with username "kontakt@beispiel.invalid" using the following authenticators: "LOGIN", "PLAIN". '
+                .'Authenticator "LOGIN" returned "Expected response code "235" but got code "535", with message "535 Authentication credentials invalid"."',
+            ],
+            'Anmeldung erforderlich, Code 530' => [
+                'Expected response code "250" but got code "530", with message "530 5.7.0 Authentication required".',
+            ],
+            'Verbindung abgebrochen' => [
+                'Connection to "smtp.beispiel.invalid:465" has been closed unexpectedly.',
+            ],
+            'Zeitueberschreitung' => [
+                'Connection to "smtp.beispiel.invalid:465" timed out.',
+            ],
+            'zeitweilige Ablehnung 451' => [
+                'Expected response code "250" but got code "451", with message "451 4.7.1 Greylisted, try again later".',
+            ],
+        ];
+    }
+
+    #[DataProvider('absenderseitigeFehler')]
+    public function test_absenderseitiger_fehler_sperrt_die_adresse_nicht(string $meldung): void
+    {
+        $welt = $this->welt();
+
+        Mail::shouldReceive('to')->andReturnSelf();
+        Mail::shouldReceive('send')->andThrow(new RuntimeException($meldung));
+
+        $protokoll = $this->dispatcher()->send(
+            mail: $this->vorschaumail(),
+            empfaenger: 'vermieter@beispiel.invalid',
+            nutzer: $welt['user'],
+        );
+
+        $this->assertSame(EmailStatus::FEHLGESCHLAGEN, $protokoll->getAttribute('status'));
+        $this->assertSame(0, EmailSuppression::query()->count(), $meldung);
+        $this->assertNull(app(SuppressionGuard::class)->hinweisFuerKonto('vermieter@beispiel.invalid'));
+    }
+
+    public function test_ablehnung_des_empfaengers_durch_die_gegenstelle_sperrt_die_adresse(): void
+    {
+        $welt = $this->welt();
+
+        Mail::shouldReceive('to')->andReturnSelf();
+        Mail::shouldReceive('send')->andThrow(new RuntimeException(
+            'Expected response code "250" but got code "550", with message "550 5.1.1 <vermieter@beispiel.invalid>: Recipient address rejected: User unknown".'
+        ));
+
+        $protokoll = $this->dispatcher()->send(
+            mail: $this->vorschaumail(),
+            empfaenger: 'vermieter@beispiel.invalid',
+            nutzer: $welt['user'],
+        );
+
+        $this->assertSame(EmailStatus::BOUNCED, $protokoll->getAttribute('status'));
+        $this->assertSame(1, EmailSuppression::query()->count());
     }
 
     public function test_zeitweiliger_fehler_fuehrt_nicht_zur_sperre(): void

@@ -38,7 +38,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="robots" content="index, follow">
+    <meta name="robots" content="@yield('meta_robots', 'index, follow')">
 
     <title>@yield('meta_title', 'Betriebskostenabrechnung erstellen') | Smart Abrechnen</title>
     <meta name="description" content="@yield('meta_description', 'Smart Abrechnen erstellt aus Ihren vorhandenen Unterlagen eine strukturierte Betriebskostenabrechnung. Konto und Entwürfe sind kostenlos, bezahlt wird erst nach der Vorschau.')">

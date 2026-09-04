@@ -120,6 +120,8 @@ final class CheckConfigCommandTest extends TestCase
         $this->assertSame(CheckResult::OK, $this->statusVon($ergebnisse, 'Stripe-Webhook'));
         $this->assertSame(CheckResult::OK, $this->statusVon($ergebnisse, 'Assets'));
         $this->assertSame(CheckResult::OK, $this->statusVon($ergebnisse, 'Cronjob'));
+        $this->assertSame(CheckResult::OK, $this->statusVon($ergebnisse, 'KI-Anbindung'));
+        $this->assertSame(CheckResult::OK, $this->statusVon($ergebnisse, 'KI-Tageslimit'));
 
         // SQLite ist im Test nur eine Warnung; die KI-Freigabe fehlt bewusst.
         $this->assertSame(CheckResult::WARNUNG, $this->statusVon($ergebnisse, 'Datenbank'));
@@ -191,6 +193,65 @@ final class CheckConfigCommandTest extends TestCase
         $this->assertSame(CheckResult::FEHLER, $this->statusVon($ergebnisse, 'Cronjob'));
     }
 
+    public function test_abgeschaltete_ki_anbindung_wird_als_warnung_gemeldet(): void
+    {
+        config()->set('ai.bind_document_pipeline', false);
+
+        $ergebnisse = $this->ergebnisse();
+
+        $this->assertSame(CheckResult::WARNUNG, $this->statusVon($ergebnisse, 'KI-Anbindung'));
+        $this->assertStringContainsString('AI_BIND_DOCUMENT_PIPELINE', $this->meldungVon($ergebnisse, 'KI-Anbindung'));
+    }
+
+    public function test_tageslimit_von_null_cent_ist_ein_fehler(): void
+    {
+        config()->set('ai.max_daily_cost_cent_per_user', 0);
+
+        $ergebnisse = $this->ergebnisse();
+
+        $this->assertSame(CheckResult::FEHLER, $this->statusVon($ergebnisse, 'KI-Tageslimit'));
+        $this->assertStringContainsString('Tageslimit erreicht', $this->meldungVon($ergebnisse, 'KI-Tageslimit'));
+        $this->assertTrue(ConfigurationCheck::hasErrors($ergebnisse));
+    }
+
+    public function test_fehlendes_tageslimit_ist_eine_warnung(): void
+    {
+        config()->set('ai.max_daily_cost_cent_per_user', null);
+
+        $this->assertSame(CheckResult::WARNUNG, $this->statusVon($this->ergebnisse(), 'KI-Tageslimit'));
+    }
+
+    public function test_tageslimit_ohne_kalkulationsbasis_fuer_die_konfigurierten_modelle_ist_ein_fehler(): void
+    {
+        config()->set('ai.max_daily_cost_cent_per_user', 500);
+        config()->set('ai.cost_basis_us_cent_per_million_tokens', [
+            'claude-haiku-4-5' => ['input' => 1, 'output' => 1],
+        ]);
+
+        $ergebnisse = $this->ergebnisse();
+
+        $this->assertSame(CheckResult::FEHLER, $this->statusVon($ergebnisse, 'KI-Tageslimit'));
+        $meldung = $this->meldungVon($ergebnisse, 'KI-Tageslimit');
+        $this->assertStringContainsString('openai: gpt-5.6-luna', $meldung);
+        $this->assertStringContainsString('openai: gpt-5.6-terra', $meldung);
+    }
+
+    public function test_kalkulationsbasis_wird_auch_fuer_den_fallbackprovider_verlangt(): void
+    {
+        config()->set('ai.max_daily_cost_cent_per_user', 500);
+        config()->set('ai.fallback_enabled', true);
+        config()->set('ai.fallback_provider', 'anthropic');
+        config()->set('ai.cost_basis_us_cent_per_million_tokens', [
+            'gpt-5.6-luna' => ['input' => 1, 'output' => 1],
+            'gpt-5.6-terra' => ['input' => 1, 'output' => 1],
+        ]);
+
+        $ergebnisse = $this->ergebnisse();
+
+        $this->assertSame(CheckResult::FEHLER, $this->statusVon($ergebnisse, 'KI-Tageslimit'));
+        $this->assertStringContainsString('anthropic: claude-haiku-4-5', $this->meldungVon($ergebnisse, 'KI-Tageslimit'));
+    }
+
     public function test_modusabweichung_der_stripe_schluessel_ist_eine_warnung(): void
     {
         config()->set('services.stripe.key', 'pk_test_beispiel');
@@ -254,6 +315,14 @@ final class CheckConfigCommandTest extends TestCase
         config()->set('ai.primary_provider', 'openai');
         config()->set('ai.data_retention_approved', false);
 
+        // Tageslimit mit Kalkulationsbasis fuer die konfigurierten Modelle.
+        // Die Werte sind Testplatzhalter, keine Preisangaben.
+        config()->set('ai.max_daily_cost_cent_per_user', 500);
+        config()->set('ai.cost_basis_us_cent_per_million_tokens', [
+            'gpt-5.6-luna' => ['input' => 1, 'output' => 1],
+            'gpt-5.6-terra' => ['input' => 1, 'output' => 1],
+        ]);
+
         $this->app->make(SchedulerHeartbeat::class)->record();
     }
 
@@ -273,6 +342,20 @@ final class CheckConfigCommandTest extends TestCase
         foreach ($ergebnisse as $ergebnis) {
             if ($ergebnis->name === $name) {
                 return $ergebnis->status;
+            }
+        }
+
+        $this->fail('Keine Pruefung mit Namen '.$name);
+    }
+
+    /**
+     * @param  list<CheckResult>  $ergebnisse
+     */
+    private function meldungVon(array $ergebnisse, string $name): string
+    {
+        foreach ($ergebnisse as $ergebnis) {
+            if ($ergebnis->name === $name) {
+                return $ergebnis->message;
             }
         }
 

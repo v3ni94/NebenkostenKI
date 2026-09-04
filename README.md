@@ -142,15 +142,15 @@ Die vollständige, kommentierte Referenz steht in
 | Anwendung | `APP_KEY`, `APP_URL`, `APP_TIMEZONE` | Basis; `APP_URL` ist die kanonische Domain |
 | Datenbank | `DB_CONNECTION=mariadb`, `DB_HOST`, `DB_DATABASE` | MariaDB 10.11 oder 11.x |
 | Betriebsmodus | `SESSION_DRIVER`, `QUEUE_CONNECTION`, `CACHE_STORE` | datenbankgestützt, damit IONOS Profil A ohne Redis läuft |
-| Dateiablage | `FILESYSTEM_DISK=sftp`, `SFTP_*`, `S3_*` | Speicher ausschließlich für erzeugte Ergebnisartefakte |
-| E-Mail | `MAIL_*` | IONOS SMTP, Absender `kontakt@smart-abrechnen.de` |
-| KI | `AI_PRIMARY_PROVIDER`, `AI_FALLBACK_*`, `AI_REQUIRE_ZERO_DATA_RETENTION`, `AI_DATA_RETENTION_APPROVED`, `OPENAI_*`, `ANTHROPIC_*`, `AI_CONFIDENCE_REVIEW_THRESHOLD`, `AI_MAX_DAILY_COST_CENT_PER_USER` | Provider, Modelle, Schwellenwerte, Kostenlimits |
+| Dateiablage | `FILESYSTEM_DISK=sftp`, `SFTP_*`, optional `AWS_*` für `FILESYSTEM_DISK=s3` | Speicher ausschließlich für erzeugte Ergebnisartefakte |
+| E-Mail | `MAIL_*`, `MAIL_SCHEME=smtps` für Port 465 | IONOS SMTP, Absender `kontakt@smart-abrechnen.de` |
+| KI | `AI_PRIMARY_PROVIDER`, `AI_FALLBACK_*`, `AI_REQUIRE_ZERO_DATA_RETENTION`, `AI_DATA_RETENTION_APPROVED`, `OPENAI_*`, `ANTHROPIC_*`, `AI_CONFIDENCE_REVIEW_THRESHOLD`, `AI_MAX_DAILY_COST_CENT_PER_USER` (leer = kein Limit), `AI_BIND_DOCUMENT_PIPELINE` (leer = gebunden, `false` = Notschalter) | Provider, Modelle, Schwellenwerte, Kostenlimits |
 | Zahlung | `STRIPE_KEY`, `STRIPE_SECRET`, `STRIPE_WEBHOOK_SECRET` | Stripe Checkout und Webhook |
 | Preise | `PRICE_PER_STATEMENT_GROSS_CENT=2490`, `PRICE_BASE_GROSS_CENT=0`, `VAT_RATE_PERCENT=19` | Bruttopreis je erzeugter Mieterabrechnung |
 | Betreiber | `HVM_*` | Pflichtangaben, Steuer- und Bankdaten |
 | Erinnerungen | `REMINDER_Q1_DATE`, `REMINDER_Q2_DATE`, `REMINDER_Q3_DATE`, `REMINDER_DECEMBER_DATE` | Q1, Q2, Q3 und 1. Dezember, Zeitzone Europe/Berlin |
 | Uploads und Löschung | `UPLOAD_MAX_FILE_MB`, `MALWARE_SCANNER_DRIVER`, `TEMP_UPLOAD_TTL_MINUTES`, `TEMP_CLEANUP_INTERVAL_MINUTES`, `AI_PROVIDER_FILE_TTL_MINUTES`, `SIGNED_DOWNLOAD_TTL_MINUTES` | Grenzen und Löschfristen |
-| Monitoring | `LOG_LEVEL`, `SENTRY_DSN` | strukturierte Logs, optionales Error Monitoring |
+| Monitoring | `LOG_CHANNEL`, `LOG_STACK`, `LOG_LEVEL` | strukturierte Logs |
 
 Geheimnisse gehören ausschließlich in die `.env` des Zielsystems oder in den
 Secret Store der CI, niemals in das Repository.

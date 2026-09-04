@@ -7,6 +7,7 @@ namespace App\Application\Admin;
 use App\Application\Payment\OperatorInvoiceBlocker;
 use App\Services\Ai\AiConfig;
 use App\Services\Ai\AiProviderKey;
+use App\Services\Ai\CostEstimator;
 use App\Services\Ai\ProviderReleaseGate;
 use App\Services\Storage\MalwareScannerFactory;
 use Illuminate\Support\Env;
@@ -47,6 +48,10 @@ final class LaunchBlockerCheck
     public const string STRIPE = 'stripe';
 
     public const string KI_DATENSCHUTZFREIGABE = 'ki_datenschutzfreigabe';
+
+    public const string KI_ANBINDUNG = 'ki_anbindung';
+
+    public const string KI_TAGESLIMIT = 'ki_tageslimit';
 
     public const string MALWARE_SCANNER = 'malware_scanner';
 
@@ -109,6 +114,8 @@ final class LaunchBlockerCheck
             $this->operatorMasterdata(),
             $this->stripe(),
             $this->aiRelease(),
+            $this->aiPipelineBinding(),
+            $this->aiDailyCostLimit(),
             $this->malwareScanner(),
             $this->legalTexts(),
             $this->corporateIdentity(),
@@ -231,6 +238,108 @@ final class LaunchBlockerCheck
             'Betreiber: Auftragsverarbeitungsvertrag, aktuelle Retention-Dokumentation und ausdrückliche '
                 .'Datenschutzentscheidung je Providerorganisation, Modell und genutzter Funktion.',
         );
+    }
+
+    /**
+     * Ein ausdrueckliches AI_BIND_DOCUMENT_PIPELINE=false ist der Notschalter
+     * fuer den Betrieb. Solange er gesetzt ist, wird kein Dokument ausgewertet.
+     */
+    private function aiPipelineBinding(): ?LaunchBlocker
+    {
+        if (config('ai.bind_document_pipeline') !== false) {
+            return null;
+        }
+
+        return new LaunchBlocker(
+            self::KI_ANBINDUNG,
+            'KI-Provider',
+            'Die automatische Auswertung ist abgeschaltet (AI_BIND_DOCUMENT_PIPELINE=false).',
+            'Jeder Upload bleibt ohne Auswertung und endet nach den Wiederholungen im Fehlerpfad. Die Kernfunktion '
+                .'steht still, obwohl Provider und Freigabe konfiguriert sein koennen.',
+            'Betreiber: Zeile aus der .env entfernen oder auf true setzen, danach smartabrechnen:install ausfuehren.',
+        );
+    }
+
+    /**
+     * Ein Tagesbudget von 0 oder kleiner weist jede Auswertung ab. Ein
+     * Tagesbudget ohne Kalkulationsbasis fuer die konfigurierten Modelle ist
+     * wirkungslos, weil kein Preis geraten wird.
+     */
+    private function aiDailyCostLimit(): ?LaunchBlocker
+    {
+        $limit = config('ai.max_daily_cost_cent_per_user');
+
+        if ($limit === null) {
+            return null;
+        }
+
+        if (! is_numeric($limit) || (int) $limit <= 0) {
+            return new LaunchBlocker(
+                self::KI_TAGESLIMIT,
+                'KI-Provider',
+                'Das Tagesbudget je Nutzer (AI_MAX_DAILY_COST_CENT_PER_USER) ist mit einem Wert kleiner oder gleich 0 gesetzt.',
+                'Jede automatische Auswertung wird als "Tageslimit erreicht" abgewiesen, ohne dass ein Cent verbraucht wurde; '
+                    .'die Quelldatei wird nach dem endgueltigen Fehlschlag geloescht.',
+                'Betreiber: Betrag in ganzen Cent groesser 0 eintragen oder die Zeile fuer "kein Limit" leer lassen.',
+            );
+        }
+
+        $missing = $this->modelsWithoutCostBasis();
+
+        if ($missing === []) {
+            return null;
+        }
+
+        return new LaunchBlocker(
+            self::KI_TAGESLIMIT,
+            'KI-Provider',
+            'Fuer folgende konfigurierte Modelle fehlt die Kalkulationsbasis in config/ai.php: '.implode(', ', $missing).'.',
+            'Das gesetzte Tagesbudget greift fuer diese Modelle nicht. Aufrufe laufen ungezaehlt durch, die Kostenkontrolle '
+                .'ist wirkungslos.',
+            'Betreiber, gemeinsam mit der technischen Betreuung: Preise aus der offiziellen Preisliste des Providers in '
+                .'cost_basis_us_cent_per_million_tokens eintragen.',
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function modelsWithoutCostBasis(): array
+    {
+        try {
+            $config = AiConfig::fromArray($this->configArray('ai'));
+        } catch (Throwable) {
+            return [];
+        }
+
+        $estimator = CostEstimator::fromConfig($config);
+        $keys = [$config->primaryProvider];
+
+        if ($config->fallbackEnabled && $config->fallbackProvider !== null) {
+            $keys[] = $config->fallbackProvider;
+        }
+
+        $missing = [];
+
+        foreach (array_unique($keys, SORT_REGULAR) as $key) {
+            if ($key === AiProviderKey::FAKE) {
+                continue;
+            }
+
+            $provider = $config->provider($key);
+
+            if ($provider === null) {
+                continue;
+            }
+
+            foreach (array_unique([$provider->modelExtract, $provider->modelAnalyze]) as $model) {
+                if (! $estimator->hasBasisFor($model)) {
+                    $missing[] = $key->value.': '.$model;
+                }
+            }
+        }
+
+        return $missing;
     }
 
     private function malwareScanner(): ?LaunchBlocker

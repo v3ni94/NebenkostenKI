@@ -63,7 +63,7 @@ return [
 
         /*
          * Optionaler EU-kompatibler Objektspeicher, ausschliesslich fuer
-         * erzeugte Systemartefakte. Per S3_ENABLED zuschaltbar.
+         * erzeugte Systemartefakte. Zuschaltung ueber FILESYSTEM_DISK=s3.
          */
         's3' => [
             'driver' => 's3',

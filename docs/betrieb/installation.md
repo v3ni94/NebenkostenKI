@@ -147,8 +147,8 @@ Jede Variable ist in `.env.example` kommentiert.
 | Datenbank | `DB_CONNECTION=mariadb`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | aus Schritt 3 |
 | Betriebsmodus | `SESSION_DRIVER=database`, `QUEUE_CONNECTION=database`, `CACHE_STORE=database` | Standard, für Profil A ohne Redis |
 | Dateiablage | `FILESYSTEM_DISK=sftp`, `SFTP_HOST`, `SFTP_PORT`, `SFTP_USERNAME`, `SFTP_PASSWORD` oder `SFTP_PRIVATE_KEY_PATH`, `SFTP_ROOT` | aus Schritt 4, genau ein Authentifizierungsweg |
-| E-Mail | `MAIL_MAILER=smtp`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_ENCRYPTION`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS` | aus Schritt 5 |
-| KI | `AI_PRIMARY_PROVIDER`, `OPENAI_API_KEY` oder `ANTHROPIC_API_KEY`, `AI_DATA_RETENTION_APPROVED` | Freigabe erst nach Auftragsverarbeitungsvertrag und Retention-Nachweis |
+| E-Mail | `MAIL_MAILER=smtp`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_SCHEME` (`smtps` für Port 465, `smtp` für Port 587), `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS` | aus Schritt 5 |
+| KI | `AI_PRIMARY_PROVIDER`, `OPENAI_API_KEY` oder `ANTHROPIC_API_KEY`, `AI_DATA_RETENTION_APPROVED`, `AI_MAX_DAILY_COST_CENT_PER_USER` (leer = kein Limit), `AI_BIND_DOCUMENT_PIPELINE` (leer lassen) | Freigabe erst nach Auftragsverarbeitungsvertrag und Retention-Nachweis; `check-config` meldet ein Tageslimit ohne Kalkulationsbasis in `config/ai.php` |
 | Zahlung | `STRIPE_KEY`, `STRIPE_SECRET`, `STRIPE_WEBHOOK_SECRET` | Webhook-Secret entsteht in Schritt 14 |
 | Betreiber | `HVM_*`, `HVM_MASTERDATA_CONFIRMED` | nach Bestätigung durch die Geschäftsführung |
 | Aufbewahrung | `EXTRACTED_DATA_RETENTION_DAYS`, `GENERATED_PDF_RETENTION_DAYS`, `PRICE_CORRECTION_FREE_DAYS`, `MALWARE_SCANNER_DRIVER` | dokumentierte Betreiberentscheidungen |
@@ -265,7 +265,11 @@ Prüft tatsächlich: Datenbankverbindung und MariaDB-Version, SFTP mit Schreib-
 und Löschprobe, SMTP-Handshake mit Anmeldung, Stripe-Schlüssel per lesendem
 API-Aufruf, Webhook-Secret, KI-Provider (nur bei Datenschutzfreigabe),
 Vite-Manifest, letzter Schedulerlauf, `TRUSTED_PROXIES`, `APP_DEBUG`,
-`APP_ENV`, HTTPS in `APP_URL`. Es wird kein Geheimnis ausgegeben.
+`APP_ENV`, HTTPS in `APP_URL`, KI-Anbindung und KI-Tageslimit samt
+Kalkulationsbasis. Es wird kein Geheimnis ausgegeben. Der Befehl prüft in
+einem eigenen Prozess gegen die aktuelle `shared/.env`; der produktive
+Konfigurationscache aus Schritt 9 bleibt dabei unverändert liegen und muss
+danach nicht neu erzeugt werden.
 
 **Erwartetes Ergebnis:** Tabelle mit Spalten Prüfung, Status, Ergebnis,
 Handlung. Exit-Code 0, wenn keine Zeile `FEHLER` trägt. Beim ersten Lauf ist

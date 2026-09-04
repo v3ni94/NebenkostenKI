@@ -16,6 +16,7 @@ use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Payment;
 use App\Services\Storage\ArtifactStorage;
+use Illuminate\Support\Carbon;
 use Tests\Feature\Pdf\PdfTextExtractor;
 
 /**
@@ -57,6 +58,34 @@ final class OperatorInvoiceTest extends PaymentTestCase
         self::assertSame(InvoiceStatus::BEZAHLT, $rechnung->getAttribute('status'));
         self::assertSame('Stripe Checkout', (string) $rechnung->getAttribute('payment_method'));
         self::assertNotNull($rechnung->getAttribute('payment_reference'));
+    }
+
+    public function test_rechnungsdatum_und_nummernkreis_folgen_dem_deutschen_kalendertag(): void
+    {
+        $this->bestaetigteBetreiberstammdaten();
+        $vorgang = $this->bezahlt(1);
+
+        // Zahlung am 01.01.2027 um 00:30 Uhr deutscher Zeit, in UTC noch der
+        // 31.12.2026. Rechnungsdatum und Nummernkreis muessen 2027 tragen.
+        Carbon::setTestNow(Carbon::parse('2026-12-31 23:30:00', 'UTC'));
+
+        try {
+            self::assertSame('Europe/Berlin', config('app.timezone'));
+
+            $rechnung = app(IssueOperatorInvoice::class)(
+                $vorgang['lauf'],
+                $vorgang['zahlung'],
+                app(CalculatePrice::class)->estimate(1),
+            );
+        } finally {
+            Carbon::setTestNow();
+        }
+
+        self::assertSame('2027-01-01', Carbon::parse((string) $rechnung->getAttribute('issued_on'))->format('Y-m-d'));
+        self::assertSame('2027-01-01', Carbon::parse((string) $rechnung->getAttribute('service_date'))->format('Y-m-d'));
+        self::assertStringStartsWith('NK-2027-', (string) $rechnung->getAttribute('number'));
+        self::assertSame(1, app(InvoiceNumberSequence::class)->lastValue(2027));
+        self::assertSame(0, app(InvoiceNumberSequence::class)->lastValue(2026));
     }
 
     public function test_die_rechnungsposition_nennt_leistung_objekt_und_zeitraum(): void
