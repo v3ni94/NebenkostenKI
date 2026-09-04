@@ -133,4 +133,42 @@
             @endif
         </x-hvm.card>
     </div>
+
+    <div class="mt-6">
+        <x-hvm.card title="Liegen gebliebene Benachrichtigungen des Zahlungsanbieters">
+            <p class="text-sm text-hvm-anthrazit">
+                Die Benachrichtigung wurde empfangen, ihre Verarbeitung aber nicht abgeschlossen, zum Beispiel nach
+                einem Abbruch des Prozesses. Eine erneute Zustellung des Anbieters wird verarbeitet. Bleibt der Eintrag
+                bestehen, ist der Zahlungsstatus im Konto des Anbieters zu prüfen.
+            </p>
+            @if ($liegen_geblieben === [])
+                <p class="mt-3">Kein Eintrag.</p>
+            @else
+                <div class="mt-3 overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-hvm-orange-soft">
+                            <tr>
+                                <th class="px-3 py-2">Ereignis</th>
+                                <th class="px-3 py-2">Art</th>
+                                <th class="px-3 py-2">Empfangen am</th>
+                                <th class="px-3 py-2">Zustellungen</th>
+                                <th class="px-3 py-2">Zahlung</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($liegen_geblieben as $ereignis)
+                                <tr class="border-t border-hvm-hellgrau">
+                                    <td class="px-3 py-2 font-mono text-xs">{{ $ereignis->getAttribute('provider_event_id') }}</td>
+                                    <td class="px-3 py-2">{{ $ereignis->getAttribute('event_type') }}</td>
+                                    <td class="px-3 py-2">{{ $ereignis->getAttribute('received_at')?->format('d.m.Y H:i') }}</td>
+                                    <td class="px-3 py-2">{{ $ereignis->getAttribute('attempts') }}</td>
+                                    <td class="px-3 py-2 font-mono text-xs">{{ $ereignis->getAttribute('payment_id') ?? 'nicht zugeordnet' }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+        </x-hvm.card>
+    </div>
 @endsection

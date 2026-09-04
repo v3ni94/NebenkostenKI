@@ -67,6 +67,38 @@ final class CalculateBillingRunTest extends CalculationTestCase
         self::assertSame(120000, $summe);
     }
 
+    public function test_eine_erneute_berechnung_setzt_verwaiste_abrechnungen_frueherer_staende_auf_ersetzt(): void
+    {
+        $szenario = $this->szenario();
+
+        $erster = app(CalculateBillingRun::class)->handle($szenario['billingRun'], $szenario['user']);
+
+        /** @var UnitStatement $abrechnungB */
+        $abrechnungB = UnitStatement::query()
+            ->where('tenancy_id', $szenario['tenancies'][1]->getKey())
+            ->firstOrFail();
+
+        self::assertSame(UnitStatementStatus::BERECHNET, $abrechnungB->status);
+
+        // Das Mietverhaeltnis B wird vor der erneuten Berechnung entfernt. Im
+        // neuen Ergebnis kommt es nicht mehr vor, seine alte Abrechnung wird
+        // in der Schreibschleife deshalb nicht ersetzt.
+        $szenario['tenancies'][1]->delete();
+
+        $zweiter = app(CalculateBillingRun::class)->handle($szenario['billingRun']->refresh(), $szenario['user']);
+
+        self::assertNotSame((string) $erster->snapshot->getKey(), (string) $zweiter->snapshot->getKey());
+
+        $abrechnungB->refresh();
+
+        self::assertSame(UnitStatementStatus::ERSETZT, $abrechnungB->status);
+        self::assertSame(
+            1,
+            UnitStatement::query()->where('billing_run_id', $szenario['billingRun']->getKey())->current()->count(),
+            'Zum aktiven Stand gehoert nur noch eine Abrechnung.',
+        );
+    }
+
     public function test_anteile_folgen_der_wohnflaeche_und_ergeben_ein_guthaben(): void
     {
         $szenario = $this->szenario();

@@ -6,9 +6,11 @@ namespace Tests\Feature\Payment;
 
 use App\Application\Payment\Dto\FinalViewBundle;
 use App\Application\Payment\Events\BillingRunFinalized;
+use App\Application\Payment\Exceptions\CustomerAddressMissingException;
 use App\Application\Payment\Exceptions\FinalizationFailedException;
 use App\Application\Payment\FinalizeBillingRun;
 use App\Application\Payment\InvoiceNumberSequence;
+use App\Application\Payment\PaymentRecoveryOverview;
 use App\Enums\BillingRunStatus;
 use App\Enums\CalculationSnapshotStatus;
 use App\Enums\GeneratedDocumentKind;
@@ -19,6 +21,9 @@ use App\Models\BillingRun;
 use App\Models\CalculationSnapshot;
 use App\Models\GeneratedDocument;
 use App\Models\Invoice;
+use App\Models\InvoiceItem;
+use App\Models\Organization;
+use App\Models\Payment;
 use App\Models\UnitStatement;
 use App\Models\User;
 use App\Services\Storage\ArtifactStorage;
@@ -260,6 +265,35 @@ final class FinalizationTest extends PaymentTestCase
         }
     }
 
+    public function test_ein_bereits_in_bearbeitung_befindlicher_lauf_wird_nicht_zweimal_finalisiert(): void
+    {
+        $vorgang = $this->bezahlterVorgang();
+
+        // Zwei Aufrufer (Admin-POST und Zeitplan) halten denselben Lauf. Der
+        // erste hat den Uebergang nach FINALIZING bereits festgeschrieben; der
+        // zweite arbeitet mit einem veralteten Stand, der noch PAID zeigt.
+        $veraltet = BillingRun::query()->findOrFail($vorgang['lauf']->getKey());
+        self::assertSame(BillingRunStatus::PAID, $veraltet->getAttribute('status'));
+
+        BillingRun::query()
+            ->whereKey($vorgang['lauf']->getKey())
+            ->update(['status' => BillingRunStatus::FINALIZING->value]);
+
+        try {
+            app(FinalizeBillingRun::class)($veraltet, $vorgang['nutzer']);
+            self::fail('Der zweite Aufrufer darf keinen zweiten Durchlauf starten.');
+        } catch (FinalizationFailedException $ausnahme) {
+            self::assertStringContainsString('bereits in Bearbeitung', $ausnahme->getMessage());
+        }
+
+        // Nichts erzeugt, der Lauf bleibt beim ersten Aufrufer.
+        self::assertSame(0, GeneratedDocument::query()->count());
+        self::assertSame(0, Invoice::query()->count());
+        self::assertSame(BillingRunStatus::FINALIZING, BillingRun::query()
+            ->findOrFail($vorgang['lauf']->getKey())
+            ->getAttribute('status'));
+    }
+
     public function test_eine_korrektur_erzeugt_eine_neue_version_und_setzt_die_alte_auf_ersetzt(): void
     {
         $vorgang = $this->bezahlterVorgang();
@@ -365,6 +399,92 @@ final class FinalizationTest extends PaymentTestCase
             (int) $ergebnis->invoice->getAttribute('gross_cent'),
             (int) $ergebnis->invoice->getAttribute('net_cent') + (int) $ergebnis->invoice->getAttribute('tax_cent'),
         );
+    }
+
+    public function test_der_altdatenpfad_des_bezahlten_preisstands_bleibt_je_einzelpreis_nachvollziehbar(): void
+    {
+        $vorgang = $this->bezahlterVorgang(2);
+
+        /** @var Payment $zahlung */
+        $zahlung = Payment::query()->where('billing_run_id', $vorgang['lauf']->getKey())->firstOrFail();
+
+        // Altdaten: der gespeicherte Einzelpreis passt nicht zum bezahlten
+        // Betrag. Massgeblich ist der bezahlte Bruttobetrag, die Zerlegung
+        // muss trotzdem je Einzelpreis stimmen (ADR-010).
+        $zahlung->forceFill(['amount_cent' => 5000, 'unit_price_gross_cent' => 2490, 'base_price_gross_cent' => 0])->save();
+
+        $preis = app(FinalizeBillingRun::class)->paidQuote($zahlung->refresh());
+
+        self::assertSame(5000, $preis->grossCent);
+        self::assertSame(2500, $preis->unitGrossCent);
+        self::assertSame($preis->grossCent, $preis->netCent + $preis->taxCent);
+        self::assertSame(2 * $preis->unitNetCent(), $preis->netCent - $preis->baseNetCent());
+        self::assertTrue($preis->isConsistent());
+
+        // Bleibt ein Cent-Rest, liegt er ausschliesslich in der Steuerzeile.
+        $zahlung->forceFill(['amount_cent' => 4981])->save();
+
+        $rest = app(FinalizeBillingRun::class)->paidQuote($zahlung->refresh());
+
+        self::assertSame(4981, $rest->grossCent);
+        self::assertSame(2490, $rest->unitGrossCent);
+        self::assertSame(2 * $rest->unitNetCent(), $rest->netCent - $rest->baseNetCent());
+        self::assertSame($rest->grossCent, $rest->netCent + $rest->taxCent);
+    }
+
+    public function test_die_rechnungsposition_stimmt_auch_im_altdatenpfad_rechnerisch(): void
+    {
+        $vorgang = $this->bezahlterVorgang(2);
+
+        Payment::query()
+            ->where('billing_run_id', $vorgang['lauf']->getKey())
+            ->update(['amount_cent' => 5000, 'unit_price_gross_cent' => 2490]);
+
+        $ergebnis = app(FinalizeBillingRun::class)($vorgang['lauf'], $vorgang['nutzer']);
+
+        self::assertNotNull($ergebnis->invoice);
+        self::assertSame(5000, (int) $ergebnis->invoice->getAttribute('gross_cent'));
+
+        /** @var InvoiceItem $position */
+        $position = InvoiceItem::query()
+            ->where('invoice_id', $ergebnis->invoice->getKey())
+            ->where('position', 1)
+            ->firstOrFail();
+
+        self::assertSame(
+            2 * (int) $position->getAttribute('unit_price_net_cent'),
+            (int) $position->getAttribute('net_cent'),
+            'Anzahl mal Nettoeinzelpreis muss den Positionsnettobetrag ergeben.',
+        );
+        self::assertSame(
+            (int) $position->getAttribute('gross_cent'),
+            (int) $position->getAttribute('net_cent') + (int) $position->getAttribute('tax_cent'),
+        );
+    }
+
+    public function test_ohne_rechnungsanschrift_des_kunden_wird_die_leistung_bereitgestellt_aber_keine_rechnung_erzeugt(): void
+    {
+        $vorgang = $this->bezahlterVorgang();
+
+        // Der Kunde hat die Anschrift nach dem Checkout im Konto geleert.
+        Organization::query()
+            ->whereKey($vorgang['lauf']->getAttribute('organization_id'))
+            ->update(['billing_address_line' => null, 'billing_postal_code' => null, 'billing_city' => null]);
+
+        $ergebnis = app(FinalizeBillingRun::class)($vorgang['lauf'], $vorgang['nutzer']);
+
+        self::assertNull($ergebnis->invoice);
+        self::assertTrue($ergebnis->invoiceIsBlocked());
+        self::assertContains(CustomerAddressMissingException::BLOCKER, $ergebnis->invoiceBlockers);
+        self::assertSame(0, Invoice::query()->count());
+        self::assertSame(0, app(InvoiceNumberSequence::class)->lastValue());
+        self::assertGreaterThan(0, $ergebnis->documentCount());
+        self::assertSame(BillingRunStatus::FINALIZED, BillingRun::query()
+            ->findOrFail($vorgang['lauf']->getKey())
+            ->getAttribute('status'));
+
+        // Der Fall erscheint im Zahlungsnachlauf unter "ohne Rechnung".
+        self::assertCount(1, app(PaymentRecoveryOverview::class)->finalizedRunsWithoutInvoice());
     }
 
     public function test_das_ereignis_fuer_die_bestaetigungsmail_wird_ausgeloest(): void

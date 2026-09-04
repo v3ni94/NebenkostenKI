@@ -8,6 +8,7 @@ use App\Application\Payment\InvoiceNumberSequence;
 use App\Models\Invoice;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
@@ -41,6 +42,27 @@ final class InvoiceNumberSequenceTest extends TestCase
 
         self::assertSame(25, count(array_unique($nummern)));
         self::assertSame(25, $folge->lastValue(2026));
+    }
+
+    public function test_das_jahr_ohne_angabe_folgt_der_fachlichen_zeitzone_und_nicht_der_anwendungszeitzone(): void
+    {
+        $zeitzone = date_default_timezone_get();
+        config()->set('app.timezone', 'UTC');
+        date_default_timezone_set('UTC');
+        Carbon::setTestNow(Carbon::parse('2026-12-31 23:30:00', 'UTC'));
+
+        try {
+            // In Europe/Berlin ist bereits der 01.01.2027.
+            $nummer = app(InvoiceNumberSequence::class)->next();
+            $letzter = app(InvoiceNumberSequence::class)->lastValue();
+        } finally {
+            Carbon::setTestNow();
+            date_default_timezone_set($zeitzone);
+            config()->set('app.timezone', $zeitzone);
+        }
+
+        self::assertSame('NK-2027-000001', $nummer);
+        self::assertSame(1, $letzter);
     }
 
     public function test_jedes_jahr_beginnt_mit_einem_eigenen_kreis(): void

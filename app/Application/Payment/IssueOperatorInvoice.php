@@ -7,6 +7,7 @@ namespace App\Application\Payment;
 use App\Application\Account\AuditRecorder;
 use App\Application\Payment\Dto\PriceQuote;
 use App\Application\Payment\Dto\VatDecomposition;
+use App\Application\Payment\Exceptions\CustomerAddressMissingException;
 use App\Application\Payment\Exceptions\OperatorMasterdataMissingException;
 use App\Domain\Money\Money;
 use App\Enums\InvoiceStatus;
@@ -22,6 +23,7 @@ use App\Services\Pdf\Store\GeneratedDocumentWriter;
 use App\Services\Pdf\View\InvoiceLine;
 use App\Services\Pdf\View\InvoiceView;
 use App\Services\Pdf\View\PostalAddress;
+use App\Support\BusinessTimezone;
 use DateTimeImmutable;
 use Illuminate\Support\Facades\DB;
 
@@ -46,6 +48,10 @@ use Illuminate\Support\Facades\DB;
  *     sichtbaren Platzhalter.
  *  5. Steuer- und Bankdaten stammen ausschliesslich aus der bestaetigten
  *     Konfiguration. Sie werden nie erfunden und nie aus Kundendaten abgeleitet.
+ *  6. Ohne vollstaendige Rechnungsanschrift des Kunden wird keine Rechnung
+ *     erzeugt und keine Nummer verbraucht (CustomerAddressMissingException).
+ *     Der Fall erscheint im Zahlungsnachlauf und wird nach Ergaenzung der
+ *     Anschrift nachgeholt.
  */
 final class IssueOperatorInvoice
 {
@@ -61,6 +67,7 @@ final class IssueOperatorInvoice
      * Erzeugt die Rechnung zu einer bestaetigten Zahlung.
      *
      * @throws OperatorMasterdataMissingException
+     * @throws CustomerAddressMissingException
      */
     public function __invoke(
         BillingRun $billingRun,
@@ -79,7 +86,8 @@ final class IssueOperatorInvoice
         }
 
         $organization = $this->organizationOf($billingRun);
-        $today = new DateTimeImmutable(now()->format('Y-m-d'));
+        $this->assertBillingAddress($organization);
+        $today = BusinessTimezone::today();
         $description = $this->description($billingRun);
 
         $invoice = DB::transaction(function () use (
@@ -166,7 +174,7 @@ final class IssueOperatorInvoice
             ? Organization::query()->find($organizationId)
             : null;
 
-        $today = new DateTimeImmutable(now()->format('Y-m-d'));
+        $today = BusinessTimezone::today();
         $description = sprintf(
             'Storno zur Rechnung %s',
             (string) $original->getAttribute('number'),
@@ -257,7 +265,7 @@ final class IssueOperatorInvoice
     public function placeholderHtml(BillingRun $billingRun, PriceQuote $quote): string
     {
         $organization = $this->organizationOf($billingRun);
-        $today = new DateTimeImmutable(now()->format('Y-m-d'));
+        $today = BusinessTimezone::today();
 
         return $this->renderer->html($this->view(
             $this->numbers->format($this->previewPrefix(), (int) $today->format('Y'), 0),
@@ -280,6 +288,23 @@ final class IssueOperatorInvoice
                 $this->blocker->missingFields(),
                 $this->blocker->masterdataConfirmed(),
             );
+        }
+    }
+
+    /**
+     * Eine Rechnung ohne Anschrift des Kunden wird nicht festgeschrieben. Der
+     * Checkout verlangt die Anschrift, der Kunde kann sie danach im Konto
+     * leeren; eine nachgeholte Rechnung waere sonst ohne Anschrift. Die
+     * Pruefung entspricht StartCheckout::hasBillingAddress.
+     *
+     * @throws CustomerAddressMissingException
+     */
+    private function assertBillingAddress(?Organization $organization): void
+    {
+        foreach (['billing_address_line', 'billing_postal_code', 'billing_city'] as $field) {
+            if ($this->stringOrNull($organization?->getAttribute($field)) === null) {
+                throw CustomerAddressMissingException::forBillingRun();
+            }
         }
     }
 

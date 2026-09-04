@@ -181,8 +181,39 @@ final class LivegangBlockerTest extends AdminTestCase
     {
         // Die Korrektur nach Zahlung ist zum Start nicht verfuegbar; die
         // Einstellung PRICE_CORRECTION_FREE_DAYS hat keine Wirkung und wird
-        // deshalb nicht als offene Entscheidung gefuehrt.
-        self::assertFalse($this->bericht()->has(LaunchBlockerCheck::KORREKTURFRIST));
+        // deshalb nicht als offene Entscheidung gefuehrt. Die Klasse kennt
+        // dafuer auch keinen Schluessel mehr.
+        self::assertFalse($this->bericht()->has('korrekturfrist'));
+        self::assertFalse(defined(LaunchBlockerCheck::class.'::KORREKTURFRIST'));
+    }
+
+    public function test_ein_preis_ausserhalb_des_korridors_ist_ein_blocker(): void
+    {
+        config()->set('smartabrechnen.pricing.per_statement_gross_cent', 2490);
+        self::assertFalse($this->bericht()->has(LaunchBlockerCheck::PREISKORRIDOR));
+
+        // Cent statt Euro in der .env: 24.900,00 EUR je Abrechnung.
+        config()->set('smartabrechnen.pricing.per_statement_gross_cent', 2490000);
+
+        $bericht = $this->bericht();
+
+        self::assertTrue($bericht->has(LaunchBlockerCheck::PREISKORRIDOR));
+
+        foreach ($bericht->blockers as $blocker) {
+            if ($blocker->key === LaunchBlockerCheck::PREISKORRIDOR) {
+                self::assertStringContainsString('24.900,00 EUR', $blocker->missing);
+                self::assertStringContainsString('20,00 EUR', $blocker->missing);
+                self::assertStringContainsString('30,00 EUR', $blocker->missing);
+            }
+        }
+
+        // Unterhalb des Korridors ebenfalls.
+        config()->set('smartabrechnen.pricing.per_statement_gross_cent', 1999);
+        self::assertTrue($this->bericht()->has(LaunchBlockerCheck::PREISKORRIDOR));
+
+        // Die Korridorgrenzen selbst sind zulaessig.
+        config()->set('smartabrechnen.pricing.per_statement_gross_cent', 3000);
+        self::assertFalse($this->bericht()->has(LaunchBlockerCheck::PREISKORRIDOR));
     }
 
     public function test_die_uebersicht_zeigt_die_anzahl_der_blocker(): void

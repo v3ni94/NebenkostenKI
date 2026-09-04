@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Payment;
 
 use App\Application\Payment\Dto\FinalViewBundle;
+use App\Application\Payment\HandleStripeEvent;
 use App\Application\Payment\PaymentRecoveryOverview;
 use App\Enums\BillingRunStatus;
 use App\Enums\PaymentStatus;
@@ -456,6 +457,57 @@ final class StripeWebhookTest extends PaymentTestCase
         self::assertSame(BillingRunStatus::FINALIZED, BillingRun::query()
             ->findOrFail($vorgang['lauf']->getKey())
             ->getAttribute('status'));
+    }
+
+    public function test_eine_wiederzustellung_auf_ein_liegen_gebliebenes_ereignis_wird_nicht_mit_200_quittiert(): void
+    {
+        $vorgang = $this->offenerCheckout();
+        $payload = $this->erfolgsnutzlast($vorgang['zahlung'], [], 'evt_test_liegen_geblieben_1');
+
+        // Die erste Zustellung wurde gespeichert, der Prozess brach danach
+        // hart ab: kein Ergebnis, kein processed_at.
+        WebhookEvent::factory()->create([
+            'provider_event_id' => 'evt_test_liegen_geblieben_1',
+            'processing_status' => WebhookProcessingStatus::EMPFANGEN,
+            'processed_at' => null,
+            'received_at' => now(),
+            'attempts' => 1,
+        ]);
+
+        // Der Anbieter stellt innerhalb der Wartezeit erneut zu. Ein 200 wuerde
+        // die Zustellkette beenden, obwohl nichts verarbeitet wurde.
+        $this->sendeWebhook($payload)->assertStatus(500);
+
+        /** @var WebhookEvent $eintrag */
+        $eintrag = WebhookEvent::query()->where('provider_event_id', 'evt_test_liegen_geblieben_1')->firstOrFail();
+
+        self::assertSame(WebhookProcessingStatus::EMPFANGEN, $eintrag->getAttribute('processing_status'));
+        self::assertSame(2, (int) $eintrag->getAttribute('attempts'));
+        self::assertNull($eintrag->getAttribute('processed_at'));
+        self::assertSame(PaymentStatus::AUSSTEHEND, Payment::query()
+            ->findOrFail($vorgang['zahlung']->getKey())
+            ->getAttribute('status'));
+
+        // Der liegen gebliebene Fall ist im Zahlungsnachlauf sichtbar, sobald
+        // die Wartezeit abgelaufen ist.
+        self::assertCount(0, app(PaymentRecoveryOverview::class)->staleReceivedEvents());
+
+        $this->travel(HandleStripeEvent::STALE_RECEIVED_MINUTES + 1)->minutes();
+
+        self::assertCount(1, app(PaymentRecoveryOverview::class)->staleReceivedEvents());
+
+        // Nach der Wartezeit wird die naechste Zustellung verarbeitet.
+        $this->sendeWebhook($payload)->assertOk()->assertJson(['status' => 'verarbeitet']);
+
+        $eintrag->refresh();
+
+        self::assertSame(WebhookProcessingStatus::VERARBEITET, $eintrag->getAttribute('processing_status'));
+        self::assertNotNull($eintrag->getAttribute('processed_at'));
+        self::assertSame(3, (int) $eintrag->getAttribute('attempts'));
+        self::assertSame(BillingRunStatus::FINALIZED, BillingRun::query()
+            ->findOrFail($vorgang['lauf']->getKey())
+            ->getAttribute('status'));
+        self::assertCount(0, app(PaymentRecoveryOverview::class)->staleReceivedEvents());
     }
 
     public function test_ein_datenbankfehler_beim_speichern_der_meldung_wird_nicht_als_duplikat_gewertet(): void

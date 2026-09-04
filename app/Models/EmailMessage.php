@@ -17,6 +17,8 @@ use Illuminate\Support\Carbon;
  *
  * DATENSCHUTZ: Keine Passwoerter, Tokens, Downloadlinks oder vertraulichen
  * Inhalte. Finale Mieterabrechnungen werden nicht unverschluesselt angehaengt.
+ * Einzige Ausnahme ist der verschluesselte, kurzlebige Wiederholungspuffer
+ * retry_payload fuer zeitweilig gescheiterte Nachrichten (MailDispatcher).
  *
  * @property string $id
  * @property string|null $organization_id
@@ -33,6 +35,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $failed_at
  * @property string|null $error_code
  * @property string|null $error_message
+ * @property string|null $retry_payload
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read BillingRun|null $billingRun
@@ -62,6 +65,9 @@ class EmailMessage extends Model
             'queued_at' => 'datetime',
             'sent_at' => 'datetime',
             'failed_at' => 'datetime',
+            // Wiederholungspuffer, kann einen zeitlich begrenzten Downloadlink
+            // tragen und liegt deshalb nur verschluesselt in der Datenbank.
+            'retry_payload' => 'encrypted',
         ];
     }
 

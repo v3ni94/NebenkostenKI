@@ -25,6 +25,8 @@ use App\Models\ReminderPreference;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -115,6 +117,29 @@ final class ErinnerungsversandTest extends TestCase
         $this->assertSame((string) $welt['property']->getKey(), $ereignis->getAttribute('property_id'));
         $this->assertNotNull($ereignis->getAttribute('email_message_id'));
         $this->assertSame(1, EmailMessage::query()->where('template', 'erinnerung-folgejahr')->count());
+    }
+
+    public function test_der_erinnerungstermin_wird_in_der_anwendungszeitzone_gespeichert(): void
+    {
+        $this->welt();
+
+        // Lauf um 08:00 Uhr deutscher Zeit. Gespeichert und gelesen wird in der
+        // Anwendungszeitzone Europe/Berlin (ADR-018); ein UTC-Wert wuerde als
+        // 07:00 Uhr gelesen und scopeDue um eine Stunde verschieben.
+        $this->assertSame('Europe/Berlin', config('app.timezone'));
+
+        $this->lauf()->fuerTag(CarbonImmutable::parse('2026-01-15 08:00:00', 'Europe/Berlin'));
+
+        /** @var ReminderEvent $ereignis */
+        $ereignis = ReminderEvent::query()->firstOrFail();
+        $geplant = $ereignis->getAttribute('scheduled_for');
+
+        $this->assertInstanceOf(Carbon::class, $geplant);
+        $this->assertSame('2026-01-15 08:00', $geplant->format('Y-m-d H:i'));
+        $this->assertSame(
+            '2026-01-15 08:00:00',
+            (string) DB::table('reminder_events')->where('id', $ereignis->getKey())->value('scheduled_for'),
+        );
     }
 
     public function test_an_einem_anderen_tag_wird_nichts_versendet(): void

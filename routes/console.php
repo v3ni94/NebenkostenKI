@@ -152,3 +152,17 @@ Schedule::command('smartabrechnen:retry-finalization', ['--batch=25'])
     ->withoutOverlapping(15)
     ->runInBackground()
     ->description('Holt Finalisierung und Rechnung für bezahlte Abrechnungsläufe nach.');
+
+// --- Wiederholung zeitweilig gescheiterter Transaktionsmails -----------------
+//
+// Ein Ausfall des Postausgangs darf eine Vorschau-, Zahlungs- oder
+// Rechnungsmail nicht endgueltig verschlucken. Nachrichten im Status
+// FEHLGESCHLAGEN werden bis zu dreimal innerhalb von 24 Stunden erneut
+// versendet; dauerhaft unzustellbare Adressen sind gesperrt und werden nie
+// wiederholt (MailDispatcher). Der Lauf ist idempotent.
+
+Schedule::command('smartabrechnen:retry-failed-emails', ['--batch=25'])
+    ->everyFifteenMinutes()
+    ->withoutOverlapping(15)
+    ->runInBackground()
+    ->description('Versendet zeitweilig gescheiterte Transaktionsmails erneut.');

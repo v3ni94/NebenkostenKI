@@ -38,7 +38,7 @@ use Throwable;
  *  - resources/views/legal                           Platzhalterstatus
  *  - public/ci                                       Logo und CI-Dateien
  *  - config('smartabrechnen.retention')              Aufbewahrungsfristen
- *  - config('smartabrechnen.pricing')                Korrekturfrist
+ *  - config('smartabrechnen.pricing')                Preiskorridor
  */
 final class LaunchBlockerCheck
 {
@@ -62,7 +62,7 @@ final class LaunchBlockerCheck
 
     public const string AUFBEWAHRUNG_ERGEBNIS_PDF = 'aufbewahrung_ergebnis_pdf';
 
-    public const string KORREKTURFRIST = 'korrekturfrist';
+    public const string PREISKORRIDOR = 'preiskorridor';
 
     /**
      * Marker, an dem eine Rechtstextseite als Platzhalterfassung erkennbar ist.
@@ -120,6 +120,7 @@ final class LaunchBlockerCheck
             $this->corporateIdentity(),
             $this->extractedDataRetention(),
             $this->generatedPdfRetention(),
+            $this->priceCorridor(),
         ] as $blocker) {
             if ($blocker instanceof LaunchBlocker) {
                 $blockers[] = $blocker;
@@ -441,6 +442,47 @@ final class LaunchBlockerCheck
             'Die Ergebnisdateien bleiben unbefristet gespeichert. Die Frist ist gegen die steuerlichen '
                 .'Aufbewahrungspflichten der Rechnungen abzugrenzen.',
             'Betreiber, in Abstimmung mit dem Steuerberater.',
+        );
+    }
+
+    /**
+     * Der konfigurierte Preis je Abrechnung muss im Korridor liegen, den
+     * config('smartabrechnen.pricing.admin_range_gross_cent') fuer die
+     * Adminkonfiguration vorgibt. Ein Wert ausserhalb (Tippfehler in der .env,
+     * Cent statt Euro) wuerde ohne diese Pruefung produktiv berechnet.
+     */
+    private function priceCorridor(): ?LaunchBlocker
+    {
+        $price = $this->configInt('smartabrechnen.pricing.per_statement_gross_cent');
+        $min = $this->configInt('smartabrechnen.pricing.admin_range_gross_cent.min');
+        $max = $this->configInt('smartabrechnen.pricing.admin_range_gross_cent.max');
+
+        if ($price === null || $min === null || $max === null) {
+            return new LaunchBlocker(
+                self::PREISKORRIDOR,
+                'Preis',
+                'Preis je Abrechnung (PRICE_PER_STATEMENT_GROSS_CENT) oder Preiskorridor sind nicht als ganze Cent konfiguriert.',
+                'Der Checkout kann keinen verlaesslichen Preis berechnen.',
+                'Betreiber: Preis in ganzen Cent brutto eintragen.',
+            );
+        }
+
+        if ($price >= $min && $price <= $max) {
+            return null;
+        }
+
+        return new LaunchBlocker(
+            self::PREISKORRIDOR,
+            'Preis',
+            sprintf(
+                'Der Preis je Abrechnung von %s liegt ausserhalb des zulaessigen Korridors von %s bis %s.',
+                MetricsOverview::formatCent($price),
+                MetricsOverview::formatCent($min),
+                MetricsOverview::formatCent($max),
+            ),
+            'Kunden wuerden einen nicht freigegebenen Preis bezahlen. Die Preisanzeige im Adminbereich weist den '
+                .'Wert als unzulaessig aus.',
+            'Geschaeftsfuehrung der Hausverwaltung Mueller GmbH: Preis festlegen oder Korridor in config/smartabrechnen.php anpassen.',
         );
     }
 

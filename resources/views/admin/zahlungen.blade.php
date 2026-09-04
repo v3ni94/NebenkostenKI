@@ -17,9 +17,18 @@
         </div>
     @endif
 
+    @if ($zahlungen_ohne_lauf > 0)
+        <div class="mt-6">
+            <x-hvm.alert variant="warning" label="Achtung" title="Zahlungseingang ohne freischaltbaren Lauf">
+                {{ $zahlungen_ohne_lauf }} bestätigte {{ $zahlungen_ohne_lauf === 1 ? 'Zahlung gehört' : 'Zahlungen gehören' }} zu keinem freischaltbaren Abrechnungslauf.
+                Erstattung oder Zuordnung ist kaufmännisch zu entscheiden und durch die Geschäftsführung freizugeben.
+            </x-hvm.alert>
+        </div>
+    @endif
+
     <div class="mt-6">
         <x-hvm.button href="{{ route('admin.zahlungsnachlauf') }}" variant="secondary" size="sm">
-            Zahlungsnachlauf: offene Fälle nach bestätigter Zahlung
+            Zahlungsnachlauf: offene Fälle nach bestätigter Zahlung ({{ $nachlauf_offen }})
         </x-hvm.button>
     </div>
 

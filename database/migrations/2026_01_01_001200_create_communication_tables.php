@@ -31,9 +31,9 @@ use Illuminate\Support\Facades\Schema;
 | 5. Die Spalte heisst reminder_window, weil WINDOW in MariaDB ein reserviertes
 |    Wort ist.
 |
-| 6. Alle Zeitstempel liegen in UTC. Die fachlichen Erinnerungstermine des
-|    Abschnitts 17 werden von der Anwendungsschicht in Europe/Berlin berechnet
-|    und in UTC gespeichert.
+| 6. Alle Zeitstempel liegen in der Anwendungszeitzone Europe/Berlin (ADR-018).
+|    Die fachlichen Erinnerungstermine des Abschnitts 17 werden von der
+|    Anwendungsschicht in Europe/Berlin berechnet und unveraendert gespeichert.
 |
 */
 

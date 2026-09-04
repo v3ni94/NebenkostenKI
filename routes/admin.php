@@ -126,6 +126,8 @@ Route::middleware(RequireAdminTwoFactor::class)->group(function (): void {
     Route::get('/kommunikation', [CommunicationController::class, 'index'])->name('kommunikation');
     Route::post('/kommunikation/sperrliste/aufheben', [CommunicationController::class, 'releaseSuppression'])
         ->name('kommunikation.sperre.aufheben');
+    Route::post('/kommunikation/nachrichten/{emailMessage}/erneut-senden', [CommunicationController::class, 'resend'])
+        ->name('kommunikation.nachricht.erneut');
     Route::get('/versionen', [VersionController::class, 'index'])->name('versionen');
     Route::get('/technik', [HealthController::class, 'index'])->name('technik');
     Route::get('/kennzahlen', [MetricsController::class, 'index'])->name('kennzahlen');

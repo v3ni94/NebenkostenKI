@@ -6,6 +6,7 @@ namespace App\Application\Payment;
 
 use App\Application\Account\AuditRecorder;
 use App\Application\Payment\Dto\RecoveryReport;
+use App\Application\Payment\Exceptions\CustomerAddressMissingException;
 use App\Application\Payment\Exceptions\OperatorMasterdataMissingException;
 use App\Enums\BillingRunStatus;
 use App\Enums\GeneratedDocumentKind;
@@ -69,7 +70,7 @@ final class IssueMissingInvoice
 
         try {
             $invoice = ($this->invoices)($billingRun, $payment, $this->finalize->paidQuote($payment), $actor);
-        } catch (OperatorMasterdataMissingException $exception) {
+        } catch (OperatorMasterdataMissingException|CustomerAddressMissingException $exception) {
             return $exception->getMessage();
         }
 

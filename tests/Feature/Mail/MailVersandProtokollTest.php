@@ -283,7 +283,68 @@ final class MailVersandProtokollTest extends TestCase
             'zeitweilige Ablehnung 451' => [
                 'Expected response code "250" but got code "451", with message "451 4.7.1 Greylisted, try again later".',
             ],
+            'Absenderadresse abgelehnt, Code 553' => [
+                'Expected response code "250" but got code "553", with message "553 5.7.1 <kontakt@beispiel.invalid>: Sender address rejected: not owned by user".',
+            ],
+            'Absenderadresse abgelehnt, Code 550' => [
+                'Expected response code "250" but got code "550", with message "550 5.1.0 <kontakt@beispiel.invalid>: Sender address rejected: Domain not found".',
+            ],
+            'einliefernder Host gesperrt, Code 554' => [
+                'Expected response code "250" but got code "554", with message "554 5.7.1 Service unavailable; Client host [203.0.113.10] blocked using zen.spamhaus.org".',
+            ],
+            'Relay verweigert, Code 554' => [
+                'Expected response code "250" but got code "554", with message "554 5.7.1 Relay access denied".',
+            ],
+            'Nachricht zu gross, Code 552' => [
+                'Expected response code "250" but got code "552", with message "552 5.3.4 Message size exceeds fixed maximum message size".',
+            ],
         ];
+    }
+
+    /**
+     * Ablehnungen, deren Wortlaut erkennbar den Empfaenger betrifft. Nur sie
+     * sperren die Adresse.
+     *
+     * @return array<string, array{string}>
+     */
+    public static function empfaengerseitigeAblehnungen(): array
+    {
+        return [
+            'Empfaenger unbekannt, deutsch' => ['550 5.1.1 Empfänger unbekannt'],
+            'User unknown' => [
+                'Expected response code "250" but got code "550", with message "550 5.1.1 <vermieter@beispiel.invalid>: Recipient address rejected: User unknown in virtual mailbox table".',
+            ],
+            'Postfach nicht vorhanden' => [
+                'Expected response code "250" but got code "550", with message "550 Requested action not taken: mailbox unavailable".',
+            ],
+            'Nutzer nicht lokal, Code 551' => [
+                'Expected response code "250" but got code "551", with message "551 5.1.6 User not local; no such user here".',
+            ],
+            'Speicher des Postfachs ueberschritten, Code 552' => [
+                'Expected response code "250" but got code "552", with message "552 5.2.2 Mailbox full".',
+            ],
+            'Adresse in der Meldung genannt' => [
+                'Expected response code "250" but got code "550", with message "550 5.4.1 vermieter@beispiel.invalid: Access denied".',
+            ],
+        ];
+    }
+
+    #[DataProvider('empfaengerseitigeAblehnungen')]
+    public function test_empfaengerseitige_ablehnung_sperrt_die_adresse(string $meldung): void
+    {
+        $welt = $this->welt();
+
+        Mail::shouldReceive('to')->andReturnSelf();
+        Mail::shouldReceive('send')->andThrow(new RuntimeException($meldung));
+
+        $protokoll = $this->dispatcher()->send(
+            mail: $this->vorschaumail(),
+            empfaenger: 'vermieter@beispiel.invalid',
+            nutzer: $welt['user'],
+        );
+
+        $this->assertSame(EmailStatus::BOUNCED, $protokoll->getAttribute('status'), $meldung);
+        $this->assertSame(1, EmailSuppression::query()->count(), $meldung);
     }
 
     #[DataProvider('absenderseitigeFehler')]

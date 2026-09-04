@@ -38,6 +38,14 @@ final class FinalizationFailedException extends RuntimeException
         );
     }
 
+    public static function alreadyInProgress(): self
+    {
+        return new self(
+            'Die Finalisierung dieses Abrechnungslaufs ist bereits in Bearbeitung. '
+            .'Es wird kein zweiter Durchlauf gestartet.'
+        );
+    }
+
     public static function withoutStatements(): self
     {
         return new self(

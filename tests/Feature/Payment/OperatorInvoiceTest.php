@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Payment;
 
 use App\Application\Payment\CalculatePrice;
+use App\Application\Payment\Exceptions\CustomerAddressMissingException;
 use App\Application\Payment\Exceptions\OperatorMasterdataMissingException;
 use App\Application\Payment\InvoiceNumberSequence;
 use App\Application\Payment\IssueOperatorInvoice;
@@ -14,6 +15,7 @@ use App\Models\BillingRun;
 use App\Models\GeneratedDocument;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
+use App\Models\Organization;
 use App\Models\Payment;
 use App\Services\Storage\ArtifactStorage;
 use Illuminate\Support\Carbon;
@@ -87,6 +89,61 @@ final class OperatorInvoiceTest extends PaymentTestCase
         self::assertStringStartsWith('NK-2027-', (string) $rechnung->getAttribute('number'));
         self::assertSame(1, app(InvoiceNumberSequence::class)->lastValue(2027));
         self::assertSame(0, app(InvoiceNumberSequence::class)->lastValue(2026));
+    }
+
+    public function test_rechnungsdatum_und_nummernkreis_folgen_auch_bei_utc_als_anwendungszeitzone_dem_deutschen_kalendertag(): void
+    {
+        $this->bestaetigteBetreiberstammdaten();
+        $vorgang = $this->bezahlt(1);
+
+        // Die fachliche Zeitzone haengt nicht an app.timezone. Laeuft die
+        // Anwendung in UTC, muss eine Zahlung um 00:30 Uhr deutscher Zeit am
+        // 01.01.2027 trotzdem Rechnungsdatum und Nummernkreis 2027 erhalten.
+        $zeitzone = date_default_timezone_get();
+        config()->set('app.timezone', 'UTC');
+        date_default_timezone_set('UTC');
+        Carbon::setTestNow(Carbon::parse('2026-12-31 23:30:00', 'UTC'));
+
+        try {
+            $rechnung = app(IssueOperatorInvoice::class)(
+                $vorgang['lauf'],
+                $vorgang['zahlung'],
+                app(CalculatePrice::class)->estimate(1),
+            );
+        } finally {
+            Carbon::setTestNow();
+            date_default_timezone_set($zeitzone);
+            config()->set('app.timezone', $zeitzone);
+        }
+
+        self::assertSame('2027-01-01', Carbon::parse((string) $rechnung->getAttribute('issued_on'))->format('Y-m-d'));
+        self::assertStringStartsWith('NK-2027-', (string) $rechnung->getAttribute('number'));
+        self::assertSame(1, app(InvoiceNumberSequence::class)->lastValue(2027));
+    }
+
+    public function test_ohne_rechnungsanschrift_des_kunden_wird_keine_rechnung_erzeugt(): void
+    {
+        $this->bestaetigteBetreiberstammdaten();
+        $vorgang = $this->bezahlt(1);
+
+        // Der Kunde hat die Anschrift nach dem Checkout im Konto geleert.
+        Organization::query()
+            ->whereKey($vorgang['lauf']->getAttribute('organization_id'))
+            ->update(['billing_address_line' => null, 'billing_postal_code' => null, 'billing_city' => null]);
+
+        try {
+            app(IssueOperatorInvoice::class)(
+                $vorgang['lauf'],
+                $vorgang['zahlung'],
+                app(CalculatePrice::class)->estimate(1),
+            );
+            self::fail('Ohne Anschrift darf keine Rechnung entstehen.');
+        } catch (CustomerAddressMissingException $ausnahme) {
+            self::assertStringContainsString('Rechnungsanschrift', $ausnahme->getMessage());
+        }
+
+        self::assertSame(0, Invoice::query()->count());
+        self::assertSame(0, app(InvoiceNumberSequence::class)->lastValue());
     }
 
     public function test_die_rechnungsposition_nennt_leistung_objekt_und_zeitraum(): void
