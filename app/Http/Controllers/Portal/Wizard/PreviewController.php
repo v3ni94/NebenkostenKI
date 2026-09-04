@@ -141,6 +141,14 @@ class PreviewController extends WizardController
             );
         }
 
+        // Ein Sperrgrund, der nach der Erzeugung der Vorschau entstanden ist,
+        // verhindert die Bestätigung. Die Vorschau ist dann neu zu erzeugen.
+        $grund = $this->sperrgrund($billingRun);
+
+        if ($grund !== null) {
+            return $this->withError($billingRun, WizardStep::VORSCHAU, 'bestaetigung', $grund);
+        }
+
         $schaetzung = $this->prices->forBillingRun($billingRun);
 
         $this->confirmation->record(

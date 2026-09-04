@@ -111,6 +111,34 @@ final class SitePagesTest extends TestCase
         $antwort->assertSee('Keine Rechtsberatung');
     }
 
+    /**
+     * Befund N13: Die Website verspricht keine Uebernahme von Werten aus
+     * Mietvertrag, Vorjahresabrechnung oder Zahlungsuebersicht, solange diese
+     * Ueberfuehrung nicht umgesetzt ist (ARCHITECTURE 11.1).
+     */
+    public function test_website_verspricht_keine_uebernahme_aus_mietvertrag_und_zahlungsuebersicht(): void
+    {
+        $start = $this->get(route('site.home'));
+
+        $start->assertOk();
+        $start->assertDontSee('aus Mietvertrag, Vorjahr oder Zahlungsübersicht', false);
+        $start->assertDontSee('Vieles davon liest das Portal aus Ihren', false);
+        $start->assertSee('die Werte daraus werden nicht automatisch', false);
+        $start->assertSee('tragen Sie aus dem Vertrag in die geführten Schritte ein', false);
+
+        $faq = $this->get(route('site.faq'));
+
+        $faq->assertOk();
+        $faq->assertDontSee('Tabellen für Mieter-, Zahlungs- und', false);
+        $faq->assertSee('werden derzeit nicht automatisch', false);
+        $faq->assertSee('XLSX', false);
+
+        $ablauf = $this->get(route('site.ablauf'));
+
+        $ablauf->assertOk();
+        $ablauf->assertSee('von Ihnen erfasste und bestätigte Regelung', false);
+    }
+
     public function test_startseite_zeigt_die_betreiberangaben_unveraendert(): void
     {
         $antwort = $this->get(route('site.home'));

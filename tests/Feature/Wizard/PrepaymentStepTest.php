@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Wizard;
 
 use App\Application\Wizard\PrepaymentWorkspace;
+use App\Enums\PrepaymentKind;
 use App\Enums\ValueSource;
 use App\Models\AuditLog;
 use App\Models\Prepayment;
@@ -119,6 +120,19 @@ final class PrepaymentStepTest extends CalculationTestCase
         self::assertTrue($zeilen[0]->isOpen());
         self::assertFalse(app(PrepaymentWorkspace::class)->isComplete($szenario['billingRun']->refresh()));
 
+        // Befund N10: Die Entwertung wirkt nicht nur in der Anzeige. Die
+        // Datenbankzeile ist offen, der alte Ist-Wert ist verworfen und der
+        // Sollwert aktuell; die Bereinigung ist protokolliert.
+        $gespeichert = Prepayment::query()->where('tenancy_id', $mietverhaeltnis->getKey())->firstOrFail();
+
+        self::assertFalse($gespeichert->assumed_equal_to_target);
+        self::assertNull($gespeichert->actual_cent);
+        self::assertNull($gespeichert->confirmed_at);
+        self::assertSame(348000, $gespeichert->target_cent);
+        self::assertTrue(
+            AuditLog::query()->where('action', PrepaymentWorkspace::AUDIT_TARGET_REFRESHED)->exists()
+        );
+
         $this->actingAs($szenario['user'])->post(
             route('portal.wizard.vorauszahlungen.speichern', ['billingRun' => $szenario['billingRun']->getKey()]),
             ['zeilen' => [(string) $mietverhaeltnis->getKey() => ['annahme' => '1']]]
@@ -132,9 +146,45 @@ final class PrepaymentStepTest extends CalculationTestCase
 
     /**
      * U7: Ein erfasster Ist-Wert bleibt bestehen, der gespeicherte Sollwert
-     * wird aus den aktuellen Vertragsdaten neu abgeleitet.
+     * wird aus den aktuellen Vertragsdaten neu abgeleitet. Die Ableitung
+     * geschieht auf dem Aenderungsweg (Bearbeitung des Mietverhaeltnisses),
+     * nicht beim Lesen der Maske (Befund N10).
      */
     public function test_ein_gespeicherter_sollwert_wird_bei_geaendertem_monatsbetrag_neu_abgeleitet(): void
+    {
+        $szenario = $this->szenario();
+        $mietverhaeltnis = $szenario['tenancies'][0];
+
+        $this->actingAs($szenario['user'])->put(
+            route('portal.mietverhaeltnisse.update', ['tenancy' => $mietverhaeltnis->getKey()]),
+            [
+                'tenant_display_name' => $mietverhaeltnis->tenant_display_name,
+                'kind' => 'WOHNRAUM',
+                'starts_on' => '2025-01-01',
+                'heating_prepayment_separate' => '1',
+                'monthly_operating_prepayment_eur' => '200,00',
+                'monthly_heating_prepayment_eur' => '90,00',
+            ]
+        )->assertRedirect();
+
+        $vorauszahlung = Prepayment::query()->where('tenancy_id', $mietverhaeltnis->getKey())->firstOrFail();
+
+        self::assertSame(348000, $vorauszahlung->target_cent);
+        self::assertSame(288000, $vorauszahlung->actual_cent);
+
+        $zeilen = app(PrepaymentWorkspace::class)->rows($szenario['billingRun']->refresh());
+
+        self::assertSame(348000, $zeilen[0]->targetTotal->cents);
+        self::assertSame(288000, $zeilen[0]->actualTotal?->cents);
+        self::assertFalse($zeilen[0]->isOpen());
+    }
+
+    /**
+     * Der Lesepfad schreibt nichts: Ein direkt in der Datenbank veralteter
+     * Sollwert bleibt beim Aufbau der Maske unveraendert, die Anzeige nennt
+     * dennoch den aktuellen Sollwert (Befund N10).
+     */
+    public function test_der_aufbau_der_maske_schreibt_keine_sollwerte(): void
     {
         $szenario = $this->szenario();
         $mietverhaeltnis = $szenario['tenancies'][0];
@@ -144,13 +194,75 @@ final class PrepaymentStepTest extends CalculationTestCase
         $zeilen = app(PrepaymentWorkspace::class)->rows($szenario['billingRun']->refresh());
 
         self::assertSame(348000, $zeilen[0]->targetTotal->cents);
-        self::assertSame(288000, $zeilen[0]->actualTotal?->cents);
-        self::assertFalse($zeilen[0]->isOpen());
 
         $vorauszahlung = Prepayment::query()->where('tenancy_id', $mietverhaeltnis->getKey())->firstOrFail();
 
-        self::assertSame(348000, $vorauszahlung->target_cent);
+        self::assertSame(288000, $vorauszahlung->target_cent);
         self::assertSame(288000, $vorauszahlung->actual_cent);
+        self::assertFalse(
+            AuditLog::query()->where('action', PrepaymentWorkspace::AUDIT_TARGET_REFRESHED)->exists()
+        );
+    }
+
+    /**
+     * Mehrere gespeicherte Zeilen eines Mietverhaeltnisses: Der neue Sollwert
+     * wird je Kostenart abgeleitet, die Ist-Werte je Zeile bleiben erhalten.
+     */
+    public function test_getrennte_zeilen_je_kostenart_erhalten_ihren_sollanteil(): void
+    {
+        $szenario = $this->szenario();
+        $mietverhaeltnis = $szenario['tenancies'][0];
+
+        Prepayment::query()->where('tenancy_id', $mietverhaeltnis->getKey())->update([
+            'kind' => PrepaymentKind::BETRIEBSKOSTEN->value,
+            'target_cent' => 180000,
+            'actual_cent' => 180000,
+        ]);
+
+        Prepayment::query()->create([
+            'organization_id' => $szenario['organization']->getKey(),
+            'billing_run_id' => $szenario['billingRun']->getKey(),
+            'tenancy_id' => $mietverhaeltnis->getKey(),
+            'kind' => PrepaymentKind::HEIZKOSTEN,
+            'period_start' => '2025-01-01',
+            'period_end' => '2025-12-31',
+            'target_cent' => 108000,
+            'actual_cent' => 100000,
+            'source' => ValueSource::ZAHLUNGSUEBERSICHT,
+            'assumed_equal_to_target' => false,
+            'confirmed_at' => now(),
+        ]);
+
+        $this->actingAs($szenario['user'])->put(
+            route('portal.mietverhaeltnisse.update', ['tenancy' => $mietverhaeltnis->getKey()]),
+            [
+                'tenant_display_name' => $mietverhaeltnis->tenant_display_name,
+                'kind' => 'WOHNRAUM',
+                'starts_on' => '2025-01-01',
+                'heating_prepayment_separate' => '1',
+                'monthly_operating_prepayment_eur' => '200,00',
+                'monthly_heating_prepayment_eur' => '100,00',
+            ]
+        )->assertRedirect();
+
+        $betrieb = Prepayment::query()
+            ->where('tenancy_id', $mietverhaeltnis->getKey())
+            ->where('kind', PrepaymentKind::BETRIEBSKOSTEN->value)
+            ->firstOrFail();
+        $heizung = Prepayment::query()
+            ->where('tenancy_id', $mietverhaeltnis->getKey())
+            ->where('kind', PrepaymentKind::HEIZKOSTEN->value)
+            ->firstOrFail();
+
+        self::assertSame(240000, $betrieb->target_cent);
+        self::assertSame(180000, $betrieb->actual_cent);
+        self::assertSame(120000, $heizung->target_cent);
+        self::assertSame(100000, $heizung->actual_cent);
+
+        $zeilen = app(PrepaymentWorkspace::class)->rows($szenario['billingRun']->refresh());
+
+        self::assertSame(360000, $zeilen[0]->targetTotal->cents);
+        self::assertSame(280000, $zeilen[0]->actualTotal?->cents);
     }
 
     public function test_die_annahme_ist_gleich_soll_ist_nicht_vorangekreuzt(): void

@@ -16,6 +16,12 @@ use ZipArchive;
  * teilweise entpacktes Archiv im Quarantaenebereich schwer nachvollziehbar
  * bleibt.
  *
+ * Einzige Ausnahme sind Eintraege in Formaten, die zwar unbedenklich, aber
+ * derzeit nicht auswertbar sind (XLSX): Sie werden wie Systemdateien
+ * uebersprungen, damit ein Archiv mit brauchbaren PDFs nicht an einer
+ * beigelegten Tabelle scheitert. Der Nutzer erhaelt den Hinweis dazu bereits
+ * im Uploaddialog.
+ *
  * Geprueft werden:
  * - Path Traversal: "..", absolute Pfade, Laufwerksbuchstaben, Backslashes
  * - Zip-Bombe: Verhaeltnis entpackt zu komprimiert, Gesamtgroesse, Eintragszahl
@@ -29,13 +35,21 @@ final class ArchiveGuard
 {
     /**
      * Endungen, die innerhalb eines Archivs zulaessig sind. ZIP fehlt bewusst,
-     * verschachtelte Archive werden abgelehnt. XLSX fehlt, weil Tabellen in
-     * diesem Format derzeit nicht ausgewertet werden und ein Eintrag sonst
-     * erst in der Auswertung scheitern wuerde (siehe StartUploadRequest).
+     * verschachtelte Archive werden abgelehnt.
      *
      * @var list<string>
      */
     private const ALLOWED_ENTRY_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif', 'csv'];
+
+    /**
+     * Endungen, die uebersprungen statt abgelehnt werden: Tabellen in diesem
+     * Format werden derzeit nicht ausgewertet (siehe StartUploadRequest). Ein
+     * Archiv mit brauchbaren PDFs und einer beigelegten Tabelle bleibt so
+     * verwendbar.
+     *
+     * @var list<string>
+     */
+    public const SKIPPED_ENTRY_EXTENSIONS = ['xlsx'];
 
     /**
      * Eintraege, die jedes Betriebssystem beim Packen erzeugt und die kein
@@ -135,6 +149,10 @@ final class ArchiveGuard
 
             if (in_array($extension, ['zip', 'gz', 'tar', '7z', 'rar'], true)) {
                 throw UploadRejectedException::because(UploadErrorCode::ARCHIV_VERSCHACHTELT);
+            }
+
+            if (in_array($extension, self::SKIPPED_ENTRY_EXTENSIONS, true)) {
+                continue;
             }
 
             if (! in_array($extension, self::ALLOWED_ENTRY_EXTENSIONS, true)) {

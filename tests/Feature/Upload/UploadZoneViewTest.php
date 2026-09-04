@@ -50,7 +50,28 @@ class UploadZoneViewTest extends TestCase
         $antwort->assertSee('data-upload-dropzone', false);
         $antwort->assertSee('Kategorie (optional)', false);
         $antwort->assertSee('Automatisch erkennen', false);
-        $antwort->assertSee('PDF, JPG, PNG, HEIC, CSV, XLSX und ZIP', false);
+        $antwort->assertSee('PDF, JPG, PNG, HEIC, CSV und ZIP', false);
+        // Befund N14: XLSX wird nicht mehr beworben, weder im Text noch im
+        // Dateifilter.
+        $antwort->assertDontSee('CSV, XLSX und ZIP', false);
+        $antwort->assertDontSee('.xlsx', false);
+        $antwort->assertSee('accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.csv,.zip"', false);
+    }
+
+    /**
+     * Befund N13: Der Dialog verspricht keine Uebernahme aus Mietvertrag,
+     * Vorjahresabrechnung oder Zahlungsuebersicht; er nennt ehrlich, was
+     * ausgewertet wird und was nur abgelegt und angezeigt wird.
+     */
+    public function test_uploaddialog_nennt_den_umfang_der_automatischen_auswertung_ehrlich(): void
+    {
+        $antwort = $this->actingAs($this->welt()['user'])
+            ->get('/app/abrechnungen/'.$this->welt()['billingRun']->getKey().'/upload');
+
+        $antwort->assertOk();
+        $antwort->assertSee('Was automatisch ausgewertet wird', false);
+        $antwort->assertSee('werden abgelegt und Ihnen zur Sichtprüfung angezeigt', false);
+        $antwort->assertSee('erfassen Sie in den folgenden Schritten selbst', false);
     }
 
     public function test_statusliste_zeigt_neutrale_bezeichnung_und_niemals_den_dateinamen(): void

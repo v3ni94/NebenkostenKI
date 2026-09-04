@@ -7,6 +7,7 @@ namespace Tests\Feature\Payment;
 use App\Application\Payment\Dto\FinalViewBundle;
 use App\Application\Payment\PaymentRecoveryOverview;
 use App\Enums\BillingRunStatus;
+use App\Enums\GeneratedDocumentVariant;
 use App\Enums\PaymentStatus;
 use App\Enums\UnitStatementStatus;
 use App\Enums\WebhookProcessingStatus;
@@ -697,7 +698,8 @@ final class StripeWebhookTest extends PaymentTestCase
         self::assertSame(BillingRunStatus::CHECKOUT_PENDING, $lauf->getAttribute('status'));
         self::assertNull($lauf->getAttribute('paid_at'));
         self::assertNull($lauf->getAttribute('finalized_at'));
-        self::assertSame(0, GeneratedDocument::query()->count());
+        // Die Vorschaudokumente des Fixtures zaehlen nicht; es darf kein Finaldokument entstehen.
+        self::assertSame(0, GeneratedDocument::query()->where('variant', GeneratedDocumentVariant::FINAL->value)->count());
         self::assertSame(0, Invoice::query()->count());
     }
 

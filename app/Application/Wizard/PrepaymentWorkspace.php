@@ -47,13 +47,17 @@ use Illuminate\Support\Facades\DB;
  * aktuellen Vertragsdaten geprüft. Weicht ein gespeicherter Sollwert ab, ist
  * er veraltet: Eine bestätigte Annahme Ist gleich Soll gilt dann nicht mehr
  * und muss erneut bestätigt werden, ein erfasster Ist-Wert bleibt bestehen und
- * der Sollwert wird neu abgeleitet.
+ * der Sollwert wird neu abgeleitet. Der Lesepfad (rows) schreibt dabei nichts;
+ * die Datenbank wird ausschließlich über save() und refreshStoredTargets()
+ * verändert, beide protokollieren.
  */
 final class PrepaymentWorkspace
 {
     public const string AUDIT_ACTION = 'billing_run.prepayments_saved';
 
     public const string AUDIT_ASSUMPTION = 'billing_run.prepayment_assumption_confirmed';
+
+    public const string AUDIT_TARGET_REFRESHED = 'billing_run.prepayment_target_refreshed';
 
     public function __construct(private readonly AuditRecorder $audit) {}
 
@@ -134,19 +138,17 @@ final class PrepaymentWorkspace
             $source = $prepayment->source;
         }
 
-        if ($stored !== [] && $storedTarget !== $target->cents) {
+        if ($stored !== [] && $storedTarget !== $target->cents && $assumed) {
             // Der gespeicherte Sollwert stammt aus veralteten Vertragsdaten.
-            if ($assumed) {
-                // Die Annahme Ist gleich Soll bezog sich auf den alten Sollwert
-                // und muss mit dem aktuellen Wert erneut bestätigt werden.
-                $assumed = false;
-                $hasActual = false;
-                $actual = null;
-                $confirmed = false;
-                $source = $tenancy->contract_data_source ?? ValueSource::MIETVERTRAG;
-            } else {
-                $this->refreshStoredTarget($stored, $target);
-            }
+            // Die Annahme Ist gleich Soll bezog sich auf den alten Sollwert
+            // und muss mit dem aktuellen Wert erneut bestätigt werden. Der
+            // Lesepfad schreibt nicht; die Datenbankzeile wird über
+            // refreshStoredTargets() auf dem Änderungsweg bereinigt.
+            $assumed = false;
+            $hasActual = false;
+            $actual = null;
+            $confirmed = false;
+            $source = $tenancy->contract_data_source ?? ValueSource::MIETVERTRAG;
         }
 
         if ($assumed && ! $hasActual) {
@@ -171,26 +173,204 @@ final class PrepaymentWorkspace
     }
 
     /**
-     * Leitet den gespeicherten Sollwert aus den aktuellen Vertragsdaten neu
-     * ab. Der erfasste Ist-Wert bleibt unverändert, weil er eine Tatsache und
-     * keine Ableitung ist.
+     * Bereinigt gespeicherte Sollwerte nach einer Änderung der Vertragsdaten.
+     * Aufruf über den Änderungsweg (PreviewInvalidator), nie im Lesepfad.
      *
-     * @param  list<Prepayment>  $stored
+     *  - Eine bestätigte Annahme Ist gleich Soll bezog sich auf den alten
+     *    Sollwert. Die Zeile wird auf offen gesetzt (keine Annahme, kein
+     *    Ist-Wert, keine Bestätigung) und muss erneut bestätigt werden.
+     *  - Ein erfasster Ist-Wert ist eine Tatsache und bleibt bestehen; nur der
+     *    Sollwert wird neu abgeleitet. Bei getrennten Zeilen je Kostenart
+     *    erhält die Heizkostenzeile den Heizkostenanteil und die
+     *    Betriebskostenzeile den Rest. Mehrere Zeilen derselben Kostenart
+     *    lassen sich nicht eindeutig zuordnen; sie werden als prüfpflichtig
+     *    auf offen gesetzt, der erfasste Ist-Wert bleibt je Zeile erhalten.
+     *
+     * Jede Bereinigung wird protokolliert.
+     *
+     * @return int Anzahl der geänderten Mietverhältnisse
      */
-    private function refreshStoredTarget(array $stored, Money $target): void
+    public function refreshStoredTargets(BillingRun $billingRun, ?User $actor = null): int
     {
-        $verbleibend = $target->cents;
-        $letzter = array_key_last($stored);
+        $billingRun->loadMissing(['property.units.tenancies']);
+        $billingRun->load('prepayments');
 
-        foreach ($stored as $index => $prepayment) {
-            $anteil = $index === $letzter ? $verbleibend : 0;
-            $verbleibend -= $anteil;
+        $period = new DatePeriodRange($billingRun->period_start, $billingRun->period_end);
 
-            if ($prepayment->target_cent !== $anteil) {
-                $prepayment->target_cent = $anteil;
-                $prepayment->save();
+        /** @var array<string, list<Prepayment>> $stored */
+        $stored = [];
+
+        foreach ($billingRun->prepayments as $prepayment) {
+            $stored[$prepayment->tenancy_id][] = $prepayment;
+        }
+
+        $geaendert = [];
+
+        DB::transaction(function () use ($billingRun, $period, $stored, &$geaendert): void {
+            foreach ($this->units($billingRun) as $unit) {
+                foreach ($this->tenancies($unit) as $tenancy) {
+                    $rows = $stored[(string) $tenancy->getKey()] ?? [];
+                    $usage = $this->usagePeriod($tenancy, $period);
+
+                    if ($rows === [] || ! $usage instanceof DatePeriodRange) {
+                        continue;
+                    }
+
+                    if ($this->refreshTenancy($tenancy, $usage, $rows)) {
+                        $geaendert[] = $tenancy->tenant_display_name;
+                    }
+                }
+            }
+        });
+
+        $organizationId = $billingRun->getAttribute('organization_id');
+
+        foreach ($geaendert as $label) {
+            $this->audit->record(
+                action: self::AUDIT_TARGET_REFRESHED,
+                subject: $billingRun,
+                actor: $actor,
+                organization: is_string($organizationId) ? $organizationId : null,
+                metadata: ['mietverhaeltnis' => $label],
+                reason: 'Die Vertragsdaten haben sich geändert. Der gespeicherte Sollwert wurde neu abgeleitet, '
+                    .'eine bestätigte Annahme Ist gleich Soll gilt nicht mehr.',
+            );
+        }
+
+        return count($geaendert);
+    }
+
+    /**
+     * @param  list<Prepayment>  $rows
+     * @return bool true, wenn mindestens eine Zeile geändert wurde
+     */
+    private function refreshTenancy(Tenancy $tenancy, DatePeriodRange $usage, array $rows): bool
+    {
+        $monthlyOperating = $tenancy->monthly_operating_prepayment_cent === null
+            ? null
+            : Money::fromCents($tenancy->monthly_operating_prepayment_cent);
+        $monthlyHeating = $tenancy->monthly_heating_prepayment_cent === null
+            ? null
+            : Money::fromCents($tenancy->monthly_heating_prepayment_cent);
+
+        $target = $this->target($monthlyOperating, $monthlyHeating, $tenancy->heating_prepayment_separate, $usage);
+
+        $storedTarget = 0;
+        $assumed = false;
+
+        foreach ($rows as $row) {
+            $storedTarget += $row->target_cent;
+            $assumed = $assumed || $row->assumed_equal_to_target;
+        }
+
+        if ($storedTarget === $target->cents) {
+            return false;
+        }
+
+        $anteile = $this->targetShares($rows, $target, $monthlyHeating, $tenancy, $usage);
+
+        if ($assumed) {
+            foreach ($rows as $index => $row) {
+                $this->reopen($row, $anteile[$index]);
+            }
+
+            return true;
+        }
+
+        if ($this->hasDuplicateKinds($rows)) {
+            foreach ($rows as $row) {
+                $row->forceFill([
+                    'assumed_equal_to_target' => false,
+                    'confirmed_by_user_id' => null,
+                    'confirmed_at' => null,
+                    'note' => 'Die Vertragsdaten haben sich geändert. Bitte prüfen Sie Soll- und Ist-Wert dieser '
+                        .'Zeile erneut.',
+                ])->save();
+            }
+
+            return true;
+        }
+
+        foreach ($rows as $index => $row) {
+            if ($row->target_cent !== $anteile[$index]) {
+                $row->forceFill(['target_cent' => $anteile[$index]])->save();
             }
         }
+
+        return true;
+    }
+
+    private function reopen(Prepayment $row, int $targetCent): void
+    {
+        $row->forceFill([
+            'target_cent' => $targetCent,
+            'actual_cent' => null,
+            'assumed_equal_to_target' => false,
+            'source' => ValueSource::MANUELL,
+            'confirmed_by_user_id' => null,
+            'confirmed_at' => null,
+            'note' => 'Die Vertragsdaten haben sich geändert. Die bestätigte Annahme Ist gleich Soll gilt nicht '
+                .'mehr und muss erneut bestätigt werden.',
+        ])->save();
+    }
+
+    /**
+     * Sollanteile je Zeile, in der Reihenfolge der Zeilen.
+     *
+     * Eine Zeile trägt den gesamten Sollwert. Getrennte Zeilen je Kostenart
+     * erhalten den Heizkostenanteil (HEIZKOSTEN) beziehungsweise den Rest
+     * (BETRIEBSKOSTEN). Mehrere Zeilen derselben Kostenart lassen sich nicht
+     * zuordnen; der gesamte Sollwert steht dann auf der ersten Zeile, die
+     * übrigen erhalten null. Dieser Fall wird vom Aufrufer als prüfpflichtig
+     * behandelt.
+     *
+     * @param  list<Prepayment>  $rows
+     * @return list<int>
+     */
+    private function targetShares(
+        array $rows,
+        Money $target,
+        ?Money $monthlyHeating,
+        Tenancy $tenancy,
+        DatePeriodRange $usage,
+    ): array {
+        if (count($rows) === 1 || $this->hasDuplicateKinds($rows)) {
+            return array_map(
+                static fn (int $index): int => $index === 0 ? $target->cents : 0,
+                array_keys($rows)
+            );
+        }
+
+        $heating = $tenancy->heating_prepayment_separate
+            ? $this->target(null, $monthlyHeating, true, $usage)->cents
+            : 0;
+
+        return array_map(
+            static fn (Prepayment $row): int => $row->kind === PrepaymentKind::HEIZKOSTEN
+                ? $heating
+                : $target->cents - $heating,
+            $rows
+        );
+    }
+
+    /**
+     * @param  list<Prepayment>  $rows
+     */
+    private function hasDuplicateKinds(array $rows): bool
+    {
+        $kinds = [];
+
+        foreach ($rows as $row) {
+            $kind = $row->kind->value;
+
+            if (isset($kinds[$kind])) {
+                return true;
+            }
+
+            $kinds[$kind] = true;
+        }
+
+        return false;
     }
 
     /**

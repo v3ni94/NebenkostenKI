@@ -235,7 +235,8 @@ final class FinalizationTest extends PaymentTestCase
         try {
             app(FinalizeBillingRun::class)($daten['billingRun'], $daten['user']);
         } finally {
-            self::assertSame(0, GeneratedDocument::query()->count());
+            // Die Vorschaudokumente des Fixtures zaehlen nicht; es darf kein Finaldokument entstehen.
+            self::assertSame(0, GeneratedDocument::query()->where('variant', GeneratedDocumentVariant::FINAL->value)->count());
             self::assertSame(0, Invoice::query()->count());
         }
     }
@@ -253,7 +254,8 @@ final class FinalizationTest extends PaymentTestCase
         try {
             app(FinalizeBillingRun::class)($daten['billingRun'], $daten['user']);
         } finally {
-            self::assertSame(0, GeneratedDocument::query()->count());
+            // Die Vorschaudokumente des Fixtures zaehlen nicht; es darf kein Finaldokument entstehen.
+            self::assertSame(0, GeneratedDocument::query()->where('variant', GeneratedDocumentVariant::FINAL->value)->count());
             self::assertSame(BillingRunStatus::FAILED, BillingRun::query()
                 ->findOrFail($daten['billingRun']->getKey())
                 ->getAttribute('status'));

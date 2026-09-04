@@ -147,8 +147,9 @@
                 <li>
                     <x-hvm.step number="8" title="Verteilerschlüssel und Verbrauch">
                         <p>
-                            Vorgeschlagen wird zuerst die bestätigte Regelung aus dem Mietvertrag, dann der bestätigte
-                            Schlüssel des Vorjahres, danach ein fachlich naheliegender Standard mit Warnhinweis. Zur
+                            Vorgeschlagen wird zuerst die von Ihnen erfasste und bestätigte Regelung aus dem
+                            Mietvertrag, dann der bestätigte Schlüssel des Vorjahreslaufs, danach ein fachlich
+                            naheliegender Standard mit Warnhinweis. Zur
                             Auswahl stehen unter anderem Wohnfläche, beheizte Wohnfläche, Miteigentumsanteile,
                             Personen, Personentage, Einheiten, Verbrauch und die direkte Zuordnung.
                         </p>

@@ -7,12 +7,14 @@ namespace App\Http\Controllers\Portal;
 use App\Application\Account\AuditRecorder;
 use App\Application\Account\OrganizationContext;
 use App\Application\BillingRun\PortalStatusResolver;
+use App\Application\Wizard\PreviewInvalidator;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Portal\UnitRequest;
 use App\Models\Property;
 use App\Models\Unit;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 /**
@@ -35,6 +37,7 @@ class UnitController extends Controller
         private readonly OrganizationContext $context,
         private readonly PortalStatusResolver $status,
         private readonly AuditRecorder $audit,
+        private readonly PreviewInvalidator $invalidator,
     ) {}
 
     public function index(string $property): View
@@ -74,29 +77,20 @@ class UnitController extends Controller
         $werte = $this->attribute($request);
 
         // Eine weich geloeschte Einheit belegt ihre Bezeichnung im Unique-Index
-        // weiter. Wird dieselbe Bezeichnung erneut angelegt, wird die entfernte
-        // Einheit mit den neuen Angaben wiederhergestellt, statt am Index zu
-        // scheitern.
-        /** @var Unit|null $entfernt */
-        $entfernt = $objekt->units()
-            ->onlyTrashed()
-            ->where('label', $werte['label'] ?? null)
-            ->first();
+        // weiter. Sie wird ausdruecklich NICHT wiederhergestellt: Ihre alten
+        // Mietverhaeltnisse, Personen, Belegungen und Vorauszahlungen gelangen
+        // sonst still zurueck in die Abrechnung. Stattdessen wird die
+        // Bezeichnung freigegeben und eine neue Einheit angelegt.
+        $this->gebeBezeichnungFrei($objekt, is_string($werte['label'] ?? null) ? $werte['label'] : '');
 
-        if ($entfernt instanceof Unit) {
-            $entfernt->restore();
-            $entfernt->fill($werte)->save();
-            $einheit = $entfernt;
-        } else {
-            /** @var Unit $einheit */
-            $einheit = Unit::query()->create(array_merge(
-                $werte,
-                [
-                    'organization_id' => $this->context->organizationId(),
-                    'property_id' => $objekt->getKey(),
-                ]
-            ));
-        }
+        /** @var Unit $einheit */
+        $einheit = Unit::query()->create(array_merge(
+            $werte,
+            [
+                'organization_id' => $this->context->organizationId(),
+                'property_id' => $objekt->getKey(),
+            ]
+        ));
 
         $this->audit->record(
             action: 'unit.created',
@@ -138,6 +132,10 @@ class UnitController extends Controller
             organization: $this->context->organizationId(),
         );
 
+        // Flaechen und Anteile sind Schluesselwerte: Vorschau und Bestaetigung
+        // offener Laeufe verlieren ihre Grundlage.
+        $this->invalidator->forUnit($einheit, $this->context->user());
+
         return redirect()
             ->route('portal.einheiten.index', ['property' => $einheit->getAttribute('property_id')])
             ->with('status', 'Die Änderungen an der Einheit sind gespeichert.');
@@ -150,6 +148,9 @@ class UnitController extends Controller
 
         $objektId = $einheit->getAttribute('property_id');
 
+        // Die Mietverhaeltnisse der Einheit werden mit weich geloescht
+        // (Loeschkaskade im Modell), damit sie nicht als verwaiste Zeilen in
+        // der Abrechnung verbleiben.
         $einheit->delete();
 
         $this->audit->record(
@@ -159,9 +160,56 @@ class UnitController extends Controller
             organization: $this->context->organizationId(),
         );
 
+        $this->invalidator->forUnit($einheit, $this->context->user());
+
         return redirect()
             ->route('portal.einheiten.index', ['property' => $objektId])
             ->with('status', 'Die Einheit ist entfernt.');
+    }
+
+    /**
+     * Gibt die Bezeichnung einer weich geloeschten Einheit frei.
+     *
+     * Bestehen zu der entfernten Einheit keine Abrechnungsbezuege (keine
+     * Mietverhaeltnisse, keine Mieterabrechnungen, keine Zaehler, keine
+     * Leerstaende), wird die Zeile endgueltig entfernt. Sonst bleibt sie fuer
+     * die Nachvollziehbarkeit erhalten und erhaelt eine Bezeichnung mit
+     * Zusatz, damit der Unique-Index die neue Einheit zulaesst.
+     */
+    private function gebeBezeichnungFrei(Property $objekt, string $label): void
+    {
+        if ($label === '') {
+            return;
+        }
+
+        DB::transaction(function () use ($objekt, $label): void {
+            /** @var list<Unit> $entfernte */
+            $entfernte = $objekt->units()
+                ->onlyTrashed()
+                ->where('label', $label)
+                ->get()
+                ->all();
+
+            foreach ($entfernte as $entfernt) {
+                $bezuege = $entfernt->tenancies()->withTrashed()->exists()
+                    || $entfernt->unitStatements()->exists()
+                    || $entfernt->meterDevices()->withTrashed()->exists()
+                    || $entfernt->vacancyPeriods()->exists();
+
+                if (! $bezuege) {
+                    $entfernt->forceDelete();
+
+                    continue;
+                }
+
+                // Die Spalte fasst 120 Zeichen; der Zusatz hat Vorrang.
+                $zusatz = sprintf(' (entfernt %s)', (string) $entfernt->getKey());
+
+                $entfernt->forceFill([
+                    'label' => mb_substr($label, 0, max(1, 120 - mb_strlen($zusatz))).$zusatz,
+                ])->save();
+            }
+        });
     }
 
     private function objekt(string $id): Property

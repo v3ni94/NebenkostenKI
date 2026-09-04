@@ -14,6 +14,7 @@ use App\Mail\VerarbeitungsfehlerMail;
 use App\Mail\VorschauBereitMail;
 use App\Models\BillingRun;
 use App\Models\Document;
+use App\Models\EmailMessage;
 use App\Models\Property;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
@@ -188,6 +189,12 @@ final class SendProcessingStatusMails
             portalUrl: route('portal.pruefung.kosten', ['billingRun' => $billingRun->getKey()]),
         );
 
+        // Genau eine Nachricht je Lauf. Jeder weitere Klick auf Zuordnen
+        // wiederholt die Zuordnung, aber nicht die Mail.
+        if ($this->bereitsVersendet($mail->template(), $billingRun)) {
+            return;
+        }
+
         $this->versende($mail, $billingRun, $empfaenger);
     }
 
@@ -237,6 +244,19 @@ final class SendProcessingStatusMails
                 'fehler' => $fehler->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Liegt zu diesem Lauf bereits ein Protokolleintrag der Vorlage vor?
+     * Unterdrueckte und fehlgeschlagene Eintraege zaehlen mit: Eine gesperrte
+     * Adresse erhaelt die Nachricht auch beim naechsten Klick nicht.
+     */
+    private function bereitsVersendet(string $template, BillingRun $billingRun): bool
+    {
+        return EmailMessage::query()
+            ->where('billing_run_id', $billingRun->getKey())
+            ->where('template', $template)
+            ->exists();
     }
 
     private function empfaenger(BillingRun $billingRun): ?User

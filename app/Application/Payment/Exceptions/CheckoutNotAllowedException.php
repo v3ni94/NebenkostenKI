@@ -77,6 +77,23 @@ final class CheckoutNotAllowedException extends RuntimeException
         );
     }
 
+    public static function previewInvalid(): self
+    {
+        return new self(
+            'Für den aktuellen Stand liegt keine gültige Vorschau vor. Seit der letzten Vorschau wurden Daten '
+            .'geändert. Bitte erzeugen Sie die Vorschau in Schritt 10 neu, prüfen Sie sie und bestätigen Sie '
+            .'sie erneut.'
+        );
+    }
+
+    public static function blocked(string $grund): self
+    {
+        return new self(
+            'Eine Zahlung ist derzeit nicht möglich, weil noch ein Punkt offen ist: '.$grund
+            .' Bitte beheben Sie ihn und erzeugen Sie die Vorschau anschließend neu.'
+        );
+    }
+
     public static function operatorMasterdataMissing(): self
     {
         return new self(

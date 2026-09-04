@@ -7,6 +7,7 @@ namespace Tests\Feature\Payment;
 use App\Application\Payment\Dto\FinalViewBundle;
 use App\Application\Payment\FinalizeBillingRun;
 use App\Enums\BillingRunStatus;
+use App\Enums\GeneratedDocumentVariant;
 use App\Models\BillingRun;
 use App\Models\GeneratedDocument;
 use App\Models\User;
@@ -65,8 +66,11 @@ final class CompletionAreaTest extends PaymentTestCase
     {
         $vorgang = $this->finalisierterLauf();
 
+        // Geprueft werden die Finaldokumente. Die Vorschau mit Wasserzeichen
+        // des Fixtures liegt nicht als Datei vor.
         $dokumente = GeneratedDocument::query()
             ->where('billing_run_id', $vorgang['lauf']->getKey())
+            ->where('variant', GeneratedDocumentVariant::FINAL->value)
             ->get();
 
         self::assertGreaterThan(0, $dokumente->count());

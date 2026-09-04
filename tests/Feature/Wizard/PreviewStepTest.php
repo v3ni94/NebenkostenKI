@@ -564,6 +564,39 @@ final class PreviewStepTest extends CalculationTestCase
     }
 
     /**
+     * Ein Sperrgrund, der nach der Erzeugung der Vorschau entstanden ist,
+     * verhindert die Bestätigung (Befund N9).
+     */
+    public function test_ein_offener_sperrgrund_verhindert_die_bestaetigung_trotz_vorschau(): void
+    {
+        $szenario = $this->szenario();
+
+        app(PreviewBuilder::class)->rebuild($szenario['billingRun'], $szenario['user']);
+
+        CostItem::factory()->create([
+            'organization_id' => $szenario['organization']->getKey(),
+            'billing_run_id' => $szenario['billingRun']->getKey(),
+            'cost_category_id' => $szenario['category']->getKey(),
+            'amount_cent' => 5000,
+            'status' => CostItemStatus::VORGESCHLAGEN,
+            'confirmed_at' => null,
+        ]);
+
+        $antwort = $this->actingAs($szenario['user'])->post(
+            route('portal.wizard.vorschau.bestaetigen', ['billingRun' => $szenario['billingRun']->getKey()]),
+            ['bestaetigung' => '1']
+        );
+
+        $antwort->assertSessionHasErrors('bestaetigung');
+
+        $fehler = session('errors')?->get('bestaetigung') ?? [];
+
+        self::assertStringContainsString('Kostenpositionen offen', implode(' ', $fehler));
+        self::assertSame(0, LegalAcceptance::query()->count());
+        self::assertNull($szenario['billingRun']->refresh()->review_confirmed_at);
+    }
+
+    /**
      * Ein Blocker der Regel-Engine verhindert die Erzeugung auch dann, wenn
      * der Prüfbericht nie geöffnet wurde: die Engine läuft vor der Erzeugung.
      */

@@ -6,19 +6,28 @@ namespace Tests\Feature\Payment;
 
 use App\Application\Payment\Contracts\FinalDocumentViews;
 use App\Application\Payment\Dto\FinalViewBundle;
+use App\Enums\AllocationKeySource;
+use App\Enums\AllocationKeyType;
 use App\Enums\BillingMode;
 use App\Enums\BillingRunStatus;
 use App\Enums\CalculationSnapshotStatus;
 use App\Enums\PaymentStatus;
+use App\Enums\PrepaymentKind;
 use App\Enums\UnitStatementStatus;
+use App\Enums\ValueSource;
 use App\Http\Controllers\Portal\Checkout\CheckoutController;
 use App\Http\Controllers\Portal\Checkout\CheckoutReturnController;
 use App\Http\Controllers\Portal\Download\CompletionController;
 use App\Http\Controllers\Webhook\StripeWebhookController;
+use App\Models\AllocationKey;
 use App\Models\BillingRun;
 use App\Models\CalculationSnapshot;
+use App\Models\CostCategory;
+use App\Models\CostItem;
+use App\Models\GeneratedDocument;
 use App\Models\Organization;
 use App\Models\Payment;
+use App\Models\Prepayment;
 use App\Models\Property;
 use App\Models\Tenancy;
 use App\Models\Unit;
@@ -138,6 +147,12 @@ abstract class PaymentTestCase extends PortalTestCase
      * Vollstaendiger Mandant mit Vorschaustand, Snapshot und der gewuenschten
      * Anzahl erzeugter Mieterabrechnungen.
      *
+     * Der Lauf ist fachlich vollstaendig: eine bestaetigte Kostenposition mit
+     * bestaetigtem Verteilerschluessel, erfasste Vorauszahlungen je
+     * Mietverhaeltnis und eine gueltige Vorschau mit Wasserzeichen zum
+     * aktiven Berechnungsstand. Ohne diese Angaben verweigert StartCheckout
+     * den Checkout (keine gueltige Vorschau, offene Sperrgruende).
+     *
      * @return array{
      *     user: User,
      *     organization: Organization,
@@ -179,6 +194,7 @@ abstract class PaymentTestCase extends PortalTestCase
 
         $lauf->forceFill(['active_calculation_snapshot_id' => $snapshot->getKey()])->save();
 
+        $this->erzeugeKostenposition($mandant, $lauf);
         $this->erzeugeAbrechnungen($mandant, $lauf, $snapshot, $abrechnungen);
 
         return array_merge($mandant, [
@@ -222,7 +238,63 @@ abstract class PaymentTestCase extends PortalTestCase
                 'sequence_number' => $nummer,
                 'status' => UnitStatementStatus::VORSCHAU,
             ]);
+
+            // Erfasste Ist-Vorauszahlung, damit Schritt 7 abgeschlossen ist.
+            Prepayment::query()->create([
+                'organization_id' => $mandant['organization']->getKey(),
+                'billing_run_id' => $lauf->getKey(),
+                'tenancy_id' => $mietverhaeltnis->getKey(),
+                'kind' => PrepaymentKind::BETRIEBSKOSTEN,
+                'period_start' => '2025-01-01',
+                'period_end' => '2025-12-31',
+                'target_cent' => 288000,
+                'actual_cent' => 288000,
+                'source' => ValueSource::ZAHLUNGSUEBERSICHT,
+                'assumed_equal_to_target' => false,
+                'confirmed_at' => now(),
+            ]);
+
+            // Gueltige Vorschau mit Wasserzeichen zum aktiven Berechnungsstand.
+            GeneratedDocument::factory()->create([
+                'organization_id' => $mandant['organization']->getKey(),
+                'billing_run_id' => $lauf->getKey(),
+                'calculation_snapshot_id' => $snapshot->getKey(),
+            ]);
         }
+    }
+
+    /**
+     * Bestaetigte Kostenposition mit bestaetigtem Verteilerschluessel nach
+     * Einheiten. Damit meldet weder die Kostenpruefung noch Schritt 8 einen
+     * Sperrgrund.
+     *
+     * @param  array{organization: Organization}  $mandant
+     */
+    protected function erzeugeKostenposition(array $mandant, BillingRun $lauf): void
+    {
+        /** @var CostCategory $kategorie */
+        $kategorie = CostCategory::factory()->create([
+            'default_allocation_key_type' => AllocationKeyType::EINHEITEN,
+        ]);
+
+        CostItem::factory()->confirmed()->create([
+            'organization_id' => $mandant['organization']->getKey(),
+            'billing_run_id' => $lauf->getKey(),
+            'cost_category_id' => $kategorie->getKey(),
+            'amount_cent' => 120000,
+        ]);
+
+        AllocationKey::factory()->create([
+            'organization_id' => $mandant['organization']->getKey(),
+            'billing_run_id' => $lauf->getKey(),
+            'cost_category_id' => $kategorie->getKey(),
+            'key_type' => AllocationKeyType::EINHEITEN,
+            'source' => AllocationKeySource::MIETVERTRAG,
+            'denominator' => null,
+            'measurement_unit' => null,
+            'label' => AllocationKeyType::EINHEITEN->label(),
+            'confirmed_at' => now(),
+        ]);
     }
 
     /**

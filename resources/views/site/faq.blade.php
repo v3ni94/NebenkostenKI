@@ -60,21 +60,25 @@
                 <x-hvm.faq-item question="Welche Unterlagen brauche ich?">
                     <p>
                         Für die Schnellabrechnung einer Eigentumswohnung sind die Hausgeldabrechnung und der
-                        Grundsteuerbescheid die wichtigsten Unterlagen, ergänzt um Mietvertrag, Vorjahresabrechnung,
-                        eine separate Heizkostenabrechnung und den Nachweis der geleisteten Vorauszahlungen.
+                        Grundsteuerbescheid die wichtigsten Unterlagen, ergänzt um eine separate
+                        Heizkostenabrechnung. Für die vollständige Objektabrechnung kommen alle Rechnungen und
+                        Gebührenbescheide des Objekts hinzu. Sie können alles gleichzeitig und ungeordnet hochladen.
                     </p>
                     <p class="mt-2">
-                        Für die vollständige Objektabrechnung kommen alle Rechnungen und Gebührenbescheide des Objekts,
-                        die Mietverträge, Zählerdaten und Zahlungsübersichten hinzu. Sie können alles gleichzeitig und
-                        ungeordnet hochladen.
+                        Mietverträge, Vorjahresabrechnungen, Zahlungsübersichten, Mieterlisten und Zählerlisten
+                        können Sie ebenfalls hochladen. Sie werden abgelegt und Ihnen zur Sichtprüfung angezeigt.
+                        Die Werte daraus, etwa Vorauszahlungen, Umlagevereinbarungen, Mietzeiten und Zählerstände,
+                        erfassen Sie selbst in den geführten Schritten; sie werden derzeit nicht automatisch
+                        übernommen.
                     </p>
                 </x-hvm.faq-item>
 
                 <x-hvm.faq-item question="Kann ich Dateien auch als Foto hochladen?">
                     <p>
-                        Ja. Neben PDF-Dateien werden gängige Bildformate sowie Tabellen für Mieter-, Zahlungs- und
-                        Zählerlisten angenommen. Achten Sie bei Fotos auf gute Lesbarkeit, vollständige Seiten und
-                        ausreichend Licht. Unlesbare Dateien werden nicht geraten, sondern zurückgemeldet.
+                        Ja. Neben PDF-Dateien werden gängige Bildformate und CSV-Tabellen angenommen; Excel-Dateien
+                        (XLSX) speichern Sie bitte als CSV oder PDF. Achten Sie bei Fotos auf gute Lesbarkeit,
+                        vollständige Seiten und ausreichend Licht. Unlesbare Dateien werden nicht geraten, sondern
+                        zurückgemeldet.
                     </p>
                 </x-hvm.faq-item>
 

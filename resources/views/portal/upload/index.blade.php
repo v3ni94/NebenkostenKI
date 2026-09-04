@@ -47,6 +47,15 @@
 
     {{-- Uploadzone ---------------------------------------------------------- --}}
 
+    {{-- Ehrlicher Hinweis zum Umfang der automatischen Auswertung (ARCHITECTURE 11.1) --}}
+
+    <x-hvm.alert variant="info" label="Hinweis" title="Was automatisch ausgewertet wird" class="mt-6">
+        Ausgewertet werden Hausgeldabrechnung, Grundsteuerbescheid, Heizkostenabrechnung, Rechnungen und
+        Gebührenbescheide. Mietverträge, Vorjahresabrechnungen, Mieter- und Einheitenlisten, Zahlungsübersichten
+        und Zählerlisten werden abgelegt und Ihnen zur Sichtprüfung angezeigt; die Werte daraus, etwa
+        Vorauszahlungen, Umlagevereinbarungen und Zählerstände, erfassen Sie in den folgenden Schritten selbst.
+    </x-hvm.alert>
+
     <x-hvm.card class="mt-8" accent>
         <div
             data-upload-zone
@@ -65,8 +74,9 @@
                     Dateien hierher ziehen
                 </p>
                 <p class="mt-2 text-sm text-hvm-textschwarz">
-                    PDF, JPG, PNG, HEIC, CSV, XLSX und ZIP. Bis {{ $maxDateiMb }} MB je Datei,
-                    bis {{ $maxLaufMb }} MB je Abrechnungslauf.
+                    PDF, JPG, PNG, HEIC, CSV und ZIP. Bis {{ $maxDateiMb }} MB je Datei,
+                    bis {{ $maxLaufMb }} MB je Abrechnungslauf. Excel-Tabellen (XLSX) werden derzeit nicht
+                    ausgewertet, bitte speichern Sie sie als CSV oder PDF.
                 </p>
 
                 <div class="mt-5">
@@ -82,7 +92,7 @@
                         type="file"
                         multiple
                         class="sr-only"
-                        accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.csv,.xlsx,.zip"
+                        accept=".pdf,.jpg,.jpeg,.png,.heic,.heif,.csv,.zip"
                     >
                 </div>
 

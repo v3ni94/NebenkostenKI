@@ -27,12 +27,21 @@ final readonly class AnalysisProgress
         public array $lines = [],
     ) {}
 
+    /**
+     * Anteil der Unterlagen, deren Auswertung beendet ist. Dazu zaehlen alle
+     * Endzustaende, also ausgewertete ebenso wie nicht auswertbare Unterlagen
+     * (fehlgeschlagen, Dublette, abgelehnt, abgebrochen). Sonst meldete die
+     * Seite bei drei Unterlagen mit einer Dublette dauerhaft 67 Prozent,
+     * obwohl die Auswertung abgeschlossen ist.
+     */
     public function percent(): int
     {
         if ($this->documentsTotal <= 0) {
             return 0;
         }
 
-        return (int) min(100, max(0, (int) round(($this->documentsEvaluated / $this->documentsTotal) * 100)));
+        $beendet = $this->documentsEvaluated + $this->documentsFailed;
+
+        return (int) min(100, max(0, (int) round(($beendet / $this->documentsTotal) * 100)));
     }
 }
