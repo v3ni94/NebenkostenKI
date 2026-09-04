@@ -6,6 +6,7 @@ namespace Tests\Feature\FollowUpYear;
 
 use App\Application\Reminder\ReminderLinks;
 use App\Enums\BillingRunStatus;
+use App\Enums\OrganizationRole;
 use App\Models\BillingRun;
 use App\Models\Organization;
 use App\Models\OrganizationUser;
@@ -126,6 +127,35 @@ final class FolgejahresCtaTest extends TestCase
         $url = app(ReminderLinks::class)->folgejahrUrl($welt['property'], 2026);
 
         $this->get($url)->assertRedirect();
+
+        $this->assertSame(
+            0,
+            BillingRun::query()
+                ->where('property_id', $welt['property']->getKey())
+                ->where('billing_year', 2026)
+                ->count()
+        );
+    }
+
+    public function test_eine_nur_lesende_rolle_legt_ueber_den_cta_keinen_lauf_an(): void
+    {
+        $welt = $this->welt();
+
+        /** @var User $leser */
+        $leser = User::factory()->create();
+
+        OrganizationUser::query()->create([
+            'organization_id' => $welt['organization']->getKey(),
+            'user_id' => $leser->getKey(),
+            'role' => OrganizationRole::READ_ONLY,
+            'joined_at' => now(),
+        ]);
+
+        $url = app(ReminderLinks::class)->folgejahrUrl($welt['property'], 2026);
+
+        // Dieselbe Policy wie bei der regulaeren Anlage: kein Schreibrecht,
+        // kein Lauf. 404 statt 403, damit die Existenz nicht bestaetigt wird.
+        $this->actingAs($leser)->get($url)->assertNotFound();
 
         $this->assertSame(
             0,

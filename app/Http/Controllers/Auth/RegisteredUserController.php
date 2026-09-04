@@ -15,8 +15,10 @@ use App\Notifications\KontoBereitsVorhanden;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Throwable;
 
 /**
  * Registrierung eines neuen Kundenkontos.
@@ -69,9 +71,9 @@ class RegisteredUserController extends Controller
         $vorhanden = $this->vorhandenesKonto($email);
 
         if ($vorhanden instanceof User) {
-            $this->hinweisStattZweitkonto($vorhanden, $passwort);
+            $versendet = $this->hinweisStattZweitkonto($vorhanden, $passwort);
 
-            return $this->bestaetigung();
+            return $this->bestaetigung($versendet);
         }
 
         $ergebnis = $this->registerUser->handle(
@@ -87,41 +89,61 @@ class RegisteredUserController extends Controller
             $ergebnis['organization']->getKey()
         );
 
-        $this->verification->send($ergebnis['user']);
+        // Ein Zustellfehler laesst das Konto vollstaendig angelegt und den
+        // Nutzer angemeldet; er erhaelt eine neutrale Meldung und kann den
+        // Link auf der Hinweisseite erneut anfordern.
+        $versendet = $this->verification->send($ergebnis['user']);
 
-        return $this->bestaetigung();
+        return $this->bestaetigung($versendet);
     }
 
     /**
-     * Antwort, die in beiden Faellen identisch ist.
+     * Antwort, die in beiden Faellen identisch ist. Nur ein Zustellfehler
+     * aendert die Meldung, und zwar in beiden Zweigen gleich.
      */
-    private function bestaetigung(): RedirectResponse
+    private function bestaetigung(bool $versendet): RedirectResponse
     {
         return redirect()
             ->route('verification.notice')
-            ->with('status', 'Ihr Konto ist angelegt. Wir haben Ihnen eine E-Mail zur Bestätigung gesendet.');
+            ->with('status', $versendet
+                ? 'Ihr Konto ist angelegt. Wir haben Ihnen eine E-Mail zur Bestätigung gesendet.'
+                : 'Ihr Konto ist angelegt. '.EmailVerification::MELDUNG_VERSAND_FEHLGESCHLAGEN);
     }
 
     /**
      * Hinweismail an die bestehende Adresse, ohne zweites Konto.
+     *
+     * @return bool false nur bei einem Zustellfehler
      */
-    private function hinweisStattZweitkonto(User $vorhanden, string $passwort): void
+    private function hinweisStattZweitkonto(User $vorhanden, string $passwort): bool
     {
         // Gleicher Rechenaufwand wie bei einer echten Registrierung, damit die
         // Antwortzeit sich nicht auffaellig unterscheidet.
         Hash::make($passwort);
 
         $geloescht = $vorhanden->getAttribute('deleted_at') !== null;
+        $versendet = true;
 
         if (! $geloescht) {
-            $vorhanden->notify(new KontoBereitsVorhanden);
+            try {
+                $vorhanden->notify(new KontoBereitsVorhanden);
+            } catch (Throwable $fehler) {
+                $versendet = false;
+
+                Log::warning('Hinweismail zu bestehendem Konto konnte nicht versendet werden.', [
+                    'user_id' => $vorhanden->getKey(),
+                    'fehler' => $fehler::class,
+                ]);
+            }
         }
 
         $this->audit->record(
             action: 'account.register_existing_email',
             subject: $vorhanden,
-            metadata: ['hinweismail_versendet' => ! $geloescht],
+            metadata: ['hinweismail_versendet' => ! $geloescht && $versendet],
         );
+
+        return $versendet;
     }
 
     /**

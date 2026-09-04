@@ -293,6 +293,7 @@ Route::middleware('organisation')->group(function (): void {
     Route::get('/datenschutz', [PrivacyController::class, 'show'])
         ->name('datenschutz.show');
     Route::post('/datenschutz/datenexport', [PrivacyController::class, 'export'])
+        ->middleware('throttle:datenexport')
         ->name('datenschutz.export');
     Route::get('/datenschutz/datenexport/{export}/signiert', [PrivacyController::class, 'signedDownload'])
         ->middleware(['signed', 'throttle:downloads'])
@@ -319,8 +320,9 @@ Route::middleware('organisation')->group(function (): void {
 //
 // Kurzlebiger signierter Link aus einer Transaktionsmail. Die Signatur ersetzt
 // nicht die Autorisierung: der Controller prueft zusaetzlich die
-// Eigentuemerschaft. Gueltigkeitsdauer aus SIGNED_DOWNLOAD_TTL_MINUTES.
+// Eigentuemerschaft. Gueltigkeitsdauer aus SIGNED_DOWNLOAD_TTL_MINUTES. Die
+// E-Mail-Verifizierung gilt hier wie auf der Streaming-Route (Masterprompt 8.1).
 
 Route::get('/downloads/{generatedDocument}/signiert', [DownloadController::class, 'signed'])
-    ->middleware(['signed', 'throttle:downloads'])
+    ->middleware(['signed', 'throttle:downloads', 'can:email-verified'])
     ->name('downloads.signed');

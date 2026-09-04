@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Portal;
 
+use App\Http\Controllers\Portal\PropertyController;
 use App\Models\AuditLog;
+use App\Models\BillingRun;
 use App\Models\Property;
 use App\Models\Unit;
 
@@ -112,6 +114,121 @@ final class PropertyAndUnitTest extends PortalTestCase
         self::assertNotNull(Property::query()->withTrashed()->find($mandant['property']->getKey()));
     }
 
+    public function test_objekt_mit_abrechnungslaeufen_wird_nicht_geloescht(): void
+    {
+        $mandant = $this->mandant();
+
+        BillingRun::factory()->create([
+            'organization_id' => $mandant['organization']->getKey(),
+            'property_id' => $mandant['property']->getKey(),
+            'created_by_user_id' => $mandant['user']->getKey(),
+        ]);
+
+        $antwort = $this->actingAs($mandant['user'])->delete(
+            route('portal.objekte.destroy', ['property' => $mandant['property']->getKey()])
+        );
+
+        $antwort->assertRedirect(route('portal.objekte.index'));
+        $antwort->assertSessionHas('status', PropertyController::MELDUNG_LAEUFE_VORHANDEN);
+
+        // Das Objekt bleibt aktiv, es entsteht kein Geisterlauf ohne Objekt.
+        self::assertNotNull(Property::query()->find($mandant['property']->getKey()));
+        self::assertFalse(AuditLog::query()->where('action', 'property.deleted')->exists());
+    }
+
+    public function test_doppelte_bezeichnung_im_selben_objekt_wird_abgelehnt(): void
+    {
+        $mandant = $this->mandant();
+        $bezeichnung = (string) $mandant['unit']->getAttribute('label');
+
+        $antwort = $this->actingAs($mandant['user'])
+            ->from(route('portal.einheiten.create', ['property' => $mandant['property']->getKey()]))
+            ->post(route('portal.einheiten.store', ['property' => $mandant['property']->getKey()]), [
+                'label' => $bezeichnung,
+            ]);
+
+        $antwort->assertSessionHasErrors('label');
+        self::assertStringContainsString('bereits vergeben', (string) session('errors')?->first('label'));
+        self::assertSame(1, Unit::query()->where('property_id', $mandant['property']->getKey())->count());
+    }
+
+    public function test_dieselbe_bezeichnung_in_einem_anderen_objekt_ist_zulaessig(): void
+    {
+        $mandant = $this->mandant();
+        $bezeichnung = (string) $mandant['unit']->getAttribute('label');
+
+        /** @var Property $zweitesObjekt */
+        $zweitesObjekt = Property::factory()->create([
+            'organization_id' => $mandant['organization']->getKey(),
+            'created_by_user_id' => $mandant['user']->getKey(),
+        ]);
+
+        $this->actingAs($mandant['user'])
+            ->post(route('portal.einheiten.store', ['property' => $zweitesObjekt->getKey()]), [
+                'label' => $bezeichnung,
+            ])
+            ->assertSessionHasNoErrors();
+
+        self::assertSame(1, Unit::query()->where('property_id', $zweitesObjekt->getKey())->count());
+    }
+
+    public function test_bearbeitung_auf_eine_vergebene_bezeichnung_wird_abgelehnt(): void
+    {
+        $mandant = $this->mandant();
+
+        Unit::factory()->create([
+            'organization_id' => $mandant['organization']->getKey(),
+            'property_id' => $mandant['property']->getKey(),
+            'label' => 'Erdgeschoss rechts',
+        ]);
+
+        $antwort = $this->actingAs($mandant['user'])
+            ->from(route('portal.einheiten.edit', ['unit' => $mandant['unit']->getKey()]))
+            ->put(route('portal.einheiten.update', ['unit' => $mandant['unit']->getKey()]), [
+                'label' => 'Erdgeschoss rechts',
+            ]);
+
+        $antwort->assertSessionHasErrors('label');
+
+        // Die eigene Bezeichnung darf beim Bearbeiten unveraendert bleiben.
+        $this->actingAs($mandant['user'])
+            ->put(route('portal.einheiten.update', ['unit' => $mandant['unit']->getKey()]), [
+                'label' => (string) $mandant['unit']->getAttribute('label'),
+                'living_area_sqm' => '80',
+            ])
+            ->assertSessionHasNoErrors();
+    }
+
+    public function test_entfernte_bezeichnung_kann_ohne_fehler_erneut_angelegt_werden(): void
+    {
+        $mandant = $this->mandant();
+        $bezeichnung = (string) $mandant['unit']->getAttribute('label');
+
+        $this->actingAs($mandant['user'])
+            ->delete(route('portal.einheiten.destroy', ['unit' => $mandant['unit']->getKey()]))
+            ->assertRedirect();
+
+        // Die weich geloeschte Zeile belegt den Unique-Index weiter. Das
+        // Wiederanlegen derselben Bezeichnung darf nicht am Index scheitern.
+        $antwort = $this->actingAs($mandant['user'])
+            ->post(route('portal.einheiten.store', ['property' => $mandant['property']->getKey()]), [
+                'label' => $bezeichnung,
+                'living_area_sqm' => '55',
+            ]);
+
+        $antwort->assertRedirect(route('portal.einheiten.index', ['property' => $mandant['property']->getKey()]));
+        $antwort->assertSessionHasNoErrors();
+
+        $aktive = Unit::query()
+            ->where('property_id', $mandant['property']->getKey())
+            ->where('label', $bezeichnung)
+            ->get();
+
+        self::assertCount(1, $aktive);
+        self::assertSame('55.0000', (string) $aktive->first()?->getAttribute('living_area_sqm'));
+        self::assertNull($aktive->first()?->getAttribute('deleted_at'));
+    }
+
     public function test_einheit_wird_mit_allen_schluesselwerten_angelegt(): void
     {
         $mandant = $this->mandant();
@@ -119,7 +236,7 @@ final class PropertyAndUnitTest extends PortalTestCase
         $antwort = $this->actingAs($mandant['user'])->post(
             route('portal.einheiten.store', ['property' => $mandant['property']->getKey()]),
             [
-                'label' => 'WE 12',
+                'label' => 'Dachgeschoss links',
                 'location' => '2. OG links',
                 'living_area_sqm' => '72,50',
                 'heated_area_sqm' => '70,25',
@@ -131,7 +248,7 @@ final class PropertyAndUnitTest extends PortalTestCase
 
         $antwort->assertRedirect(route('portal.einheiten.index', ['property' => $mandant['property']->getKey()]));
 
-        $einheit = Unit::query()->where('label', 'WE 12')->firstOrFail();
+        $einheit = Unit::query()->where('label', 'Dachgeschoss links')->firstOrFail();
 
         self::assertSame($mandant['organization']->getKey(), $einheit->getAttribute('organization_id'));
         self::assertSame('72.5000', (string) $einheit->getAttribute('living_area_sqm'));

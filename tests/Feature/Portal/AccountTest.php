@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Portal;
 
+use App\Enums\EmailSuppressionReason;
 use App\Enums\OrganizationType;
 use App\Enums\UserStatus;
+use App\Mail\SuppressionGuard;
 use App\Models\AuditLog;
 use App\Models\Organization;
 use App\Models\ReminderPreference;
 use App\Models\User;
+use App\Notifications\KontoBereitsVorhanden;
 use App\Notifications\VerifyEmailAddress;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
@@ -126,25 +129,112 @@ final class AccountTest extends PortalTestCase
         self::assertTrue(AuditLog::query()->where('action', 'account.email_changed')->exists());
     }
 
-    public function test_bereits_vergebene_adresse_wird_neutral_abgelehnt(): void
+    public function test_bereits_vergebene_adresse_verraet_kein_fremdes_konto(): void
     {
+        Notification::fake();
+
         $mandant = $this->mandant();
         $mandant['user']->forceFill(['password' => Hash::make('richtiges-passwort-2026')])->save();
+        $eigeneAdresse = (string) $mandant['user']->getAttribute('email');
 
-        User::factory()->create(['email' => 'belegt@beispiel.invalid']);
+        $bestehend = User::factory()->create(['email' => 'belegt@beispiel.invalid']);
 
-        $antwort = $this->actingAs($mandant['user'])
+        $belegt = $this->actingAs($mandant['user'])
             ->from(route('portal.konto.edit'))
             ->put(route('portal.konto.email'), [
                 'email' => 'belegt@beispiel.invalid',
                 'current_password' => 'richtiges-passwort-2026',
             ]);
+        $meldungBelegt = session('status');
 
-        $antwort->assertSessionHasErrors('email');
-        self::assertStringContainsString(
-            'kann nicht verwendet werden',
-            (string) session('errors')?->first('email')
+        $this->flushSession();
+
+        $frei = $this->actingAs($mandant['user'])
+            ->from(route('portal.konto.edit'))
+            ->put(route('portal.konto.email'), [
+                'email' => 'frei@beispiel.invalid',
+                'current_password' => 'richtiges-passwort-2026',
+            ]);
+        $meldungFrei = session('status');
+
+        // Beide Antworten sind identisch: kein Fehler, dieselbe Meldung.
+        $belegt->assertRedirect(route('portal.konto.edit'));
+        $belegt->assertSessionHasNoErrors();
+        $frei->assertRedirect(route('portal.konto.edit'));
+        self::assertIsString($meldungBelegt);
+        self::assertSame($meldungBelegt, $meldungFrei);
+
+        // Die fremde Adresse wurde nicht uebernommen, die freie schon.
+        /** @var User $nutzer */
+        $nutzer = User::query()->findOrFail($mandant['user']->getKey());
+        self::assertSame('frei@beispiel.invalid', $nutzer->getAttribute('email'));
+        self::assertSame(
+            'belegt@beispiel.invalid',
+            User::query()->findOrFail($bestehend->getKey())->getAttribute('email')
         );
+        self::assertNotSame($eigeneAdresse, $nutzer->getAttribute('email'));
+
+        // Die bestehende Adresse erhaelt einen sachlichen Hinweis, der Vorgang
+        // wird protokolliert.
+        Notification::assertSentTo($bestehend, KontoBereitsVorhanden::class);
+        self::assertTrue(
+            AuditLog::query()
+                ->where('action', 'account.email_change_existing_email')
+                ->where('subject_id', $bestehend->getKey())
+                ->exists()
+        );
+    }
+
+    public function test_zur_loeschung_vorgemerkte_adresse_wird_nicht_uebernommen_und_erhaelt_keinen_hinweis(): void
+    {
+        Notification::fake();
+
+        $mandant = $this->mandant();
+        $mandant['user']->forceFill(['password' => Hash::make('richtiges-passwort-2026')])->save();
+        $eigeneAdresse = (string) $mandant['user']->getAttribute('email');
+
+        $vorgemerkt = User::factory()->create(['email' => 'vorgemerkt@beispiel.invalid']);
+        $vorgemerkt->delete();
+
+        $antwort = $this->actingAs($mandant['user'])->put(route('portal.konto.email'), [
+            'email' => 'vorgemerkt@beispiel.invalid',
+            'current_password' => 'richtiges-passwort-2026',
+        ]);
+
+        $antwort->assertRedirect(route('portal.konto.edit'));
+        $antwort->assertSessionHasNoErrors();
+
+        self::assertSame(
+            $eigeneAdresse,
+            User::query()->findOrFail($mandant['user']->getKey())->getAttribute('email')
+        );
+        Notification::assertNothingSent();
+    }
+
+    public function test_kontoseite_zeigt_einen_hinweis_nach_zustellfehler(): void
+    {
+        $mandant = $this->mandant();
+        $adresse = (string) $mandant['user']->getAttribute('email');
+
+        app(SuppressionGuard::class)->suppress($adresse, EmailSuppressionReason::BOUNCE, 'smtp-bounce');
+
+        $antwort = $this->actingAs($mandant['user'])->get(route('portal.konto.edit'));
+
+        $antwort->assertOk();
+        $antwort->assertSee('Hinweis zu Ihrer E-Mail-Adresse');
+        $antwort->assertSee('konnte am');
+        $antwort->assertSee('nicht zugestellt werden');
+        $antwort->assertSee('Bitte prüfen Sie die Adresse in Ihrem Konto');
+    }
+
+    public function test_kontoseite_zeigt_ohne_sperre_keinen_zustellhinweis(): void
+    {
+        $mandant = $this->mandant();
+
+        $antwort = $this->actingAs($mandant['user'])->get(route('portal.konto.edit'));
+
+        $antwort->assertOk();
+        $antwort->assertDontSee('Hinweis zu Ihrer E-Mail-Adresse');
     }
 
     public function test_erinnerungen_lassen_sich_global_abschalten(): void

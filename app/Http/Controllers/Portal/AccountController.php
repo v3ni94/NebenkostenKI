@@ -12,13 +12,18 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Portal\AccountEmailRequest;
 use App\Http\Requests\Portal\AccountRequest;
 use App\Http\Requests\Portal\ReminderPreferenceRequest;
+use App\Mail\SuppressionGuard;
 use App\Models\Property;
 use App\Models\ReminderPreference;
+use App\Models\User;
+use App\Notifications\KontoBereitsVorhanden;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Throwable;
 
 /**
  * Kontobereich.
@@ -40,6 +45,7 @@ class AccountController extends Controller
         private readonly EmailVerification $verification,
         private readonly TwoFactorPreparation $zweiFaktor,
         private readonly AuditRecorder $audit,
+        private readonly SuppressionGuard $sperrliste,
     ) {}
 
     public function edit(): View
@@ -54,6 +60,10 @@ class AccountController extends Controller
             'benutzer' => $this->context->user(),
             'organisation' => $organisation,
             'verifiziert' => $this->verification->isVerified($this->context->user()),
+            // Hinweis nach Zustellfehler oder Abmeldung (Masterprompt 17.2).
+            'zustellhinweis' => $this->sperrliste->hinweisFuerKonto(
+                (string) $this->context->user()->getAttribute('email')
+            ),
             'objekte' => $objekte,
             'global' => $this->globaleErinnerung(),
             'objektErinnerungen' => $this->objektErinnerungen(),
@@ -97,6 +107,12 @@ class AccountController extends Controller
 
     /**
      * Aenderung der E-Mail-Adresse mit erneuter Verifizierung.
+     *
+     * KEINE KONTOERKENNUNG (Masterprompt 8.1, 19): Wie Registrierung und
+     * Passwort-Reset verraet die Antwort nicht, ob zu einer Adresse ein Konto
+     * besteht. Ist die Adresse bereits vergeben, wird nichts geaendert, die
+     * Antwort ist dieselbe wie im Erfolgsfall, und die bestehende Adresse
+     * erhaelt eine sachliche Hinweismail.
      */
     public function updateEmail(AccountEmailRequest $request): RedirectResponse
     {
@@ -110,9 +126,17 @@ class AccountController extends Controller
                 ->with('status', 'Die E-Mail-Adresse ist unverändert.');
         }
 
+        $vorhanden = $this->fremdesKonto($neu, $benutzer);
+
+        if ($vorhanden instanceof User) {
+            $this->hinweisStattUebernahme($vorhanden, $benutzer);
+
+            return $this->emailAntwort(true);
+        }
+
         $benutzer->forceFill(['email' => $neu])->save();
         $this->verification->reset($benutzer);
-        $this->verification->send($benutzer);
+        $versendet = $this->verification->send($benutzer);
 
         $this->audit->record(
             action: 'account.email_changed',
@@ -121,11 +145,63 @@ class AccountController extends Controller
             organization: $this->context->organizationId(),
         );
 
+        return $this->emailAntwort($versendet);
+    }
+
+    /**
+     * Antwort auf die Adressaenderung, in beiden Faellen identisch.
+     */
+    private function emailAntwort(bool $versendet): RedirectResponse
+    {
         return redirect()
             ->route('portal.konto.edit')
-            ->with('status', 'Ihre neue E-Mail-Adresse ist gespeichert. Wir haben Ihnen einen '
-                .'Bestätigungslink an die neue Adresse gesendet. Bis zur Bestätigung sind Zahlung und '
-                .'Download gesperrt.');
+            ->with('status', $versendet
+                ? 'Wir haben einen Bestätigungslink an die angegebene Adresse gesendet, sofern sie verwendet '
+                    .'werden kann. Bis zur Bestätigung der neuen Adresse sind Zahlung und Download gesperrt.'
+                : EmailVerification::MELDUNG_VERSAND_FEHLGESCHLAGEN);
+    }
+
+    /**
+     * Anderes Konto mit dieser Adresse, auch ein zur Loeschung vorgemerktes.
+     */
+    private function fremdesKonto(string $email, User $benutzer): ?User
+    {
+        /** @var User|null $konto */
+        $konto = User::withTrashed()
+            ->where('email', $email)
+            ->whereKeyNot($benutzer->getKey())
+            ->first();
+
+        return $konto;
+    }
+
+    /**
+     * Hinweismail an die bestehende Adresse, ohne Aenderung am eigenen Konto.
+     */
+    private function hinweisStattUebernahme(User $vorhanden, User $benutzer): void
+    {
+        $geloescht = $vorhanden->getAttribute('deleted_at') !== null;
+        $versendet = false;
+
+        if (! $geloescht) {
+            try {
+                $vorhanden->notify(new KontoBereitsVorhanden);
+                $versendet = true;
+            } catch (Throwable $fehler) {
+                Log::warning('Hinweismail zu bestehendem Konto konnte nicht versendet werden.', [
+                    'user_id' => $vorhanden->getKey(),
+                    'fehler' => $fehler::class,
+                ]);
+            }
+        }
+
+        $this->audit->record(
+            action: 'account.email_change_existing_email',
+            subject: $vorhanden,
+            actor: $benutzer,
+            organization: $this->context->organizationId(),
+            metadata: ['hinweismail_versendet' => $versendet],
+        );
     }
 
     /**

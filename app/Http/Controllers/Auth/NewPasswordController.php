@@ -11,6 +11,7 @@ use App\Models\User;
 use Illuminate\Contracts\Auth\CanResetPassword;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -24,6 +25,10 @@ use Illuminate\View\View;
  *
  * Mit dem neuen Passwort wird zusaetzlich der remember_token erneuert. Damit
  * werden bestehende Angemeldet-bleiben-Cookies auf anderen Geraeten wertlos.
+ * Ebenso werden alle Datenbanksitzungen des Kontos beendet: Wer sein Passwort
+ * zuruecksetzt, tut das haeufig, weil er eine fremde Sitzung vermutet. Die
+ * Sitzungsdauer ist gleitend, eine aktiv genutzte fremde Sitzung bliebe sonst
+ * beliebig lange gueltig.
  */
 class NewPasswordController extends Controller
 {
@@ -56,10 +61,16 @@ class NewPasswordController extends Controller
                     'remember_token' => Str::random(60),
                 ])->save();
 
+                // Offene Sitzungen des Kontos beenden. Die Tabelle sessions
+                // existiert unabhaengig vom Sitzungstreiber; bei einem anderen
+                // Treiber ist der Aufruf folgenlos.
+                $beendet = DB::table('sessions')->where('user_id', $user->getKey())->delete();
+
                 $this->audit->record(
                     action: 'account.password_reset',
                     subject: $user,
                     actor: $user,
+                    metadata: ['sitzungen_beendet' => $beendet],
                 );
             }
         );

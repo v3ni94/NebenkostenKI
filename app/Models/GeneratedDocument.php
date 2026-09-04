@@ -31,6 +31,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $invoice_id
  * @property string|null $calculation_snapshot_id
  * @property string|null $replaced_by_document_id
+ * @property string|null $requested_by_user_id
  * @property GeneratedDocumentKind $kind
  * @property GeneratedDocumentVariant $variant
  * @property GeneratedDocumentStatus $status

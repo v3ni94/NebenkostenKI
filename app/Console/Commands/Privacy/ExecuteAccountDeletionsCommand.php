@@ -29,6 +29,14 @@ final class ExecuteAccountDeletionsCommand extends Command
         ExecuteAccountDeletion $execute,
     ): int {
         $batch = (int) $this->option('batch');
+
+        // Erinnerung einige Tage vor der Ausfuehrung, je Antrag genau einmal.
+        $erinnert = $workflow->remindDue($batch > 0 ? $batch : 25);
+
+        if ($erinnert > 0) {
+            $this->line(sprintf('%d Erinnerungen vor der Kontolöschung versendet.', $erinnert));
+        }
+
         $faellig = $workflow->due($batch > 0 ? $batch : 25);
 
         if ($faellig === []) {

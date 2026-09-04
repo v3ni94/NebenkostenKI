@@ -85,6 +85,23 @@ final class AdminZugangTest extends AdminTestCase
         $this->actingAs($this->interneKennung(AdminRole::SUPPORT))->get('/admin')->assertOk();
     }
 
+    public function test_eine_interne_kennung_ohne_bestaetigte_adresse_erhaelt_keinen_zugang(): void
+    {
+        // Die Laravel-Middleware verified prueft App\Models\User nicht, weil das
+        // Modell MustVerifyEmail nicht implementiert. Die Pflicht laeuft ueber
+        // das eigene Gate email-verified.
+        $interne = $this->interneKennung();
+        $interne->forceFill(['email_verified_at' => null])->save();
+
+        $this->actingAs(User::query()->findOrFail($interne->getKey()))
+            ->get('/admin')
+            ->assertForbidden();
+
+        $this->actingAs(User::query()->findOrFail($interne->getKey()))
+            ->get('/admin/nutzer')
+            ->assertForbidden();
+    }
+
     public function test_schreibende_handlungen_sind_fuer_einen_kunden_gesperrt(): void
     {
         $kunde = $this->kunde();

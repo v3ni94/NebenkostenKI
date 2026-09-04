@@ -77,7 +77,9 @@ class EmailVerificationController extends Controller
 
         RateLimiter::hit($schluessel, 3600);
 
-        $this->verification->send($user);
+        if (! $this->verification->send($user)) {
+            return back()->with('status', EmailVerification::MELDUNG_VERSAND_FEHLGESCHLAGEN);
+        }
 
         return back()->with('status', 'Wir haben Ihnen erneut eine E-Mail zur Bestätigung gesendet.');
     }

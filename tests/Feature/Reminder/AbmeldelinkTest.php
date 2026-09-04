@@ -21,6 +21,10 @@ use Tests\TestCase;
 
 /**
  * Sicherer Abmeldelink ohne vorherige Anmeldung (Masterprompt 17.2).
+ *
+ * Der Aufruf aus der E-Mail zeigt nur eine Bestaetigungsseite. Erst das
+ * Absenden des Formulars aendert die Einstellung. Link-Scanner der
+ * Postfaecher koennen den Nutzer damit nicht unbemerkt abmelden.
  */
 final class AbmeldelinkTest extends TestCase
 {
@@ -67,7 +71,7 @@ final class AbmeldelinkTest extends TestCase
         ];
     }
 
-    public function test_abmeldung_funktioniert_ohne_anmeldung(): void
+    public function test_der_aufruf_aus_der_mail_zeigt_nur_eine_bestaetigungsseite_und_aendert_nichts(): void
     {
         $welt = $this->welt();
 
@@ -77,6 +81,35 @@ final class AbmeldelinkTest extends TestCase
 
         $antwort = $this->get($url);
 
+        $antwort->assertOk();
+        $antwort->assertSee('Erinnerungen abmelden');
+        $antwort->assertSee('Abmeldung bestätigen');
+        $antwort->assertSee((string) $welt['property']->getAttribute('label'));
+        $antwort->assertDontSee((string) $welt['user']->getAttribute('email'));
+        // Das Formular sendet an dieselbe signierte Adresse.
+        $antwort->assertSee('action="'.$url.'"', false);
+
+        $welt['preference']->refresh();
+
+        // Ein automatischer Abruf des Links, etwa durch einen Link-Scanner,
+        // meldet niemanden ab.
+        $this->assertTrue((bool) $welt['preference']->getAttribute('is_active'));
+        $this->assertNull($welt['preference']->getAttribute('deactivated_at'));
+        $this->assertFalse(
+            AuditLog::query()->where('action', ManageReminderSubscription::AUDIT_ABMELDUNG)->exists()
+        );
+    }
+
+    public function test_die_bestaetigung_meldet_ohne_anmeldung_ab_und_zeigt_das_ergebnis(): void
+    {
+        $welt = $this->welt();
+
+        $url = app(ReminderLinks::class)->abmeldeUrl($welt['preference']);
+
+        $this->assertGuest();
+
+        $antwort = $this->post($url);
+
         $antwort->assertRedirect(route('site.home'));
         $antwort->assertSessionHas('status');
 
@@ -84,6 +117,13 @@ final class AbmeldelinkTest extends TestCase
 
         $this->assertFalse((bool) $welt['preference']->getAttribute('is_active'));
         $this->assertNotNull($welt['preference']->getAttribute('deactivated_at'));
+
+        // Die Bestaetigung wird dem Nutzer auf der Zielseite tatsaechlich
+        // angezeigt.
+        $folgeseite = $this->followRedirects($antwort);
+        $folgeseite->assertOk();
+        $folgeseite->assertSee('sind abgemeldet');
+        $folgeseite->assertSee((string) $welt['property']->getAttribute('label'));
     }
 
     public function test_abmeldelink_ist_signiert_und_ohne_kundendaten(): void
@@ -106,6 +146,7 @@ final class AbmeldelinkTest extends TestCase
         $url = app(ReminderLinks::class)->abmeldeUrl($welt['preference']);
 
         $this->get($url.'X')->assertForbidden();
+        $this->post($url.'X')->assertForbidden();
 
         $welt['preference']->refresh();
 
@@ -119,6 +160,11 @@ final class AbmeldelinkTest extends TestCase
         $token = (string) $welt['preference']->getAttribute('unsubscribe_token');
 
         $this->get('/erinnerungen/abmelden/'.$token)->assertForbidden();
+        $this->post('/erinnerungen/abmelden/'.$token)->assertForbidden();
+
+        $welt['preference']->refresh();
+
+        $this->assertTrue((bool) $welt['preference']->getAttribute('is_active'));
     }
 
     public function test_unbekannter_token_fuehrt_zu_404(): void
@@ -130,17 +176,35 @@ final class AbmeldelinkTest extends TestCase
         ]);
 
         $this->get($url)->assertNotFound();
+        $this->post($url)->assertNotFound();
     }
 
     public function test_abmeldung_wird_protokolliert(): void
     {
         $welt = $this->welt();
 
-        $this->get(app(ReminderLinks::class)->abmeldeUrl($welt['preference']));
+        $this->post(app(ReminderLinks::class)->abmeldeUrl($welt['preference']));
 
         $this->assertTrue(
             AuditLog::query()->where('action', ManageReminderSubscription::AUDIT_ABMELDUNG)->exists()
         );
+    }
+
+    public function test_der_aktivierungslink_zeigt_ebenfalls_nur_eine_bestaetigungsseite(): void
+    {
+        $welt = $this->welt();
+
+        app(ManageReminderSubscription::class)->abmelden($welt['preference']);
+
+        $antwort = $this->get(app(ReminderLinks::class)->aktivierungsUrl($welt['preference']));
+
+        $antwort->assertOk();
+        $antwort->assertSee('Erinnerungen wieder aktivieren');
+        $antwort->assertSee('Aktivierung bestätigen');
+
+        $welt['preference']->refresh();
+
+        $this->assertFalse((bool) $welt['preference']->getAttribute('is_active'));
     }
 
     public function test_reaktivierung_funktioniert_ohne_anmeldung(): void
@@ -149,7 +213,7 @@ final class AbmeldelinkTest extends TestCase
 
         app(ManageReminderSubscription::class)->abmelden($welt['preference']);
 
-        $antwort = $this->get(app(ReminderLinks::class)->aktivierungsUrl($welt['preference']));
+        $antwort = $this->post(app(ReminderLinks::class)->aktivierungsUrl($welt['preference']));
 
         $antwort->assertRedirect(route('site.home'));
 
@@ -161,6 +225,8 @@ final class AbmeldelinkTest extends TestCase
         $this->assertTrue(
             AuditLog::query()->where('action', ManageReminderSubscription::AUDIT_REAKTIVIERUNG)->exists()
         );
+
+        $this->followRedirects($antwort)->assertSee('Ihre Erinnerungen sind wieder aktiv.');
     }
 
     public function test_reaktivierung_hebt_eine_sperre_nach_abmeldung_auf(): void

@@ -16,7 +16,11 @@ use Illuminate\Support\Facades\Route;
  * laufen, legt dieser Trait dieselben Namen, Pfade und Middleware an.
  *
  *   erinnerungen.abmelden     GET  /erinnerungen/abmelden/{token}     signed
+ *   erinnerungen.abmelden.bestaetigen
+ *                             POST /erinnerungen/abmelden/{token}     signed
  *   erinnerungen.aktivieren   GET  /erinnerungen/aktivieren/{token}   signed
+ *   erinnerungen.aktivieren.bestaetigen
+ *                             POST /erinnerungen/aktivieren/{token}   signed
  *   portal.folgejahr.start    GET  /app/objekte/{property}/folgejahr/{jahr}
  *                                                                    auth, signed
  */
@@ -35,9 +39,13 @@ trait PaketRouten
         Route::middleware(['web', 'signed'])->group(function (): void {
             Route::get('/erinnerungen/abmelden/{token}', [ReminderUnsubscribeController::class, 'unsubscribe'])
                 ->name('erinnerungen.abmelden');
+            Route::post('/erinnerungen/abmelden/{token}', [ReminderUnsubscribeController::class, 'confirmUnsubscribe'])
+                ->name('erinnerungen.abmelden.bestaetigen');
 
             Route::get('/erinnerungen/aktivieren/{token}', [ReminderUnsubscribeController::class, 'resubscribe'])
                 ->name('erinnerungen.aktivieren');
+            Route::post('/erinnerungen/aktivieren/{token}', [ReminderUnsubscribeController::class, 'confirmResubscribe'])
+                ->name('erinnerungen.aktivieren.bestaetigen');
         });
 
         Route::middleware(['web', 'auth', 'signed'])

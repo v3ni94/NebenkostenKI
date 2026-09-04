@@ -9,8 +9,10 @@ use App\Models\Document;
 use App\Models\TemporaryUpload;
 use App\Services\Storage\TemporaryUploadStorage;
 use App\Services\Storage\UploadErrorCode;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Tests\Feature\Upload\Concerns\BuildsUploadWorld;
 use Tests\TestCase;
@@ -49,6 +51,30 @@ class ChunkUploadTest extends TestCase
 
         $this->assertSame('Dokument 01 - Nicht klassifiziert', $antwort->json('quellenbezeichnung'));
         $this->assertSame(1, $antwort->json('abschnitte'));
+    }
+
+    public function test_die_laufende_nummer_wird_hinter_einer_zeilensperre_auf_dem_lauf_vergeben(): void
+    {
+        $laufId = (string) $this->welt()['billingRun']->getKey();
+        $basis = DB::transactionLevel();
+        $gesperrt = false;
+
+        // Die Sperre selbst (FOR UPDATE) ist auf SQLite nicht sichtbar. Sichtbar
+        // ist, ob der Lauf INNERHALB der Transaktion des Uploads geladen wird,
+        // also dort, wo lockForUpdate auf MariaDB die Zeile sperrt.
+        DB::listen(function (QueryExecuted $query) use ($laufId, $basis, &$gesperrt): void {
+            if (DB::transactionLevel() <= $basis) {
+                return;
+            }
+
+            if (str_contains($query->sql, 'billing_runs') && in_array($laufId, $query->bindings, true)) {
+                $gesperrt = true;
+            }
+        });
+
+        $this->starteUpload('unterlage.pdf', 4096)->assertCreated();
+
+        $this->assertTrue($gesperrt, 'Der Abrechnungslauf wurde vor der Nummernvergabe nicht in der Transaktion gesperrt.');
     }
 
     public function test_der_originaldateiname_wird_nirgends_gespeichert(): void

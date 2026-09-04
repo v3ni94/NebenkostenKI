@@ -71,14 +71,32 @@ class UnitController extends Controller
         $this->authorize('update', $objekt);
         $this->authorize('create', Unit::class);
 
-        /** @var Unit $einheit */
-        $einheit = Unit::query()->create(array_merge(
-            $this->attribute($request),
-            [
-                'organization_id' => $this->context->organizationId(),
-                'property_id' => $objekt->getKey(),
-            ]
-        ));
+        $werte = $this->attribute($request);
+
+        // Eine weich geloeschte Einheit belegt ihre Bezeichnung im Unique-Index
+        // weiter. Wird dieselbe Bezeichnung erneut angelegt, wird die entfernte
+        // Einheit mit den neuen Angaben wiederhergestellt, statt am Index zu
+        // scheitern.
+        /** @var Unit|null $entfernt */
+        $entfernt = $objekt->units()
+            ->onlyTrashed()
+            ->where('label', $werte['label'] ?? null)
+            ->first();
+
+        if ($entfernt instanceof Unit) {
+            $entfernt->restore();
+            $entfernt->fill($werte)->save();
+            $einheit = $entfernt;
+        } else {
+            /** @var Unit $einheit */
+            $einheit = Unit::query()->create(array_merge(
+                $werte,
+                [
+                    'organization_id' => $this->context->organizationId(),
+                    'property_id' => $objekt->getKey(),
+                ]
+            ));
+        }
 
         $this->audit->record(
             action: 'unit.created',

@@ -83,6 +83,13 @@ final class StartUpload
 
         /** @var array{Document, TemporaryUpload} $created */
         $created = DB::transaction(function () use ($billingRun, $command, $extension, $totalChunks, $expiresAt): array {
+            // Zeilensperre auf dem Abrechnungslauf, BEVOR die laufende Nummer
+            // ermittelt wird. Unter InnoDB (REPEATABLE READ) ist SELECT MAX()
+            // ohne Sperre ein nicht sperrender Lesevorgang; zwei gleichzeitige
+            // Uploads laesen dieselbe Nummer und der zweite Insert scheiterte
+            // am Unique-Index (billing_run_id, sequence_number).
+            BillingRun::query()->whereKey($billingRun->getKey())->lockForUpdate()->first();
+
             $document = $this->createDocument($billingRun, $command, $extension);
             $upload = $this->createUpload($document, $command, $totalChunks, $expiresAt);
 
@@ -167,7 +174,8 @@ final class StartUpload
 
     /**
      * Laufende Nummer im Abrechnungslauf. Die Eindeutigkeit sichert zusaetzlich
-     * ein Unique-Index; die Ermittlung laeuft daher in derselben Transaktion.
+     * ein Unique-Index; die Ermittlung laeuft daher in derselben Transaktion
+     * und hinter der Zeilensperre auf dem Lauf (siehe __invoke).
      */
     private function nextSequenceNumber(BillingRun $billingRun): int
     {

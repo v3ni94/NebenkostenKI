@@ -4,24 +4,32 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Privacy;
 
+use App\Application\Documents\Contracts\ProviderFileDeleter;
+use App\Application\Documents\Dto\ProviderFileDeletionReport;
 use App\Application\Privacy\AccountDeletionWorkflow;
 use App\Application\Privacy\CreateDataExport;
 use App\Application\Privacy\Dto\AccountDeletionReport;
 use App\Application\Privacy\ExecuteAccountDeletion;
+use App\Enums\AiProvider;
+use App\Enums\DeletionStatus;
 use App\Enums\GeneratedDocumentKind;
 use App\Enums\OrganizationRole;
 use App\Models\AuditLog;
+use App\Models\Document;
 use App\Models\EmailMessage;
 use App\Models\GeneratedDocument;
 use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\OrganizationUser;
 use App\Models\ReminderPreference;
+use App\Models\TemporaryUpload;
 use App\Models\User;
+use App\Services\Storage\TemporaryUploadStorage;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 /**
  * Endgueltige Loeschung nach Ablauf der Frist (Masterprompt 19).
@@ -124,6 +132,34 @@ final class AccountDeletionExecutionTest extends PrivacyTestCase
         $this->beantrageUndWarte($a);
         $this->fuehreAus($a['user']);
 
+        self::assertFalse(Storage::disk('local')->exists($exportpfad));
+        $this->assertDatabaseMissing('generated_documents', ['id' => $ergebnis->document->getKey()]);
+    }
+
+    public function test_datenexport_in_einem_geteilten_mandanten_wird_mit_geloescht(): void
+    {
+        $a = $this->mandant('A');
+
+        /** @var User $zweiter */
+        $zweiter = User::factory()->create(['email' => 'zweiter@example.test']);
+
+        OrganizationUser::query()->create([
+            'organization_id' => $a['organization']->getKey(),
+            'user_id' => $zweiter->getKey(),
+            'role' => OrganizationRole::MEMBER,
+            'joined_at' => now(),
+        ]);
+
+        /** @var CreateDataExport $export */
+        $export = app(CreateDataExport::class);
+        $ergebnis = $export($a['user'], $a['organization']);
+        $exportpfad = (string) $ergebnis->document->getAttribute('storage_path');
+
+        $this->beantrageUndWarte($a);
+        $this->fuehreAus($a['user']);
+
+        // Der Mandant bleibt bestehen, der Export mit den Kontodaten von A nicht.
+        $this->assertDatabaseHas('organizations', ['id' => $a['organization']->getKey()]);
         self::assertFalse(Storage::disk('local')->exists($exportpfad));
         $this->assertDatabaseMissing('generated_documents', ['id' => $ergebnis->document->getKey()]);
     }
@@ -283,6 +319,105 @@ final class AccountDeletionExecutionTest extends PrivacyTestCase
         $this->assertDatabaseMissing('organization_user', ['user_id' => $a['user']->getKey()]);
     }
 
+    public function test_rechnungen_eines_geteilten_mandanten_behalten_ihren_mandantenbezug(): void
+    {
+        $a = $this->mandant('A');
+
+        /** @var User $zweiter */
+        $zweiter = User::factory()->create(['email' => 'zweiter@example.test']);
+
+        OrganizationUser::query()->create([
+            'organization_id' => $a['organization']->getKey(),
+            'user_id' => $zweiter->getKey(),
+            'role' => OrganizationRole::MEMBER,
+            'joined_at' => now(),
+        ]);
+
+        $this->beantrageUndWarte($a);
+        $this->fuehreAus($a['user']);
+
+        /** @var Invoice $rechnung */
+        $rechnung = Invoice::query()->findOrFail($a['invoice']->getKey());
+
+        // Der Mandant bleibt bestehen, die dort ausgeloeste Rechnung gehoert
+        // ihm weiter. Nur der Bezug zum geloeschten Konto entfaellt.
+        self::assertNull($rechnung->getAttribute('user_id'));
+        self::assertSame($a['organization']->getKey(), $rechnung->getAttribute('organization_id'));
+        self::assertSame($a['billingRun']->getKey(), $rechnung->getAttribute('billing_run_id'));
+    }
+
+    public function test_offene_quelldateien_werden_vor_der_mandantenloeschung_nachweisbar_geloescht(): void
+    {
+        $a = $this->mandant('A');
+        $upload = $this->offenerUpload($a);
+        $prefix = (string) $upload->getAttribute('storage_key');
+
+        self::assertTrue(Storage::disk(TemporaryUploadStorage::DISK)->exists($prefix.'/original.bin'));
+
+        $this->beantrageUndWarte($a);
+        $bericht = $this->fuehreAus($a['user']);
+
+        self::assertTrue($bericht->executed);
+        self::assertFalse(Storage::disk(TemporaryUploadStorage::DISK)->exists($prefix.'/original.bin'));
+        $this->assertDatabaseMissing('organizations', ['id' => $a['organization']->getKey()]);
+
+        // Der Loeschnachweis ueberlebt die Entfernung des Dokuments.
+        $this->assertDatabaseHas('source_deletion_events', [
+            'document_id' => $a['document']->getKey(),
+            'local_deletion_status' => DeletionStatus::ERFOLGREICH->value,
+        ]);
+    }
+
+    public function test_bei_nicht_loeschbarer_quelldatei_bleibt_der_antrag_offen(): void
+    {
+        $a = $this->mandant('A');
+        $this->offenerUpload($a);
+
+        // Die Providerdatei laesst sich nicht loeschen: ein offener
+        // Datenschutzfall, der die Kontoloeschung nicht ueberdauern darf.
+        $this->app->bind(ProviderFileDeleter::class, fn (): ProviderFileDeleter => new class implements ProviderFileDeleter
+        {
+            public function deleteProviderFile(AiProvider $provider, string $providerFileId): ProviderFileDeletionReport
+            {
+                return ProviderFileDeletionReport::failed('PROVIDER_NICHT_ERREICHBAR');
+            }
+        });
+
+        TemporaryUpload::query()->whereKey($this->offenerUploadId)->update([
+            'provider' => AiProvider::OPENAI->value,
+            'provider_file_id' => 'file-testfall-0815',
+        ]);
+
+        $this->beantrageUndWarte($a);
+
+        try {
+            $this->fuehreAus($a['user']);
+            self::fail('Die Kontoloeschung haette abbrechen muessen.');
+        } catch (RuntimeException $fehler) {
+            self::assertStringContainsString('konnte nicht gelöscht werden', $fehler->getMessage());
+        }
+
+        // Nichts wurde geloescht oder entkoppelt, der Antrag steht weiter offen.
+        $this->assertDatabaseHas('users', ['id' => $a['user']->getKey()]);
+        $this->assertDatabaseHas('organizations', ['id' => $a['organization']->getKey()]);
+        $this->assertDatabaseHas('temporary_uploads', ['id' => $this->offenerUploadId, 'is_tombstone' => false]);
+        self::assertSame(
+            $a['organization']->getKey(),
+            Invoice::query()->findOrFail($a['invoice']->getKey())->getAttribute('organization_id')
+        );
+
+        Carbon::setTestNow(Carbon::parse('2026-10-05 10:00:00'));
+        self::assertTrue($this->workflow()->state($a['user'])->isDue());
+        self::assertCount(1, $this->workflow()->due());
+        Carbon::setTestNow();
+
+        // Der Fehlschlag ist als offener Datenschutzfall nachgewiesen.
+        $this->assertDatabaseHas('source_deletion_events', [
+            'document_id' => $a['document']->getKey(),
+            'provider_deletion_status' => DeletionStatus::FEHLGESCHLAGEN->value,
+        ]);
+    }
+
     public function test_fremder_mandant_bleibt_vollstaendig_unberuehrt(): void
     {
         $a = $this->mandant('A');
@@ -328,6 +463,41 @@ final class AccountDeletionExecutionTest extends PrivacyTestCase
 
         $this->assertDatabaseMissing('sessions', ['user_id' => $a['user']->getKey()]);
         $this->assertDatabaseMissing('password_reset_tokens', ['email' => $email]);
+    }
+
+    private string $offenerUploadId = '';
+
+    /**
+     * Kurzzeitdatensatz mit noch vorhandener Originaldatei, etwa nach einer
+     * fehlgeschlagenen Loeschung.
+     *
+     * @param  array<string, mixed>  $mandant
+     */
+    private function offenerUpload(array $mandant): TemporaryUpload
+    {
+        $dokument = $mandant['document'];
+        $organisation = $mandant['organization'];
+
+        self::assertInstanceOf(Document::class, $dokument);
+        self::assertInstanceOf(Organization::class, $organisation);
+
+        $prefix = 'quarantaene/'.Str::random(40);
+
+        Storage::disk(TemporaryUploadStorage::DISK)->put($prefix.'/original.bin', 'verschluesselter-inhalt');
+
+        /** @var TemporaryUpload $upload */
+        $upload = TemporaryUpload::factory()->create([
+            'organization_id' => $organisation->getKey(),
+            'document_id' => $dokument->getKey(),
+            'storage_key' => $prefix,
+            'deletion_attempts' => 2,
+        ]);
+
+        $dokument->forceFill(['deletion_status' => DeletionStatus::FEHLGESCHLAGEN])->save();
+
+        $this->offenerUploadId = (string) $upload->getKey();
+
+        return $upload;
     }
 
     /**

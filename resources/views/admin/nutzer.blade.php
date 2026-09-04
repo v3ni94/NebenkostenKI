@@ -12,7 +12,7 @@
     <x-hvm.section-heading
         level="h1"
         title="Nutzer"
-        lead="Sperren, Entsperren und Passwort-Reset verlangen eine Begründung. Jede Handlung wird protokolliert." />
+        lead="Sperren, Entsperren, Passwort-Reset und Zweitfaktor-Reset verlangen eine Begründung. Jede Handlung wird protokolliert. Interne Kennungen ändert nur die Administration." />
 
     <div class="mt-6">
         @include('admin.partials.statuszahlen', ['titel' => 'Konten je Status', 'werte' => $statuszahlen])
@@ -81,6 +81,24 @@
                                                 Passwort-Reset senden
                                             </x-hvm.button>
                                         </form>
+                                        @if ($eintrag->getAttribute('two_factor_confirmed_at') !== null)
+                                            <form method="POST" action="{{ route('admin.nutzer.zweitfaktor', $eintrag) }}"
+                                                  class="mt-2 space-y-2">
+                                                @csrf
+                                                <label class="sr-only" for="zweitfaktor-grund-{{ $eintrag->getKey() }}">
+                                                    Begründung und Identitätsprüfung
+                                                </label>
+                                                <input type="text" id="zweitfaktor-grund-{{ $eintrag->getKey() }}" name="grund" required
+                                                       placeholder="Begründung und Identitätsprüfung"
+                                                       class="w-56 rounded border border-hvm-mittelgrau px-2 py-1">
+                                                <x-hvm.button type="submit" variant="ghost" size="sm">
+                                                    Zweitfaktor zurücksetzen
+                                                </x-hvm.button>
+                                                <p class="text-xs text-hvm-dunkelgrau">
+                                                    Nur nach geprüfter Identität, Vier-Augen-Prinzip empfohlen. Beendet alle Sitzungen.
+                                                </p>
+                                            </form>
+                                        @endif
                                     </td>
                                 </tr>
                             @endforeach

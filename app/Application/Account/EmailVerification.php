@@ -8,7 +8,9 @@ use App\Enums\UserStatus;
 use App\Models\User;
 use App\Notifications\VerifyEmailAddress;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
+use Throwable;
 
 /**
  * E-Mail-Verifizierung ohne Laravel-Standardvertrag.
@@ -33,6 +35,15 @@ class EmailVerification
      * Gueltigkeit des Bestaetigungslinks in Minuten.
      */
     public const LINK_GUELTIGKEIT_MINUTEN = 60;
+
+    public const AKTION_VERSAND_FEHLGESCHLAGEN = 'email.failed';
+
+    /**
+     * Neutrale Meldung, wenn eine Kontomail gerade nicht versendet werden
+     * konnte. Sie verraet nichts ueber das Konto.
+     */
+    public const MELDUNG_VERSAND_FEHLGESCHLAGEN = 'Die E-Mail konnte gerade nicht versendet werden. Bitte '
+        .'fordern Sie den Link in einigen Minuten erneut an.';
 
     public function __construct(private readonly AuditRecorder $audit) {}
 
@@ -65,14 +76,39 @@ class EmailVerification
 
     /**
      * Versendet den Bestaetigungslink an die aktuelle Adresse des Nutzers.
+     *
+     * Ein Zustellfehler, etwa ein nicht erreichbarer SMTP-Server, fuehrt nicht
+     * zu einer Fehlerseite: Das Konto ist zu diesem Zeitpunkt bereits angelegt
+     * und der Nutzer kann den Link spaeter erneut anfordern. Der Fehler wird
+     * protokolliert, ohne Adresse und ohne Link.
+     *
+     * @return bool true, wenn versendet oder nichts zu versenden war
      */
-    public function send(User $user): void
+    public function send(User $user): bool
     {
         if ($this->isVerified($user)) {
-            return;
+            return true;
         }
 
-        $user->notify(new VerifyEmailAddress($this->signedUrl($user)));
+        try {
+            $user->notify(new VerifyEmailAddress($this->signedUrl($user)));
+
+            return true;
+        } catch (Throwable $fehler) {
+            Log::warning('Bestaetigungsmail konnte nicht versendet werden.', [
+                'user_id' => $user->getKey(),
+                'fehler' => $fehler::class,
+            ]);
+
+            $this->audit->record(
+                action: self::AKTION_VERSAND_FEHLGESCHLAGEN,
+                subject: $user,
+                actor: $user,
+                metadata: ['template' => 'verifizierung', 'fehler' => $fehler::class],
+            );
+
+            return false;
+        }
     }
 
     /**
@@ -88,15 +124,24 @@ class EmailVerification
             return true;
         }
 
-        $user->forceFill([
-            'email_verified_at' => now(),
-            'status' => UserStatus::AKTIV,
-        ])->save();
+        // Nur ein unbestaetigtes Konto wechselt auf AKTIV. Eine Sperre oder
+        // Loeschvormerkung bleibt bestehen: Der Link ist ohne Anmeldung
+        // erreichbar und bis zu 60 Minuten gueltig, er darf eine inzwischen
+        // gesetzte Sperre nicht aufheben.
+        $status = $user->getAttribute('status');
+        $werte = ['email_verified_at' => now()];
+
+        if ($status === UserStatus::UNBESTAETIGT) {
+            $werte['status'] = UserStatus::AKTIV;
+        }
+
+        $user->forceFill($werte)->save();
 
         $this->audit->record(
             action: 'account.email_verified',
             subject: $user,
             actor: $user,
+            metadata: ['status' => $status instanceof UserStatus ? $status->value : null],
         );
 
         return true;

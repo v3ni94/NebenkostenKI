@@ -13,6 +13,16 @@
         title="Ihr Konto"
         lead="Hier verwalten Sie Ihre Angaben, Ihre Rechnungsanschrift und Ihre Erinnerungen." />
 
+    @if ($zustellhinweis !== null)
+        <div class="mt-6">
+            <x-hvm.alert variant="warning" label="Zustellung" title="Hinweis zu Ihrer E-Mail-Adresse">
+                {{ $zustellhinweis }}
+                Nach einer Adressänderung bestätigen Sie die neue Adresse über den zugesandten Link. Erinnerungen
+                aktivieren Sie anschließend im Abschnitt Erinnerungen wieder.
+            </x-hvm.alert>
+        </div>
+    @endif
+
     @unless ($verifiziert)
         <div class="mt-6">
             <x-hvm.alert variant="warning" label="Fehlt noch" title="E-Mail-Adresse noch nicht bestätigt">

@@ -31,9 +31,14 @@ use Illuminate\Support\Facades\Route;
 | Supportzugriff auf eine Organisation, ein Objekt oder einen Abrechnungslauf
 | erzeugt einen Audit-Log-Eintrag.
 |
-| Die Gruppe erbt aus routes/web.php bereits auth, verified und
+| Die Gruppe erbt aus routes/web.php bereits auth, can:email-verified und
 | can:access-admin. Das Gate leitet Adminrechte ausschliesslich aus der
 | getrennten Tabelle admin_roles ab, niemals aus einer Kundenrolle.
+|
+| Schreibende Handlungen tragen zusaetzlich ein Gate je Handlungsklasse
+| (bootstrap/app.php): admin-manage-users, admin-cancel-invoices,
+| admin-retry-jobs. Damit erhaelt eine Support- oder Finanzkennung nicht
+| saemtliche Rechte der Administration.
 |
 | RequireAdminTwoFactor wird hier und nicht in bootstrap/app.php angehaengt.
 | Damit bleibt die Wirkung auf den Adminbereich begrenzt und an genau einer
@@ -57,12 +62,14 @@ Route::middleware(RequireAdminTwoFactor::class)->group(function (): void {
 
     Route::get('/datenschutz', [PrivacyController::class, 'index'])->name('datenschutz');
     Route::post('/datenschutz/loeschungen/wiederholen', [PrivacyController::class, 'retry'])
+        ->middleware('can:admin-retry-jobs')
         ->name('datenschutz.wiederholen');
 
     // --- Verarbeitung und Teiljobs ------------------------------------------
 
     Route::get('/verarbeitung', [ProcessingController::class, 'index'])->name('verarbeitung');
     Route::post('/verarbeitung/jobs/{job}/wiederholen', [ProcessingController::class, 'retryJob'])
+        ->middleware('can:admin-retry-jobs')
         ->name('verarbeitung.wiederholen');
 
     // --- KI ------------------------------------------------------------------
@@ -73,8 +80,10 @@ Route::middleware(RequireAdminTwoFactor::class)->group(function (): void {
 
     Route::get('/zahlungen', [PaymentController::class, 'index'])->name('zahlungen');
     Route::get('/rechnungen/{invoice}/storno', [InvoiceCancellationController::class, 'create'])
+        ->middleware('can:admin-cancel-invoices')
         ->name('rechnungen.storno.create');
     Route::post('/rechnungen/{invoice}/storno', [InvoiceCancellationController::class, 'store'])
+        ->middleware('can:admin-cancel-invoices')
         ->name('rechnungen.storno.store');
 
     // --- Preise und Umsatzsteuer --------------------------------------------
@@ -85,9 +94,14 @@ Route::middleware(RequireAdminTwoFactor::class)->group(function (): void {
     // --- Nutzer --------------------------------------------------------------
 
     Route::get('/nutzer', [UserController::class, 'index'])->name('nutzer');
-    Route::post('/nutzer/{user}/sperren', [UserController::class, 'lock'])->name('nutzer.sperren');
-    Route::post('/nutzer/{user}/entsperren', [UserController::class, 'unlock'])->name('nutzer.entsperren');
-    Route::post('/nutzer/{user}/passwort', [UserController::class, 'passwordReset'])->name('nutzer.passwort');
+
+    Route::middleware('can:admin-manage-users')->group(function (): void {
+        Route::post('/nutzer/{user}/sperren', [UserController::class, 'lock'])->name('nutzer.sperren');
+        Route::post('/nutzer/{user}/entsperren', [UserController::class, 'unlock'])->name('nutzer.entsperren');
+        Route::post('/nutzer/{user}/passwort', [UserController::class, 'passwordReset'])->name('nutzer.passwort');
+        Route::post('/nutzer/{user}/zweitfaktor-zuruecksetzen', [UserController::class, 'resetTwoFactor'])
+            ->name('nutzer.zweitfaktor');
+    });
 
     // --- Supportzugriff auf Kundendaten -------------------------------------
     //

@@ -151,6 +151,14 @@
     </header>
 
     <main id="hauptinhalt">
+        @if (session('status'))
+            <div class="mx-auto max-w-6xl px-4 pt-6 sm:px-6">
+                <x-hvm.alert variant="success" label="Erledigt">
+                    {{ session('status') }}
+                </x-hvm.alert>
+            </div>
+        @endif
+
         @yield('content')
     </main>
 

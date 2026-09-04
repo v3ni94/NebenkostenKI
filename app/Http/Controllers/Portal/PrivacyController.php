@@ -32,9 +32,14 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  *  - Löschantrag mit dokumentierter Frist und Rücknahme innerhalb der Frist.
  *
  * MANDANTENSCHUTZ: Es gibt kein implizites Route-Model-Binding. Der Export wird
- * ausschließlich über eine auf den Mandanten gescopte Query geladen und
- * zusätzlich über die Policy geprüft. Ein fremder Export ist damit nicht
- * auffindbar und führt zu 404, ohne seine Existenz zu verraten.
+ * ausschließlich über eine auf den Mandanten UND den anfordernden Nutzer
+ * gescopte Query geladen und zusätzlich über die Policy geprüft. Ein fremder
+ * Export ist damit nicht auffindbar und führt zu 404, ohne seine Existenz zu
+ * verraten; das gilt auch für andere Mitglieder desselben Mandanten.
+ *
+ * MENGENBEGRENZUNG: Die Anforderung ist je Nutzer und Tag gedrosselt
+ * (RateLimiter datenexport), und je Nutzer wird nur der jüngste Export
+ * bereitgehalten (CreateDataExport).
  *
  * AUSLIEFERUNG: Der Export wird über eine autorisierte Streaming-Route
  * ausgeliefert oder über einen kurzlebigen signierten Link. Die Signatur
@@ -180,7 +185,11 @@ class PrivacyController extends Controller
     }
 
     /**
-     * Bereitstehende Exporte des Mandanten.
+     * Bereitstehende Exporte des anfordernden Nutzers im aktiven Mandanten.
+     *
+     * Der Export enthält Kontodaten und Daten aller Mandanten des
+     * Antragstellers. Andere Mitglieder eines geteilten Mandanten sehen ihn
+     * deshalb nicht.
      *
      * @return list<GeneratedDocument>
      */
@@ -189,6 +198,7 @@ class PrivacyController extends Controller
         /** @var list<GeneratedDocument> $exporte */
         $exporte = GeneratedDocument::query()
             ->where('organization_id', $this->context->organizationId())
+            ->where('requested_by_user_id', $this->context->user()->getKey())
             ->where('kind', GeneratedDocumentKind::DSGVO_EXPORT->value)
             ->orderByDesc('generated_at')
             ->limit(10)
@@ -199,13 +209,15 @@ class PrivacyController extends Controller
     }
 
     /**
-     * Lädt einen Export ausschließlich über eine gescopte Query.
+     * Lädt einen Export ausschließlich über eine auf Mandant und
+     * anfordernden Nutzer gescopte Query.
      */
     private function findExport(string $id): GeneratedDocument
     {
         /** @var GeneratedDocument $dokument */
         $dokument = GeneratedDocument::query()
             ->where('organization_id', $this->context->organizationId())
+            ->where('requested_by_user_id', $this->context->user()->getKey())
             ->where('kind', GeneratedDocumentKind::DSGVO_EXPORT->value)
             ->whereKey($id)
             ->firstOrFail();

@@ -5,14 +5,24 @@ declare(strict_types=1);
 namespace Tests\Feature\Privacy;
 
 use App\Application\Privacy\AccountDeletionWorkflow;
+use App\Enums\EmailSuppressionReason;
+use App\Mail\LoeschantragEingegangenMail;
+use App\Mail\LoeschantragErinnerungMail;
+use App\Mail\SuppressionGuard;
 use App\Models\AuditLog;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Mail;
 
 /**
  * Antrag, Frist und Ruecknahme des Konto-Loeschworkflows (Masterprompt 19).
  */
 final class AccountDeletionRequestTest extends PrivacyTestCase
 {
+    /**
+     * Passwort der Testnutzer aus der UserFactory.
+     */
+    private const PASSWORT = 'geheimes-testpasswort';
+
     public function test_loeschantrag_setzt_die_frist_und_wird_protokolliert(): void
     {
         $a = $this->mandant('A');
@@ -21,6 +31,7 @@ final class AccountDeletionRequestTest extends PrivacyTestCase
 
         $antwort = $this->actingAs($a['user'])->post(route('portal.datenschutz.loeschung'), [
             'bestaetigung' => '1',
+            'current_password' => self::PASSWORT,
         ]);
 
         $antwort->assertRedirect(route('portal.datenschutz.show'));
@@ -44,10 +55,157 @@ final class AccountDeletionRequestTest extends PrivacyTestCase
     {
         $a = $this->mandant('A');
 
-        $antwort = $this->actingAs($a['user'])->post(route('portal.datenschutz.loeschung'), []);
+        $antwort = $this->actingAs($a['user'])->post(route('portal.datenschutz.loeschung'), [
+            'current_password' => self::PASSWORT,
+        ]);
 
         $antwort->assertSessionHasErrors('bestaetigung');
         self::assertFalse($this->workflow()->state($a['user'])->pending);
+    }
+
+    public function test_loeschantrag_verlangt_das_aktuelle_passwort(): void
+    {
+        $a = $this->mandant('A');
+
+        // Ohne Passwort: eine uebernommene Sitzung darf die Loeschung nicht
+        // anstossen koennen.
+        $ohne = $this->actingAs($a['user'])->post(route('portal.datenschutz.loeschung'), [
+            'bestaetigung' => '1',
+        ]);
+
+        $ohne->assertSessionHasErrors('current_password');
+        self::assertFalse($this->workflow()->state($a['user'])->pending);
+
+        $falsch = $this->actingAs($a['user'])->post(route('portal.datenschutz.loeschung'), [
+            'bestaetigung' => '1',
+            'current_password' => 'falsches-passwort-2026',
+        ]);
+
+        $falsch->assertSessionHasErrors('current_password');
+        self::assertFalse($this->workflow()->state($a['user'])->pending);
+        self::assertSame(0, $this->antraege($a['user']->getKey()));
+    }
+
+    public function test_loeschantrag_sendet_eine_kritische_bestaetigungsmail_mit_termin(): void
+    {
+        Mail::fake();
+
+        $a = $this->mandant('A');
+
+        Carbon::setTestNow(Carbon::parse('2026-09-01 10:00:00'));
+
+        $this->actingAs($a['user'])->post(route('portal.datenschutz.loeschung'), [
+            'bestaetigung' => '1',
+            'current_password' => self::PASSWORT,
+        ]);
+
+        Mail::assertSent(LoeschantragEingegangenMail::class, function (LoeschantragEingegangenMail $mail) use ($a): bool {
+            $daten = $mail->daten();
+
+            return $mail->hasTo((string) $a['user']->getAttribute('email'))
+                && $mail->istKritisch()
+                && $daten['faelligAm'] === '01.10.2026'
+                && $daten['fristTage'] === 30;
+        });
+
+        // Der Versand wird als Kontonachricht protokolliert.
+        $this->assertDatabaseHas('email_messages', [
+            'user_id' => $a['user']->getKey(),
+            'template' => 'loeschantrag-eingegangen',
+        ]);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_bestaetigungsmail_geht_auch_an_eine_gesperrte_adresse(): void
+    {
+        Mail::fake();
+
+        $a = $this->mandant('A');
+        $adresse = (string) $a['user']->getAttribute('email');
+
+        app(SuppressionGuard::class)->suppress($adresse, EmailSuppressionReason::BOUNCE, 'test');
+
+        $this->workflow()->request($a['user'], $a['organization']);
+
+        Mail::assertSent(LoeschantragEingegangenMail::class);
+    }
+
+    public function test_erinnerung_wird_einige_tage_vor_der_loeschung_genau_einmal_versendet(): void
+    {
+        Mail::fake();
+
+        $a = $this->mandant('A');
+
+        Carbon::setTestNow(Carbon::parse('2026-09-01 10:00:00'));
+        $this->workflow()->request($a['user'], $a['organization']);
+
+        // Frueh in der Frist: noch keine Erinnerung.
+        Carbon::setTestNow(Carbon::parse('2026-09-20 10:00:00'));
+        self::assertSame(0, $this->workflow()->remindDue());
+        Mail::assertNotSent(LoeschantragErinnerungMail::class);
+
+        // Innerhalb des Vorlaufs: genau eine Erinnerung.
+        Carbon::setTestNow(Carbon::parse('2026-09-27 10:00:00'));
+        self::assertSame(1, $this->workflow()->remindDue());
+        self::assertSame(0, $this->workflow()->remindDue());
+
+        Mail::assertSent(LoeschantragErinnerungMail::class, 1);
+        Mail::assertSent(LoeschantragErinnerungMail::class, function (LoeschantragErinnerungMail $mail) use ($a): bool {
+            $daten = $mail->daten();
+
+            return $mail->hasTo((string) $a['user']->getAttribute('email'))
+                && $mail->istKritisch()
+                && $daten['faelligAm'] === '01.10.2026';
+        });
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => AccountDeletionWorkflow::ACTION_REMINDED,
+            'actor_user_id' => $a['user']->getKey(),
+        ]);
+
+        // Der Erinnerungseintrag aendert den Zustand des Antrags nicht.
+        self::assertTrue($this->workflow()->state($a['user'])->pending);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_nach_ruecknahme_wird_nicht_mehr_erinnert(): void
+    {
+        Mail::fake();
+
+        $a = $this->mandant('A');
+
+        Carbon::setTestNow(Carbon::parse('2026-09-01 10:00:00'));
+        $this->workflow()->request($a['user'], $a['organization']);
+        $this->workflow()->withdraw($a['user'], $a['organization']);
+
+        Carbon::setTestNow(Carbon::parse('2026-09-28 10:00:00'));
+        self::assertSame(0, $this->workflow()->remindDue());
+        Mail::assertNotSent(LoeschantragErinnerungMail::class);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_der_loeschlauf_versendet_die_erinnerungen(): void
+    {
+        Mail::fake();
+
+        $a = $this->mandant('A');
+
+        Carbon::setTestNow(Carbon::parse('2026-09-01 10:00:00'));
+        $this->workflow()->request($a['user'], $a['organization']);
+
+        Carbon::setTestNow(Carbon::parse('2026-09-28 10:00:00'));
+
+        $this->artisan('smartabrechnen:execute-account-deletions')
+            ->expectsOutputToContain('1 Erinnerungen vor der Kontolöschung versendet.')
+            ->assertExitCode(0);
+
+        Mail::assertSent(LoeschantragErinnerungMail::class, 1);
+        $this->assertDatabaseHas('users', ['id' => $a['user']->getKey()]);
+
+        Carbon::setTestNow();
     }
 
     public function test_zweiter_antrag_verdoppelt_die_frist_nicht(): void
