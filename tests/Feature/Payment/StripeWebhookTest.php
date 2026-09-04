@@ -7,6 +7,7 @@ namespace Tests\Feature\Payment;
 use App\Application\Payment\Dto\FinalViewBundle;
 use App\Application\Payment\HandleStripeEvent;
 use App\Application\Payment\PaymentRecoveryOverview;
+use App\Application\Wizard\PreviewBuilder;
 use App\Enums\BillingRunStatus;
 use App\Enums\GeneratedDocumentVariant;
 use App\Enums\PaymentStatus;
@@ -19,6 +20,7 @@ use App\Models\CalculationSnapshot;
 use App\Models\GeneratedDocument;
 use App\Models\Invoice;
 use App\Models\Payment;
+use App\Models\Tenancy;
 use App\Models\UnitStatement;
 use App\Models\User;
 use App\Models\WebhookEvent;
@@ -417,6 +419,113 @@ final class StripeWebhookTest extends PaymentTestCase
             ->assertSessionHasErrors(['zahlung']);
 
         self::assertSame(1, Payment::query()->where('billing_run_id', $lauf->getKey())->count());
+    }
+
+    /**
+     * Befund R4, erste Verteidigungslinie: Eine abrechnungsrelevante Aenderung
+     * waehrend des Checkouts beendet den offenen Zahlungsvorgang beim Anbieter
+     * und setzt den Lauf zurueck. Eine dennoch eintreffende Erfolgsmeldung
+     * finalisiert den alten Berechnungsstand nicht.
+     */
+    public function test_eine_stammdatenaenderung_waehrend_des_checkouts_beendet_den_zahlungsvorgang_und_der_alte_stand_wird_nicht_finalisiert(): void
+    {
+        // Ein Mietverhaeltnis an der Einheit, damit die Bearbeitung nicht an
+        // der Ueberschneidungspruefung der Zeitachse scheitert.
+        $vorgang = $this->offenerCheckout(1);
+
+        /** @var User $nutzer */
+        $nutzer = User::query()->findOrFail($vorgang['zahlung']->getAttribute('user_id'));
+        /** @var Tenancy $mietverhaeltnis */
+        $mietverhaeltnis = Tenancy::query()
+            ->where('property_id', $vorgang['lauf']->getAttribute('property_id'))
+            ->orderBy('created_at')
+            ->firstOrFail();
+
+        // Der Nutzer aendert in einem zweiten Browserfenster das Mietverhaeltnis.
+        $this->actingAs($nutzer)->put(
+            route('portal.mietverhaeltnisse.update', ['tenancy' => $mietverhaeltnis->getKey()]),
+            [
+                'tenant_display_name' => (string) $mietverhaeltnis->getAttribute('tenant_display_name'),
+                'kind' => 'WOHNRAUM',
+                'starts_on' => '2025-01-01',
+                'monthly_operating_prepayment_eur' => '200,00',
+            ]
+        )->assertRedirect()->assertSessionHasNoErrors();
+
+        /** @var Payment $zahlung */
+        $zahlung = Payment::query()->findOrFail($vorgang['zahlung']->getKey());
+        /** @var BillingRun $lauf */
+        $lauf = BillingRun::query()->findOrFail($vorgang['lauf']->getKey());
+
+        // Zahlungsvorgang beendet, Anbietersitzung verfallen, Lauf zurueck in der Vorschau.
+        self::assertSame(PaymentStatus::ABGEBROCHEN, $zahlung->getAttribute('status'));
+        self::assertSame('VORSCHAU_UNGUELTIG', (string) $zahlung->getAttribute('failure_code'));
+        self::assertContains(
+            (string) $zahlung->getAttribute('checkout_session_id'),
+            $this->checkoutClient->expiredSessions,
+        );
+        self::assertSame(BillingRunStatus::PREVIEW_READY, $lauf->getAttribute('status'));
+        self::assertNull($lauf->getAttribute('review_confirmed_at'));
+        self::assertFalse(app(PreviewBuilder::class)->isValid($lauf));
+        self::assertSame(1, AuditLog::query()
+            ->where('action', 'payment.checkout_cancelled')
+            ->where('metadata->grund', 'VORSCHAU_UNGUELTIG')
+            ->count());
+        self::assertSame(1, AuditLog::query()
+            ->where('action', 'billing_run.status_changed')
+            ->where('metadata->grund', 'VORSCHAU_UNGUELTIG')
+            ->count());
+
+        // Der Kunde zahlt dennoch im noch offenen Anbieterfenster.
+        $this->sendeWebhook($this->erfolgsnutzlast($vorgang['zahlung']))
+            ->assertOk()
+            ->assertJson(['status' => 'verarbeitet']);
+
+        $zahlung->refresh();
+        $lauf->refresh();
+
+        // Der Eingang ist festgehalten, der alte Stand wird nicht finalisiert.
+        self::assertSame(PaymentStatus::BEZAHLT, $zahlung->getAttribute('status'));
+        self::assertSame('VORSCHAU_UNGUELTIG', (string) $zahlung->getAttribute('failure_code'));
+        self::assertSame(BillingRunStatus::PREVIEW_READY, $lauf->getAttribute('status'));
+        self::assertNull($lauf->getAttribute('paid_at'));
+        self::assertSame(0, Invoice::query()->count());
+        self::assertSame(0, GeneratedDocument::query()->where('variant', GeneratedDocumentVariant::FINAL->value)->count());
+        self::assertCount(1, app(PaymentRecoveryOverview::class)->paymentsWithoutRun());
+
+        /** @var WebhookEvent $eintrag */
+        $eintrag = WebhookEvent::query()->where('event_type', 'checkout.session.completed')->firstOrFail();
+
+        self::assertSame('VORSCHAU_UNGUELTIG', $eintrag->getAttribute('error_code'));
+    }
+
+    /**
+     * Befund R4, zweite Verteidigungslinie: Auch ohne Abbruch des Vorgangs
+     * schaltet der Webhook einen Lauf ohne gueltige Vorschau nicht frei.
+     */
+    public function test_ohne_gueltige_vorschau_schaltet_die_erfolgsmeldung_nicht_frei(): void
+    {
+        $vorgang = $this->offenerCheckout();
+
+        // Die Vorschau wird ungueltig, der Zahlungsvorgang bleibt offen.
+        app(PreviewBuilder::class)->invalidate($vorgang['lauf']);
+
+        $this->sendeWebhook($this->erfolgsnutzlast($vorgang['zahlung']))
+            ->assertOk()
+            ->assertJson(['status' => 'verarbeitet']);
+
+        /** @var Payment $zahlung */
+        $zahlung = Payment::query()->findOrFail($vorgang['zahlung']->getKey());
+        /** @var BillingRun $lauf */
+        $lauf = BillingRun::query()->findOrFail($vorgang['lauf']->getKey());
+
+        self::assertSame(PaymentStatus::BEZAHLT, $zahlung->getAttribute('status'));
+        self::assertSame('VORSCHAU_UNGUELTIG', (string) $zahlung->getAttribute('failure_code'));
+        self::assertSame(BillingRunStatus::CHECKOUT_PENDING, $lauf->getAttribute('status'));
+        self::assertNull($lauf->getAttribute('paid_at'));
+        self::assertSame(0, Invoice::query()->count());
+        self::assertSame(1, AuditLog::query()->where('action', 'payment.received_without_run')->count());
+        self::assertCount(1, app(PaymentRecoveryOverview::class)->paymentsWithoutRun());
     }
 
     public function test_eine_nach_verarbeitungsfehler_wiederzugestellte_meldung_wird_erneut_verarbeitet(): void

@@ -147,6 +147,7 @@ final class SendFinalizationMails
             downloadUrl: $this->signierterLink($dokument),
             gueltigkeitMinuten: $this->links->gueltigkeitMinuten(),
             portalUrl: $this->portalUrl($billingRun),
+            downloadDokumentId: (string) $dokument->getKey(),
         );
 
         $this->versende($mail->template(), fn (): mixed => $this->mailer->send(

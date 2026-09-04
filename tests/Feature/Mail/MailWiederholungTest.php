@@ -8,6 +8,7 @@ use App\Enums\EmailStatus;
 use App\Enums\EmailSuppressionReason;
 use App\Mail\FinalabrechnungenVerfuegbarMail;
 use App\Mail\MailDispatcher;
+use App\Mail\SignedDownloadLink;
 use App\Mail\SuppressionGuard;
 use App\Mail\VorschauBereitMail;
 use App\Mail\WiederholungNichtMoeglichException;
@@ -16,9 +17,12 @@ use App\Models\EmailMessage;
 use App\Models\EmailSuppression;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Mail\MailManager;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Str;
 use Illuminate\Support\Testing\Fakes\MailFake;
 use Mockery;
 use RuntimeException;
@@ -285,6 +289,62 @@ final class MailWiederholungTest extends TestCase
         Mail::assertSent(FinalabrechnungenVerfuegbarMail::class, static function (FinalabrechnungenVerfuegbarMail $mail): bool {
             return ($mail->daten()['downloadUrl'] ?? null) === 'https://smart-abrechnen.de/app/downloads/01JTEST?signature=streng-geheim'
                 && $mail->template() === 'finalabrechnungen-verfuegbar';
+        });
+    }
+
+    /**
+     * Befund R9: Der eingefrorene Downloadlink ist bei der Wiederholung nach
+     * Ablauf der Linkfrist ungueltig. Die Wiederholung versendet einen frisch
+     * signierten Link, die Zusage zur Gueltigkeitsdauer bleibt zutreffend.
+     */
+    public function test_die_wiederholung_nach_ablauf_der_linkfrist_liefert_einen_gueltigen_downloadlink(): void
+    {
+        /** @var User $nutzer */
+        $nutzer = User::factory()->create();
+
+        $dokumentId = (string) Str::ulid();
+        $links = app(SignedDownloadLink::class);
+        $urspruenglicherLink = $links->signiert($dokumentId);
+
+        $this->postausgangScheitertMit(new RuntimeException('Connection to "smtp.beispiel.invalid:465" timed out.'));
+
+        $protokoll = app(MailDispatcher::class)->send(
+            mail: new FinalabrechnungenVerfuegbarMail(
+                anrede: 'Guten Tag,',
+                objekt: 'Objekt Lindenweg 4',
+                jahr: 2025,
+                abrechnungen: 3,
+                downloadUrl: $urspruenglicherLink,
+                gueltigkeitMinuten: $links->gueltigkeitMinuten(),
+                portalUrl: 'https://smart-abrechnen.de/app',
+                downloadDokumentId: $dokumentId,
+            ),
+            empfaenger: self::ADRESSE,
+            nutzer: $nutzer,
+        );
+
+        $this->assertSame(EmailStatus::FEHLGESCHLAGEN, $protokoll->getAttribute('status'));
+
+        // Die Linkfrist ist abgelaufen, das Wiederholungsfenster noch offen.
+        $this->travel($links->gueltigkeitMinuten() + 1)->minutes();
+
+        $this->assertFalse(URL::hasValidSignature(Request::create($urspruenglicherLink)));
+
+        $this->postausgangWiederErreichbar();
+
+        app(MailDispatcher::class)->erneutSenden($protokoll);
+
+        $this->assertSame(EmailStatus::GESENDET, $protokoll->refresh()->getAttribute('status'));
+
+        Mail::assertSent(FinalabrechnungenVerfuegbarMail::class, static function (FinalabrechnungenVerfuegbarMail $mail) use ($urspruenglicherLink, $dokumentId): bool {
+            $daten = $mail->daten();
+            $link = $daten['downloadUrl'] ?? null;
+
+            return is_string($link)
+                && $link !== $urspruenglicherLink
+                && str_contains($link, $dokumentId)
+                && URL::hasValidSignature(Request::create($link))
+                && $daten['gueltigkeitMinuten'] === app(SignedDownloadLink::class)->gueltigkeitMinuten();
         });
     }
 }

@@ -14,6 +14,11 @@ namespace App\Mail;
  * nicht.
  *
  * anhangDokumente() bleibt deshalb bewusst leer.
+ *
+ * Beim erneuten Versand aus dem Wiederholungspuffer (MailDispatcher) ist der
+ * urspruengliche Link in der Regel abgelaufen. Ist die Kennung des
+ * verlinkten Dokuments bekannt, wird der Link vor dem Versand neu signiert;
+ * die Zusage zur Gueltigkeitsdauer bleibt dadurch zutreffend.
  */
 final class FinalabrechnungenVerfuegbarMail extends TransactionalMail
 {
@@ -25,7 +30,28 @@ final class FinalabrechnungenVerfuegbarMail extends TransactionalMail
         private readonly string $downloadUrl,
         private readonly int $gueltigkeitMinuten,
         private readonly string $portalUrl,
+        private readonly ?string $downloadDokumentId = null,
     ) {}
+
+    public function fuerErneutenVersand(): static
+    {
+        if ($this->downloadDokumentId === null || $this->downloadDokumentId === '') {
+            return $this;
+        }
+
+        $links = app(SignedDownloadLink::class);
+
+        return new self(
+            anrede: $this->anrede,
+            objekt: $this->objekt,
+            jahr: $this->jahr,
+            abrechnungen: $this->abrechnungen,
+            downloadUrl: $links->signiert($this->downloadDokumentId),
+            gueltigkeitMinuten: $links->gueltigkeitMinuten(),
+            portalUrl: $this->portalUrl,
+            downloadDokumentId: $this->downloadDokumentId,
+        );
+    }
 
     public function template(): string
     {
