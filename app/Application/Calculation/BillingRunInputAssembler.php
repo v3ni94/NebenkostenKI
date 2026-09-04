@@ -31,6 +31,7 @@ use App\Domain\Money\Money;
 use App\Domain\Period\DatePeriodRange;
 use App\Domain\Period\PeriodCoverage;
 use App\Domain\Support\GermanNumberFormatter;
+use App\Enums\AllocationKeySource;
 use App\Enums\AllocationKeyType;
 use App\Enums\ApportionmentStatus;
 use App\Enums\CostItemStatus;
@@ -307,8 +308,17 @@ final class BillingRunInputAssembler
     }
 
     /**
-     * Baut alle Verteilerschlüssel des Laufs und die Zuordnung Kostenart bzw.
-     * Kostenposition auf die Schlüsselreferenz.
+     * Baut die maßgeblichen Verteilerschlüssel des Laufs und die Zuordnung
+     * Kostenart bzw. Kostenposition auf die Schlüsselreferenz.
+     *
+     * Je Kostenart und je Kostenposition gilt genau ein Datensatz: der in
+     * Schritt 8 gespeicherte Schlüssel (Quelle MANUELL) vor jedem anderen,
+     * zum Beispiel einem aus dem Vorjahr übernommenen Vorschlag. Diese Auswahl
+     * entspricht AllocationKeyWorkspace::storedKey. Gebaut werden nur
+     * Schlüssel, die eine Kostenposition des Laufs tatsächlich referenziert;
+     * ein nicht mehr maßgeblicher oder nicht benötigter Datensatz (etwa ein
+     * ersetzter Vorjahresschlüssel ohne Werte) darf die Berechnung nicht
+     * verhindern.
      *
      * @param  list<UnitInput>  $units
      * @param  list<OccupancyInput>  $occupancies
@@ -332,15 +342,19 @@ final class BillingRunInputAssembler
         $refByCostItem = [];
         $typeByRef = [];
 
+        [$recordByCategory, $recordByCostItem] = $this->effectiveRecords($billingRun);
+
+        $itemRefs = [];
+
+        foreach ($recordByCostItem as $costItemId => $record) {
+            $itemRefs[$costItemId] = self::ALLOCATION_KEY_PREFIX.$record->getKey();
+        }
+
         $substituteUnits = $this->confirmedSubstituteUnits($billingRun);
         $participantDays = $this->participantDaysByUnit($units, $occupancies, $period);
-        $directTargets = $this->directAssignmentTargets($relevantItems);
+        $directTargets = $this->directAssignmentTargets($relevantItems, $itemRefs);
 
-        $records = $billingRun->allocationKeys->sortBy(
-            static fn (AllocationKey $key): string => (string) $key->getKey()
-        );
-
-        foreach ($records as $record) {
+        foreach ($this->referencedRecords($relevantItems, $recordByCategory, $recordByCostItem) as $record) {
             $ref = self::ALLOCATION_KEY_PREFIX.$record->getKey();
 
             $domain[$ref] = $this->domainKey(
@@ -372,6 +386,90 @@ final class BillingRunInputAssembler
             'refByCostItem' => $refByCostItem,
             'typeByRef' => $typeByRef,
         ];
+    }
+
+    /**
+     * Maßgeblicher Schlüsseldatensatz je Kostenart und je Kostenposition.
+     * Quelle MANUELL hat Vorrang, sonst gilt der zuerst angelegte Datensatz.
+     *
+     * @return array{0: array<string, AllocationKey>, 1: array<string, AllocationKey>}
+     */
+    private function effectiveRecords(BillingRun $billingRun): array
+    {
+        $byCategory = [];
+        $byCostItem = [];
+
+        $records = $billingRun->allocationKeys->sortBy(
+            static fn (AllocationKey $key): string => (string) $key->getKey()
+        );
+
+        foreach ($records as $record) {
+            if ($record->cost_item_id !== null) {
+                $byCostItem[$record->cost_item_id] = $this->preferManual($byCostItem[$record->cost_item_id] ?? null, $record);
+
+                continue;
+            }
+
+            if ($record->cost_category_id !== null) {
+                $byCategory[$record->cost_category_id] = $this->preferManual($byCategory[$record->cost_category_id] ?? null, $record);
+            }
+        }
+
+        return [$byCategory, $byCostItem];
+    }
+
+    private function preferManual(?AllocationKey $current, AllocationKey $candidate): AllocationKey
+    {
+        if (! $current instanceof AllocationKey) {
+            return $candidate;
+        }
+
+        if ($current->source === AllocationKeySource::MANUELL) {
+            return $current;
+        }
+
+        return $candidate->source === AllocationKeySource::MANUELL ? $candidate : $current;
+    }
+
+    /**
+     * Schlüsseldatensätze, die mindestens eine Kostenposition des Laufs
+     * referenziert. Die Reihenfolge der Referenz entspricht costItems():
+     * positionsbezogener Schlüssel, dann Direktzuordnung zu einer Einheit,
+     * zuletzt der Schlüssel der Kostenart.
+     *
+     * @param  list<CostItem>  $relevantItems
+     * @param  array<string, AllocationKey>  $recordByCategory
+     * @param  array<string, AllocationKey>  $recordByCostItem
+     * @return list<AllocationKey>
+     */
+    private function referencedRecords(array $relevantItems, array $recordByCategory, array $recordByCostItem): array
+    {
+        /** @var array<string, AllocationKey> $referenced */
+        $referenced = [];
+
+        foreach ($relevantItems as $item) {
+            $itemKey = (string) $item->getKey();
+
+            if (isset($recordByCostItem[$itemKey])) {
+                $record = $recordByCostItem[$itemKey];
+                $referenced[(string) $record->getKey()] = $record;
+
+                continue;
+            }
+
+            if ($item->direct_unit_id !== null) {
+                continue;
+            }
+
+            if ($item->cost_category_id !== null && isset($recordByCategory[$item->cost_category_id])) {
+                $record = $recordByCategory[$item->cost_category_id];
+                $referenced[(string) $record->getKey()] = $record;
+            }
+        }
+
+        ksort($referenced);
+
+        return array_values($referenced);
     }
 
     /**
@@ -428,10 +526,17 @@ final class BillingRunInputAssembler
      * Festbeträge bleiben und ein nicht zugeordneter Rest beim Eigentümer
      * verbleibt. Gezählt werden nur Positionen, die auf Mieter umgelegt werden.
      *
+     * In den Nenner einer Kostenart gehen nur Positionen ein, die tatsächlich
+     * über den Schlüssel der Kostenart verteilt werden. Positionen mit eigenem
+     * Positionsschlüssel oder mit Direktzuordnung zu einer Einheit aus der
+     * Kostenprüfung laufen nicht über den Kategorieschlüssel und würden den
+     * Nenner sonst aufblähen, sodass die Festbeträge zu klein ausfielen.
+     *
      * @param  list<CostItem>  $items
+     * @param  array<string, string>  $itemRefs  Kostenpositionen mit eigenem Positionsschlüssel
      * @return array{item: array<string, int>, category: array<string, int>}
      */
-    private function directAssignmentTargets(array $items): array
+    private function directAssignmentTargets(array $items, array $itemRefs): array
     {
         $byItem = [];
         $byCategory = [];
@@ -441,7 +546,12 @@ final class BillingRunInputAssembler
                 continue;
             }
 
-            $byItem[(string) $item->getKey()] = $item->amount_cent;
+            $itemKey = (string) $item->getKey();
+            $byItem[$itemKey] = $item->amount_cent;
+
+            if (isset($itemRefs[$itemKey]) || $item->direct_unit_id !== null) {
+                continue;
+            }
 
             if ($item->cost_category_id !== null) {
                 $byCategory[$item->cost_category_id] = ($byCategory[$item->cost_category_id] ?? 0) + $item->amount_cent;
@@ -504,10 +614,10 @@ final class BillingRunInputAssembler
             ),
             AllocationKeyType::EINHEITEN => $this->unitCountKey($record, $units, $label),
             AllocationKeyType::PERSONENTAGE => PersonDaysKey::fromSegments(
-                $this->allPersonSegments($occupancies, $label),
+                $this->allPersonSegments($occupancies, $units, $period, $label),
                 $period
             ),
-            AllocationKeyType::DIREKT => $this->directAssignmentKey($record, $label, $directTargets),
+            AllocationKeyType::DIREKT => $this->directAssignmentKey($record, $label, $directTargets, $occupancies),
             AllocationKeyType::VERBRAUCH => $this->consumptionKey(
                 $record,
                 $label,
@@ -635,14 +745,30 @@ final class BillingRunInputAssembler
      * erhielte es stillschweigend das Gewicht null und die übrigen Mieter
      * trügen seinen Anteil. Fehlende Angaben werden nicht geschätzt.
      *
+     * Ein erfasster Leerstand oder ein nicht belegter Zeitraum einer Einheit
+     * hat keine Personenangabe. Mit dem Gewicht null ginge sein Anteil
+     * stillschweigend auf die übrigen Mieter über; eine Personenannahme wäre
+     * eine Schätzung. Beides ist ausgeschlossen, der Aufbau bricht mit einer
+     * Prüfaufgabe ab.
+     *
      * @param  list<OccupancyInput>  $occupancies
+     * @param  list<UnitInput>  $units
      * @return list<PersonDaysSegment>
      */
-    private function allPersonSegments(array $occupancies, string $label): array
+    private function allPersonSegments(array $occupancies, array $units, DatePeriodRange $period, string $label): array
     {
         $segments = [];
+        $coveredDays = [];
 
         foreach ($occupancies as $occupancy) {
+            if ($occupancy->isChargedToOwner()) {
+                throw CalculationInputException::personDaysWithVacancy($label, $this->unitLabel($units, $occupancy->unitKey));
+            }
+
+            $clipped = $period->intersect($occupancy->period);
+            $coveredDays[$occupancy->unitKey] = ($coveredDays[$occupancy->unitKey] ?? 0)
+                + ($clipped instanceof DatePeriodRange ? $clipped->days() : 0);
+
             if ($occupancy->kind === OccupancyKind::TENANCY) {
                 $ranges = array_map(
                     static fn (PersonDaysSegment $segment): DatePeriodRange => $segment->period,
@@ -656,6 +782,12 @@ final class BillingRunInputAssembler
 
             foreach ($occupancy->personSegments as $segment) {
                 $segments[] = $segment;
+            }
+        }
+
+        foreach ($units as $unit) {
+            if (($coveredDays[$unit->unitKey] ?? 0) < $period->days()) {
+                throw CalculationInputException::personDaysWithVacancy($label, $unit->label);
             }
         }
 
@@ -674,11 +806,24 @@ final class BillingRunInputAssembler
      * ab. Ohne positiven Positionsbetrag (Gutschrift) bleiben die Zähler
      * reine Gewichte.
      *
+     * Ein positionsbezogener Schlüssel ohne einen einzigen Zähler (die Beträge
+     * betreffen ausschließlich Einheiten ohne Mietverhältnis, zum Beispiel bei
+     * manuell erfassten Heizkosten) ordnet keinem Mieter etwas zu: Alle
+     * Nutzungszeiträume erhalten den Zähler null, der gesamte Positionsbetrag
+     * verbleibt als Restanteil beim Eigentümer. Ohne diesen Schlüssel fiele die
+     * Position auf den Schlüssel der Kostenart zurück und belastete fremde
+     * Mieter.
+     *
      * @param  array{item: array<string, int>, category: array<string, int>}  $directTargets
+     * @param  list<OccupancyInput>  $occupancies
      */
-    private function directAssignmentKey(AllocationKey $record, string $label, array $directTargets): DirectAssignmentKey
-    {
-        $values = $this->occupancyValues($record, $label);
+    private function directAssignmentKey(
+        AllocationKey $record,
+        string $label,
+        array $directTargets,
+        array $occupancies,
+    ): DirectAssignmentKey {
+        $values = $this->occupancyValues($record);
 
         $target = null;
 
@@ -686,6 +831,16 @@ final class BillingRunInputAssembler
             $target = $directTargets['item'][$record->cost_item_id] ?? null;
         } elseif ($record->cost_category_id !== null) {
             $target = $directTargets['category'][$record->cost_category_id] ?? null;
+        }
+
+        if ($values === [] && $record->cost_item_id !== null && $target !== null && $target > 0) {
+            foreach ($occupancies as $occupancy) {
+                $values[$occupancy->occupancyKey] = '0';
+            }
+        }
+
+        if ($values === []) {
+            throw CalculationInputException::emptyAllocationKey($label);
         }
 
         if ($target === null || $target <= 0) {
@@ -714,7 +869,7 @@ final class BillingRunInputAssembler
      *
      * @return array<string, string>
      */
-    private function occupancyValues(AllocationKey $record, string $label): array
+    private function occupancyValues(AllocationKey $record): array
     {
         $values = [];
 
@@ -730,10 +885,6 @@ final class BillingRunInputAssembler
             }
 
             $values[$value->tenancy_id] = $numerator;
-        }
-
-        if ($values === []) {
-            throw CalculationInputException::emptyAllocationKey($label);
         }
 
         return $values;
@@ -842,6 +993,10 @@ final class BillingRunInputAssembler
      * Kostenpositionen, die in die Berechnung eingehen: nicht verworfen und
      * im Heizkostenfall C keine Heizkosten.
      *
+     * Eine nur vorgeschlagene, noch nicht bestätigte Position darf nie in eine
+     * Berechnung gelangen. Die Kostenprüfung sperrt das bereits; der Aufbau
+     * weist sie als zweite Verteidigungslinie zusätzlich ab.
+     *
      * @return list<CostItem>
      */
     private function relevantCostItems(BillingRun $billingRun): array
@@ -857,6 +1012,10 @@ final class BillingRunInputAssembler
         foreach ($sorted as $item) {
             if ($item->status === CostItemStatus::VERWORFEN) {
                 continue;
+            }
+
+            if ($item->status === CostItemStatus::VORGESCHLAGEN) {
+                throw CalculationInputException::unconfirmedCostItem($item->description);
             }
 
             // Heizkostenfall C: der Mieter bezieht die Energie direkt. Es

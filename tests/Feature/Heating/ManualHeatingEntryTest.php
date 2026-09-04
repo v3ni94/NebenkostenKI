@@ -6,6 +6,7 @@ namespace Tests\Feature\Heating;
 
 use App\Application\Calculation\BillingRunInputAssembler;
 use App\Domain\Calculation\StatementCalculator;
+use App\Enums\AllocationKeySource;
 use App\Enums\AllocationKeyType;
 use App\Enums\HeatingSupplyCase;
 use App\Enums\PrepaymentKind;
@@ -13,6 +14,7 @@ use App\Enums\ValueSource;
 use App\Models\AllocationKey;
 use App\Models\AllocationKeyValue;
 use App\Models\BillingRun;
+use App\Models\CostCategory;
 use App\Models\CostItem;
 use App\Models\HeatingStatement;
 use App\Models\HeatingStatementLine;
@@ -236,6 +238,55 @@ final class ManualHeatingEntryTest extends ManualHeatingTestCase
             'Direktzuordnung 1.000,00 EUR von 1.500,00 EUR',
             $ergebnis->statements[0]->lines[0]->allocationExplanation
         );
+    }
+
+    public function test_betraege_ausschliesslich_unbelegter_einheiten_belasten_keine_fremden_mieter(): void
+    {
+        $mandant = $this->mandant();
+        $lauf = $this->lauf($mandant['organization'], $mandant['property']);
+        $this->vorauszahlung($lauf, $mandant['tenancy']);
+
+        /** @var Unit $leer */
+        $leer = Unit::factory()->create([
+            'organization_id' => $mandant['organization']->getKey(),
+            'property_id' => $mandant['property']->getKey(),
+            'label' => 'Wohnung 2',
+        ]);
+
+        // Schritt 8 hat fuer die Heizkosten einen Kategorieschluessel
+        // festgelegt. Nur die unbelegte Einheit B traegt einen Betrag.
+        /** @var CostCategory $heizung */
+        $heizung = CostCategory::query()->where('code', 'HEIZUNG')->firstOrFail();
+
+        AllocationKey::factory()->create([
+            'organization_id' => $mandant['organization']->getKey(),
+            'billing_run_id' => $lauf->getKey(),
+            'cost_category_id' => $heizung->getKey(),
+            'key_type' => AllocationKeyType::EINHEITEN,
+            'source' => AllocationKeySource::MANUELL,
+            'denominator' => null,
+            'confirmed_at' => now(),
+        ]);
+
+        $this->speichern($mandant, $lauf, [
+            (string) $leer->getKey() => ['heizung' => '500,00'],
+        ])->assertRedirect();
+
+        /** @var CostItem $position */
+        $position = CostItem::query()->where('manual_heating_entry', true)->firstOrFail();
+
+        // Vorher wurde ohne Zaehler kein Positionsschluessel geschrieben; die
+        // Position fiel auf den Kategorieschluessel zurueck und belastete den
+        // Mieter der Wohnung 1 mit 500,00 EUR.
+        self::assertSame(1, AllocationKey::query()->where('cost_item_id', $position->getKey())->count());
+
+        $ergebnis = app(StatementCalculator::class)->calculate(
+            app(BillingRunInputAssembler::class)->assemble($lauf->refresh())->input
+        );
+
+        self::assertSame(0, $ergebnis->statements[0]->allocableTotal->cents);
+        self::assertSame(50000, $ergebnis->ownerOverview->residualTotal->cents);
+        self::assertTrue($ergebnis->ownerOverview->isBalanced());
     }
 
     public function test_leerstandstage_einer_teilbelegten_einheit_bleiben_beim_eigentuemer(): void

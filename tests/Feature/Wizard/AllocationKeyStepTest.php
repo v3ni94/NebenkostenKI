@@ -7,6 +7,7 @@ namespace Tests\Feature\Wizard;
 use App\Application\Calculation\BillingRunInputAssembler;
 use App\Application\Wizard\AllocationKeyWorkspace;
 use App\Domain\Allocation\ConsumptionKey;
+use App\Domain\Calculation\StatementCalculator;
 use App\Enums\AllocationKeySource;
 use App\Enums\AllocationKeyType;
 use App\Enums\BillingMode;
@@ -438,6 +439,120 @@ final class AllocationKeyStepTest extends CalculationTestCase
         self::assertSame('49.589', (string) $schluessel->numeratorFor((string) $szenario['tenancies'][0]->getKey()));
         self::assertSame('50.411', (string) $schluessel->numeratorFor((string) $szenario['tenancies'][2]->getKey()));
         self::assertCount(2, $schluessel->substituteParticipants());
+    }
+
+    public function test_unvollstaendige_zwischenablesungen_werden_mit_bestaetigter_ersatzverteilung_ergaenzt(): void
+    {
+        $szenario = $this->verbrauchMitNutzerwechsel();
+
+        // Nur die Vormieterin hat eine Zwischenablesung, der Nachmieter nicht.
+        $this->schluesselwert($szenario['key'], '61.000', null, $szenario['tenancies'][0]);
+
+        $arbeitsflaeche = app(AllocationKeyWorkspace::class);
+        $lauf = $szenario['billingRun']->refresh();
+
+        self::assertCount(1, $arbeitsflaeche->unitsNeedingSubstituteConfirmation($lauf));
+
+        $this->actingAs($szenario['user'])->post(
+            route('portal.wizard.schluessel.ersatzverteilung', [
+                'billingRun' => $lauf->getKey(),
+                'unit' => $szenario['units'][0]->getKey(),
+            ])
+        )->assertRedirect();
+
+        self::assertSame([], $arbeitsflaeche->blockingReasons($lauf->refresh()));
+
+        // Vorher brach der Aufbau trotz bestaetigter Ersatzverteilung ab.
+        $schluessel = array_values(app(BillingRunInputAssembler::class)->assemble($lauf->refresh())->input->allocationKeys)[0];
+
+        // 120,000 m³ Jahreswert: 61,000 abgelesen, der Rest 59,000 geht an den
+        // Nachmieter und wird als Ersatzverteilung gekennzeichnet.
+        self::assertInstanceOf(ConsumptionKey::class, $schluessel);
+        self::assertSame(0, $schluessel->numeratorFor((string) $szenario['tenancies'][0]->getKey())->compareTo('61'));
+        self::assertSame(0, $schluessel->numeratorFor((string) $szenario['tenancies'][2]->getKey())->compareTo('59'));
+        // Nenner: 61 + 59 m³ der Wohnung A und 30 m³ der Wohnung B.
+        self::assertSame(0, $schluessel->denominator()->compareTo('150'));
+        self::assertSame([(string) $szenario['tenancies'][2]->getKey()], $schluessel->substituteParticipants());
+    }
+
+    public function test_direktzuordnung_in_schritt_8_nimmt_betraege_in_euro_entgegen(): void
+    {
+        $szenario = $this->szenario();
+
+        // 1.200,00 EUR Gebaeudereinigung: 300,50 EUR an A, 899,50 EUR an B.
+        $this->actingAs($szenario['user'])->post(
+            route('portal.wizard.schluessel.speichern', ['billingRun' => $szenario['billingRun']->getKey()]),
+            [
+                'kostenarten' => [
+                    (string) $szenario['category']->getKey() => [
+                        'key_type' => AllocationKeyType::DIREKT->value,
+                        'werte' => [
+                            (string) $szenario['tenancies'][0]->getKey() => '300,50',
+                            (string) $szenario['tenancies'][1]->getKey() => '899,50',
+                        ],
+                    ],
+                ],
+            ]
+        )->assertRedirect()->assertSessionDoesntHaveErrors();
+
+        $gespeichert = AllocationKey::query()
+            ->where('billing_run_id', $szenario['billingRun']->getKey())
+            ->where('source', AllocationKeySource::MANUELL->value)
+            ->firstOrFail();
+
+        // Gespeichert wird in Cent, angezeigt in Euro.
+        self::assertSame('30050', (string) (int) $gespeichert->values->firstWhere('tenancy_id', (string) $szenario['tenancies'][0]->getKey())?->numerator);
+
+        $zeilen = app(AllocationKeyWorkspace::class)->rows($szenario['billingRun']->refresh());
+
+        self::assertSame(AllocationKeyType::DIREKT, $zeilen[0]->keyType);
+        self::assertSame('300,50', $zeilen[0]->values[0]->value);
+        self::assertSame('899,50', $zeilen[0]->values[1]->value);
+
+        // Vorher: 300,50 wurde als Cent gelesen, amountFor() scheiterte an der
+        // Rundung, die Berechnung brach ab.
+        $ergebnis = app(StatementCalculator::class)->calculate(
+            app(BillingRunInputAssembler::class)->assemble($szenario['billingRun']->refresh())->input
+        );
+
+        self::assertSame(30050, $ergebnis->statements[0]->allocableTotal->cents);
+        self::assertSame(89950, $ergebnis->statements[1]->allocableTotal->cents);
+        self::assertSame(0, $ergebnis->ownerOverview->residualTotal->cents);
+        self::assertTrue($ergebnis->ownerOverview->isBalanced());
+    }
+
+    public function test_ein_unzulaessiger_eurobetrag_der_direktzuordnung_wird_abgewiesen(): void
+    {
+        $szenario = $this->szenario();
+
+        $antwort = $this->actingAs($szenario['user'])->post(
+            route('portal.wizard.schluessel.speichern', ['billingRun' => $szenario['billingRun']->getKey()]),
+            [
+                'kostenarten' => [
+                    (string) $szenario['category']->getKey() => [
+                        'key_type' => AllocationKeyType::DIREKT->value,
+                        'werte' => [
+                            (string) $szenario['tenancies'][0]->getKey() => '300,505',
+                        ],
+                    ],
+                ],
+            ]
+        );
+
+        $antwort->assertRedirect();
+        $antwort->assertSessionHasErrors(sprintf(
+            'kostenarten.%s.werte.%s',
+            $szenario['category']->getKey(),
+            $szenario['tenancies'][0]->getKey()
+        ));
+
+        self::assertSame(
+            0,
+            AllocationKey::query()
+                ->where('billing_run_id', $szenario['billingRun']->getKey())
+                ->where('source', AllocationKeySource::MANUELL->value)
+                ->count()
+        );
     }
 
     public function test_leerstand_zaehlt_als_nutzerwechsel_und_kann_bestaetigt_werden(): void

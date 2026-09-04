@@ -20,7 +20,9 @@ use Brick\Math\RoundingMode;
  * - mit ausdrücklich bestätigter Ersatzverteilung
  *   (substituteDistributionConfirmed) wird taggenau aufgeteilt und jeder
  *   betroffene Nutzungszeitraum im Ergebnis gekennzeichnet, damit das PDF den
- *   Hinweis druckt.
+ *   Hinweis druckt. Das gilt auch bei unvollständigen Zwischenablesungen:
+ *   Mietverhältnisse mit Ablesung erhalten ihren Wert, die übrigen teilen den
+ *   Rest des Jahreswerts der Einheit taggenau und werden gekennzeichnet.
  *
  * Beteiligte des Eigentümers (erfasster Leerstand) verlangen keine
  * Zwischenablesung: Liegen Ablesewerte je Mietverhältnis vor, erhält ein
@@ -97,6 +99,7 @@ final class ConsumptionKeyBuilder
 
             if (isset($occupancyRecords[$unitKey])) {
                 $withoutReading = [];
+                $tenantsWithoutReading = [];
                 $assigned = BigDecimal::zero();
 
                 foreach ($participantKeys as $participantKey) {
@@ -107,12 +110,21 @@ final class ConsumptionKeyBuilder
                         continue;
                     }
 
-                    if (in_array($participantKey, $ownerParticipantKeys, true)) {
-                        $withoutReading[] = $participantKey;
+                    $withoutReading[] = $participantKey;
 
-                        continue;
+                    if (! in_array($participantKey, $ownerParticipantKeys, true)) {
+                        $tenantsWithoutReading[] = $participantKey;
                     }
+                }
 
+                // Unvollständige Zwischenablesungen: Ein Mietverhältnis ohne
+                // eigene Ablesung erhält nur mit ausdrücklich bestätigter
+                // Ersatzverteilung und erfasstem Jahreswert der Einheit den
+                // taggenau verteilten Rest; er wird gekennzeichnet. Sonst
+                // wird nicht still geschätzt.
+                if ($tenantsWithoutReading !== []
+                    && (! $unitTotal instanceof BigDecimal
+                        || ! in_array($unitKey, $substituteDistributionConfirmedUnits, true))) {
                     throw MissingInterimReadingException::forUnit($unitKey, count($participantKeys));
                 }
 
@@ -121,8 +133,19 @@ final class ConsumptionKeyBuilder
                         ? $unitTotal->minus($assigned)
                         : BigDecimal::zero();
 
-                    foreach ($this->ownerShares($rest, $withoutReading, $participantDays) as $participantKey => $value) {
+                    $shares = $tenantsWithoutReading === []
+                        ? $this->ownerShares($rest, $withoutReading, $participantDays)
+                        : $this->splitByDays($rest, array_intersect_key(
+                            $participantDays,
+                            array_fill_keys($withoutReading, true)
+                        ));
+
+                    foreach ($shares as $participantKey => $value) {
                         $values[$participantKey] = $value;
+                    }
+
+                    foreach ($tenantsWithoutReading as $participantKey) {
+                        $substituteParticipants[] = $participantKey;
                     }
                 }
 

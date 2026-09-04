@@ -182,6 +182,55 @@ final class DirectAssignmentCalculationTest extends CalculationTestCase
         app(BillingRunInputAssembler::class)->assemble($szenario['billingRun']->refresh());
     }
 
+    public function test_der_nenner_der_kategoriebezogenen_direktzuordnung_zaehlt_keine_positionen_mit_eigener_zuordnung(): void
+    {
+        $szenario = $this->szenario();
+        $grundsteuer = $this->kategorie('GRUNDSTEUER');
+
+        // Position 1: 500,00 EUR, laeuft ueber den Kategorieschluessel
+        // (Direktzuordnung: 500,00 EUR an A).
+        CostItem::factory()->create([
+            'organization_id' => $szenario['organization']->getKey(),
+            'billing_run_id' => $szenario['billingRun']->getKey(),
+            'cost_category_id' => $grundsteuer->getKey(),
+            'description' => 'Grundsteuer Wohnung A',
+            'amount_cent' => 50000,
+            'status' => CostItemStatus::BESTAETIGT,
+            'confirmed_at' => now(),
+        ]);
+
+        // Position 2: 300,00 EUR, in der Kostenpruefung direkt Wohnung B
+        // zugeordnet; sie laeuft nicht ueber den Kategorieschluessel.
+        /** @var CostItem $bescheidB */
+        $bescheidB = CostItem::factory()->create([
+            'organization_id' => $szenario['organization']->getKey(),
+            'billing_run_id' => $szenario['billingRun']->getKey(),
+            'cost_category_id' => $grundsteuer->getKey(),
+            'description' => 'Grundsteuer Wohnung B',
+            'amount_cent' => 30000,
+            'status' => CostItemStatus::BESTAETIGT,
+            'confirmed_at' => now(),
+        ]);
+
+        $this->actingAs($szenario['user'])->post(route('portal.pruefung.kosten.einheit', [
+            'billingRun' => $szenario['billingRun']->getKey(),
+            'costItem' => $bescheidB->getKey(),
+        ]), ['unit_id' => $szenario['units'][1]->getKey()])->assertRedirect();
+
+        $direkt = $this->schluessel($szenario['billingRun'], $grundsteuer, AllocationKeyType::DIREKT, AllocationKeySource::MANUELL);
+        $this->schluesselwert($direkt, '50000', null, $szenario['tenancies'][0]);
+
+        $ergebnis = app(CalculateBillingRun::class)->handle($szenario['billingRun']->refresh(), $szenario['user']);
+
+        // Vorher zaehlte Position 2 in den Nenner der Kategorie (800,00 EUR):
+        // A erhielt nur 312,50 EUR der Position 1, 187,50 EUR blieben als
+        // Rest beim Eigentuemer. Richtig: A 500,00 EUR, B 300,00 EUR, kein Rest.
+        self::assertSame(80000 + 50000, $this->abrechnung($ergebnis->result->statements, $szenario['tenancies'][0])->allocableTotal->cents);
+        self::assertSame(40000 + 30000, $this->abrechnung($ergebnis->result->statements, $szenario['tenancies'][1])->allocableTotal->cents);
+        self::assertSame(0, $ergebnis->result->ownerOverview->residualTotal->cents);
+        self::assertTrue($ergebnis->result->ownerOverview->isBalanced());
+    }
+
     public function test_leerstand_der_direkt_zugeordneten_einheit_bleibt_beim_eigentuemer(): void
     {
         $szenario = $this->szenario();

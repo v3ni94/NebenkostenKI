@@ -6,9 +6,11 @@ namespace App\Application\Wizard;
 
 use App\Application\Account\AuditRecorder;
 use App\Application\Calculation\BillingRunInputAssembler;
+use App\Application\Heating\EuroAmountInput;
 use App\Application\Wizard\Dto\AllocationKeyRow;
 use App\Application\Wizard\Dto\AllocationValueRow;
 use App\Domain\Allocation\AllocationKeyScope;
+use App\Domain\Money\Money;
 use App\Domain\Period\DatePeriodRange;
 use App\Domain\Support\GermanNumberFormatter;
 use App\Enums\AllocationKeySource;
@@ -27,6 +29,7 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Models\VacancyPeriod;
 use Brick\Math\BigDecimal;
+use Brick\Math\Exception\MathException;
 use Brick\Math\RoundingMode;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -303,7 +306,7 @@ final class AllocationKeyWorkspace
                 $rows[] = new AllocationValueRow(
                     $tenancyId,
                     sprintf('%s, %s', $unit->label, $tenancy->tenant_display_name),
-                    is_string($entry[0] ?? null) ? trim((string) $entry[0]) : null,
+                    $this->displayedNumerator($record, is_string($entry[0] ?? null) ? (string) $entry[0] : null),
                     false,
                     $entry[1] ?? null,
                 );
@@ -494,13 +497,18 @@ final class AllocationKeyWorkspace
                     continue;
                 }
 
-                $type = AllocationKeyType::tryFrom((string) ($eingabe['key_type'] ?? '')) ?? $row->keyType;
+                $type = $this->requestedType($eingabe, $row);
 
+                // Der gespeicherte Schlüssel ersetzt den bisherigen manuellen
+                // Schlüssel und einen aus dem Vorjahr übernommenen Vorschlag
+                // dieser Kostenart. Der Vorjahresdatensatz trägt keine
+                // Zähler für Verbrauch, Personentage oder Direktzuordnung und
+                // darf nach der Bestätigung nicht weiter bestehen.
                 AllocationKey::query()
                     ->where('billing_run_id', $billingRun->getKey())
                     ->where('cost_category_id', $row->categoryId)
                     ->whereNull('cost_item_id')
-                    ->where('source', AllocationKeySource::MANUELL->value)
+                    ->whereIn('source', [AllocationKeySource::MANUELL->value, AllocationKeySource::VORJAHR->value])
                     ->delete();
 
                 $nenner = $eingabe['nenner'] ?? null;
@@ -538,7 +546,7 @@ final class AllocationKeyWorkspace
                         'allocation_key_id' => $key->getKey(),
                         'unit_id' => $kind === self::PARTICIPANT_UNIT ? (string) $participantId : null,
                         'tenancy_id' => $kind === self::PARTICIPANT_TENANCY ? (string) $participantId : null,
-                        'numerator' => $this->normalize($wert),
+                        'numerator' => $this->storedNumerator($type, $wert),
                         'source' => ValueSource::MANUELL,
                     ]);
                 }
@@ -558,6 +566,54 @@ final class AllocationKeyWorkspace
         );
 
         return $gespeichert;
+    }
+
+    /**
+     * @param  array{key_type?: string, nenner?: string|null, masseinheit?: string|null, werte?: array<string, string|null>}  $eingabe
+     */
+    private function requestedType(array $eingabe, AllocationKeyRow $row): AllocationKeyType
+    {
+        return AllocationKeyType::tryFrom((string) ($eingabe['key_type'] ?? '')) ?? $row->keyType;
+    }
+
+    /**
+     * Gespeicherter Zähler. Bei der Direktzuordnung ist die Eingabe ein
+     * Betrag in Euro (zum Beispiel 300,50); gespeichert und gerechnet wird in
+     * Cent, ohne Fließkommazwischenschritt. Alle anderen Schlüssel führen den
+     * Dezimalwert unverändert als Zeichenkette.
+     */
+    private function storedNumerator(AllocationKeyType $type, string $wert): string
+    {
+        if ($type === AllocationKeyType::DIREKT) {
+            return (string) EuroAmountInput::parseOrZero($wert)->cents;
+        }
+
+        return $this->normalize($wert);
+    }
+
+    /**
+     * Anzeige eines gespeicherten Zählers: Cent der Direktzuordnung als
+     * Betrag in Euro, alle anderen Werte unverändert.
+     */
+    private function displayedNumerator(?AllocationKey $record, ?string $numerator): ?string
+    {
+        if ($numerator === null || trim($numerator) === '') {
+            return null;
+        }
+
+        if ($record instanceof AllocationKey && $record->key_type === AllocationKeyType::DIREKT) {
+            try {
+                $cents = BigDecimal::of($this->normalize($numerator))->stripTrailingZeros();
+
+                if ($cents->getScale() <= 0) {
+                    return Money::fromCents($cents->toInt())->formatAmount();
+                }
+            } catch (MathException) {
+                // Kein ganzzahliger Centwert: unverändert anzeigen.
+            }
+        }
+
+        return trim($numerator);
     }
 
     /**
@@ -618,6 +674,8 @@ final class AllocationKeyWorkspace
                 continue;
             }
 
+            $type = $this->requestedType($eingabe, $row);
+
             foreach ($eingabe['werte'] ?? [] as $participantId => $wert) {
                 if (! is_string($wert) || trim($wert) === '') {
                     continue;
@@ -628,6 +686,17 @@ final class AllocationKeyWorkspace
                         'Kostenart %s: Der Beteiligte gehört nicht zu diesem Abrechnungslauf. Es wurde nichts '
                         .'gespeichert.',
                         $row->categoryLabel
+                    );
+
+                    continue;
+                }
+
+                if ($type === AllocationKeyType::DIREKT && ! EuroAmountInput::isValid($wert)) {
+                    $errors[sprintf('kostenarten.%s.werte.%s', $row->categoryId, $participantId)] = sprintf(
+                        'Kostenart %s: Der Betrag %s ist kein gültiger Eurobetrag mit höchstens zwei '
+                        .'Nachkommastellen. Es wurde nichts gespeichert.',
+                        $row->categoryLabel,
+                        $wert
                     );
                 }
             }
