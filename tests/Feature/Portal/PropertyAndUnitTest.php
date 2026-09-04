@@ -388,6 +388,50 @@ final class PropertyAndUnitTest extends PortalTestCase
     }
 
     /**
+     * Nachpruefung R5: Eine bereits verworfene Position bleibt verworfen; die
+     * Entscheidung des Nutzers wird nicht durch das Entfernen der Zieleinheit
+     * aufgehoben, nur die Zuordnung wird geloest und protokolliert.
+     */
+    public function test_verworfene_position_bleibt_beim_entfernen_der_zieleinheit_verworfen(): void
+    {
+        $mandant = $this->mandant();
+
+        /** @var BillingRun $lauf */
+        $lauf = BillingRun::factory()->create([
+            'organization_id' => $mandant['organization']->getKey(),
+            'property_id' => $mandant['property']->getKey(),
+            'created_by_user_id' => $mandant['user']->getKey(),
+            'status' => BillingRunStatus::REVIEW_REQUIRED,
+        ]);
+
+        /** @var CostItem $position */
+        $position = CostItem::factory()->create([
+            'organization_id' => $mandant['organization']->getKey(),
+            'billing_run_id' => $lauf->getKey(),
+            'description' => 'Doppelt erfasster Beleg',
+            'status' => CostItemStatus::VERWORFEN,
+            'excluded_from_apportionment' => true,
+            'direct_unit_id' => $mandant['unit']->getKey(),
+        ]);
+
+        $this->actingAs($mandant['user'])
+            ->delete(route('portal.einheiten.destroy', ['unit' => $mandant['unit']->getKey()]))
+            ->assertRedirect();
+
+        $position->refresh();
+
+        self::assertSame(CostItemStatus::VERWORFEN, $position->status);
+        self::assertNull($position->direct_unit_id);
+        self::assertTrue(
+            ManualOverride::query()
+                ->where('subject_type', CostItem::class)
+                ->where('subject_id', $position->getKey())
+                ->where('field', 'direct_unit_id')
+                ->exists()
+        );
+    }
+
+    /**
      * Befund R5: Positionen eines bereits finalisierten Laufs bleiben
      * unangetastet; ihr Berechnungsstand ist gesperrt.
      */

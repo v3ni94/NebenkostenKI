@@ -415,14 +415,15 @@ final class AllocationKeyWorkspace
                 $rows[] = $tenancyRow;
             }
 
-            $hasVacancy = $participants > count($tenancies);
             $unitTotal = $unitValue !== null && $unitValue !== '' ? BigDecimal::of($this->normalize($unitValue)) : null;
 
-            // Der Widerspruch "Ablesungen ueber dem Jahreswert" wird auch dann
-            // gemeldet, wenn alle Mietverhaeltnisse abgelesen sind und nur ein
-            // Leerstand ohne Ablesung bleibt; genau dort wirft der
-            // ConsumptionKeyBuilder sonst erst in Schritt 10.
-            if ($unitTotal !== null && ($hasVacancy || ! $readingsComplete) && $readingSum->isGreaterThan($unitTotal)) {
+            // Der Widerspruch "Ablesungen ueber dem Jahreswert" wird immer
+            // gemeldet, sobald ein Jahreswert erfasst ist: auch wenn alle
+            // Mietverhaeltnisse abgelesen sind (dann wuerde der Jahreswert
+            // sonst still ignoriert) und wenn nur ein Leerstand ohne Ablesung
+            // bleibt (dort wirft der ConsumptionKeyBuilder sonst erst in
+            // Schritt 10).
+            if ($unitTotal !== null && $readingSum->isGreaterThan($unitTotal)) {
                 $conflicts[] = sprintf(
                     'Für die Einheit %s ergeben die Zwischenablesungen zusammen %s, der erfasste Jahresverbrauch '
                     .'der Einheit beträgt jedoch nur %s. Bitte prüfen Sie die Ablesewerte und den '

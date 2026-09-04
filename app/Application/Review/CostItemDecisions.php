@@ -235,12 +235,20 @@ final class CostItemDecisions
         $touchedRuns = [];
 
         foreach ($items as $item) {
-            $item->forceFill([
-                'direct_unit_id' => null,
-                'status' => CostItemStatus::VORGESCHLAGEN,
-                'confirmed_by_user_id' => null,
-                'confirmed_at' => null,
-            ])->save();
+            // Eine verworfene Position bleibt verworfen: die Entscheidung des
+            // Nutzers gilt weiter, nur die Zuordnung zur Einheit wird geloest.
+            // Vorgeschlagene und bestaetigte Positionen werden erneut
+            // pruefpflichtig, weil ihr Verteilungsziel entfallen ist.
+            $bleibtVerworfen = $item->status === CostItemStatus::VERWORFEN;
+
+            $item->forceFill($bleibtVerworfen
+                ? ['direct_unit_id' => null]
+                : [
+                    'direct_unit_id' => null,
+                    'status' => CostItemStatus::VORGESCHLAGEN,
+                    'confirmed_by_user_id' => null,
+                    'confirmed_at' => null,
+                ])->save();
 
             ManualOverride::query()->create([
                 'organization_id' => $item->organization_id,
