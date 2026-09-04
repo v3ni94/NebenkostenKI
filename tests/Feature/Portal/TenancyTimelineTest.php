@@ -12,6 +12,7 @@ use App\Models\OccupancyPeriod;
 use App\Models\Tenancy;
 use App\Models\Unit;
 use App\Models\VacancyPeriod;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * Mietverhaeltnisse und Zeitachse.
@@ -58,6 +59,74 @@ final class TenancyTimelineTest extends PortalTestCase
         self::assertSame(TenancyStatus::AKTIV, $neu->getAttribute('status'));
         self::assertSame(15050, $neu->getAttribute('monthly_operating_prepayment_cent'));
         self::assertSame(9000, $neu->getAttribute('monthly_heating_prepayment_cent'));
+    }
+
+    /**
+     * U10: Der Punkt mit genau drei Folgeziffern ist ein Tausendertrennzeichen.
+     * "1.500" bedeutet 1.500,00 EUR und nicht 1,50 EUR oder kein Betrag.
+     *
+     * @return array<string, array{string, int}>
+     */
+    public static function monatsbetraege(): array
+    {
+        return [
+            'deutsche Schreibweise' => ['1.500,00', 150000],
+            'Tausenderpunkt ohne Komma' => ['1.500', 150000],
+            'Punkt als Dezimaltrennzeichen' => ['1500.00', 150000],
+            'Punkt als Dezimaltrennzeichen, vier Vorkommastellen' => ['1234.56', 123456],
+            'Punkt als Dezimaltrennzeichen, zwei Vorkommastellen' => ['12.50', 1250],
+            'mit Suffix EUR' => ['1.200 EUR', 120000],
+            'ganze Zahl' => ['90', 9000],
+        ];
+    }
+
+    #[DataProvider('monatsbetraege')]
+    public function test_monatsbetraege_werden_exakt_in_cent_gespeichert(string $eingabe, int $erwartetCent): void
+    {
+        $mandant = $this->mandant();
+        $mandant['tenancy']->forceFill(['ends_on' => '2025-12-31'])->save();
+
+        $this->actingAs($mandant['user'])->post(
+            route('portal.mietverhaeltnisse.store', ['unit' => $mandant['unit']->getKey()]),
+            $this->angaben(['monthly_operating_prepayment_eur' => $eingabe])
+        )->assertRedirect()->assertSessionHasNoErrors();
+
+        $neu = Tenancy::query()->where('tenant_display_name', 'Eheleute Beispiel')->firstOrFail();
+
+        self::assertSame($erwartetCent, $neu->getAttribute('monthly_operating_prepayment_cent'));
+    }
+
+    /**
+     * U10: Mehr als zwei Nachkommastellen oder eine nicht auswertbare
+     * Schreibweise sind ein Fehler. Der Betrag wird nicht still verworfen.
+     *
+     * @return array<string, array{string}>
+     */
+    public static function unzulaessigeMonatsbetraege(): array
+    {
+        return [
+            'drei Nachkommastellen mit Komma' => ['100,125'],
+            'drei Nachkommastellen mit Punkt' => ['100.125'],
+            'englische Tausenderschreibweise' => ['1,500.00'],
+            'Text' => ['ca. 150'],
+        ];
+    }
+
+    #[DataProvider('unzulaessigeMonatsbetraege')]
+    public function test_ein_nicht_auswertbarer_monatsbetrag_wird_abgelehnt(string $eingabe): void
+    {
+        $mandant = $this->mandant();
+        $mandant['tenancy']->forceFill(['ends_on' => '2025-12-31'])->save();
+
+        $antwort = $this->actingAs($mandant['user'])
+            ->from(route('portal.mietverhaeltnisse.create', ['unit' => $mandant['unit']->getKey()]))
+            ->post(
+                route('portal.mietverhaeltnisse.store', ['unit' => $mandant['unit']->getKey()]),
+                $this->angaben(['monthly_operating_prepayment_eur' => $eingabe])
+            );
+
+        $antwort->assertSessionHasErrors('monthly_operating_prepayment_eur');
+        self::assertSame(1, Tenancy::query()->count());
     }
 
     public function test_ueberschneidung_mit_bestehendem_mietverhaeltnis_wird_abgelehnt(): void

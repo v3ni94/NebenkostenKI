@@ -15,7 +15,7 @@ use App\Models\Prepayment;
 use App\Models\Tenancy;
 use App\Models\Unit;
 use App\Models\User;
-use Brick\Math\BigDecimal;
+use Brick\Math\BigRational;
 use Brick\Math\RoundingMode;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -35,10 +35,19 @@ use Illuminate\Support\Facades\DB;
  * bestätigt werden und wird mit Nutzer und Zeitpunkt protokolliert. Es wird
  * nichts geschätzt.
  *
- * Berechnung der Sollsumme: Der Monatsbetrag wird taggenau auf den
- * Nutzungszeitraum umgelegt. Rechenweg:
- * Monatsbetrag × 12 × Nutzungstage ÷ Tage des Abrechnungszeitraums, gerundet
- * auf Cent. Gerechnet wird mit brick/math, niemals mit float.
+ * Berechnung der Sollsumme: Maßgeblich sind die im Nutzungszeitraum
+ * tatsächlich fälligen Monatsraten. Jeder vollständig genutzte Kalendermonat
+ * zählt mit dem vollen Monatsbetrag, ein angebrochener Monat taggenau mit
+ * Nutzungstage ÷ Kalendertage dieses Monats. Die Länge des
+ * Abrechnungszeitraums spielt keine Rolle, ein unterjähriger Zeitraum ergibt
+ * daher nur die Raten seiner Monate. Gerundet wird einmal am Ende auf Cent.
+ * Gerechnet wird mit brick/math, niemals mit float.
+ *
+ * Gespeicherte Sollwerte werden bei jedem Aufbau der Zeilen gegen die
+ * aktuellen Vertragsdaten geprüft. Weicht ein gespeicherter Sollwert ab, ist
+ * er veraltet: Eine bestätigte Annahme Ist gleich Soll gilt dann nicht mehr
+ * und muss erneut bestätigt werden, ein erfasster Ist-Wert bleibt bestehen und
+ * der Sollwert wird neu abgeleitet.
  */
 final class PrepaymentWorkspace
 {
@@ -74,7 +83,7 @@ final class PrepaymentWorkspace
                     continue;
                 }
 
-                $rows[] = $this->row($tenancy, $unit, $usage, $period, $stored[(string) $tenancy->getKey()] ?? []);
+                $rows[] = $this->row($tenancy, $unit, $usage, $stored[(string) $tenancy->getKey()] ?? []);
             }
         }
 
@@ -88,7 +97,6 @@ final class PrepaymentWorkspace
         Tenancy $tenancy,
         Unit $unit,
         DatePeriodRange $usage,
-        DatePeriodRange $period,
         array $stored,
     ): PrepaymentRow {
         $monthlyOperating = $tenancy->monthly_operating_prepayment_cent === null
@@ -98,7 +106,7 @@ final class PrepaymentWorkspace
             ? null
             : Money::fromCents($tenancy->monthly_heating_prepayment_cent);
 
-        $target = $this->target($monthlyOperating, $monthlyHeating, $tenancy->heating_prepayment_separate, $usage, $period);
+        $target = $this->target($monthlyOperating, $monthlyHeating, $tenancy->heating_prepayment_separate, $usage);
 
         $actual = null;
         $assumed = false;
@@ -126,8 +134,19 @@ final class PrepaymentWorkspace
             $source = $prepayment->source;
         }
 
-        if ($stored !== []) {
-            $target = Money::fromCents($storedTarget);
+        if ($stored !== [] && $storedTarget !== $target->cents) {
+            // Der gespeicherte Sollwert stammt aus veralteten Vertragsdaten.
+            if ($assumed) {
+                // Die Annahme Ist gleich Soll bezog sich auf den alten Sollwert
+                // und muss mit dem aktuellen Wert erneut bestätigt werden.
+                $assumed = false;
+                $hasActual = false;
+                $actual = null;
+                $confirmed = false;
+                $source = $tenancy->contract_data_source ?? ValueSource::MIETVERTRAG;
+            } else {
+                $this->refreshStoredTarget($stored, $target);
+            }
         }
 
         if ($assumed && ! $hasActual) {
@@ -147,8 +166,31 @@ final class PrepaymentWorkspace
             $assumed,
             $source->label(),
             $confirmed,
-            $this->explanation($monthlyOperating, $monthlyHeating, $tenancy->heating_prepayment_separate, $usage, $period, $target),
+            $this->explanation($monthlyOperating, $monthlyHeating, $tenancy->heating_prepayment_separate, $usage, $target),
         );
+    }
+
+    /**
+     * Leitet den gespeicherten Sollwert aus den aktuellen Vertragsdaten neu
+     * ab. Der erfasste Ist-Wert bleibt unverändert, weil er eine Tatsache und
+     * keine Ableitung ist.
+     *
+     * @param  list<Prepayment>  $stored
+     */
+    private function refreshStoredTarget(array $stored, Money $target): void
+    {
+        $verbleibend = $target->cents;
+        $letzter = array_key_last($stored);
+
+        foreach ($stored as $index => $prepayment) {
+            $anteil = $index === $letzter ? $verbleibend : 0;
+            $verbleibend -= $anteil;
+
+            if ($prepayment->target_cent !== $anteil) {
+                $prepayment->target_cent = $anteil;
+                $prepayment->save();
+            }
+        }
     }
 
     /**
@@ -262,31 +304,35 @@ final class PrepaymentWorkspace
     }
 
     /**
-     * Sollsumme des Nutzungszeitraums, taggenau und ohne float.
+     * Sollsumme des Nutzungszeitraums aus den fälligen Monatsraten, ohne float.
+     *
+     * Volle Kalendermonate zählen mit dem vollen Monatsbetrag, angebrochene
+     * Monate taggenau mit Nutzungstage ÷ Kalendertage des Monats. Gerundet
+     * wird einmal am Ende kaufmännisch auf Cent.
      */
     public function target(
         ?Money $monthlyOperating,
         ?Money $monthlyHeating,
         bool $heatingSeparate,
         DatePeriodRange $usage,
-        DatePeriodRange $period,
     ): Money {
-        $monthlyCents = $monthlyOperating->cents ?? 0;
+        $monthlyCents = $this->monthlyCents($monthlyOperating, $monthlyHeating, $heatingSeparate);
 
-        if ($heatingSeparate) {
-            $monthlyCents += $monthlyHeating->cents ?? 0;
-        }
-
-        if ($monthlyCents === 0 || $period->days() === 0) {
+        if ($monthlyCents === 0) {
             return Money::zero();
         }
 
-        $value = BigDecimal::of($monthlyCents)
-            ->multipliedBy(12)
-            ->multipliedBy($usage->days())
-            ->dividedBy($period->days(), 0, RoundingMode::HALF_UP);
+        $months = BigRational::zero();
 
-        return Money::fromCents($value->toInt());
+        foreach ($this->monthShares($usage) as $share) {
+            $months = $months->plus(BigRational::nd($share['days'], $share['daysInMonth']));
+        }
+
+        $value = $months->multipliedBy($monthlyCents)->simplified();
+
+        $cents = $value->getNumerator()->dividedBy($value->getDenominator(), RoundingMode::HALF_UP);
+
+        return Money::fromCents($cents->toInt());
     }
 
     private function explanation(
@@ -294,7 +340,6 @@ final class PrepaymentWorkspace
         ?Money $monthlyHeating,
         bool $heatingSeparate,
         DatePeriodRange $usage,
-        DatePeriodRange $period,
         Money $target,
     ): string {
         if (! $monthlyOperating instanceof Money && ! $monthlyHeating instanceof Money) {
@@ -302,17 +347,83 @@ final class PrepaymentWorkspace
                 .'Vorauszahlungen ein.';
         }
 
-        $monatlich = Money::fromCents(
-            ($monthlyOperating->cents ?? 0) + ($heatingSeparate ? ($monthlyHeating->cents ?? 0) : 0)
-        );
+        $monatlich = Money::fromCents($this->monthlyCents($monthlyOperating, $monthlyHeating, $heatingSeparate));
+
+        $volle = 0;
+        $anteilige = [];
+
+        foreach ($this->monthShares($usage) as $share) {
+            if ($share['days'] === $share['daysInMonth']) {
+                $volle++;
+
+                continue;
+            }
+
+            $anteilige[] = sprintf('%d von %d Tagen im Monat %s', $share['days'], $share['daysInMonth'], $share['label']);
+        }
+
+        $teile = [];
+
+        if ($volle > 0) {
+            $teile[] = sprintf('%d %s', $volle, $volle === 1 ? 'vollen Monat' : 'volle Monate');
+        }
+
+        if ($anteilige !== []) {
+            $teile[] = sprintf(
+                '%s (%s)',
+                count($anteilige) === 1 ? 'einen anteiligen Monat' : count($anteilige).' anteilige Monate',
+                implode(', ', $anteilige)
+            );
+        }
 
         return sprintf(
-            '%s monatlich × 12 × %d Nutzungstage ÷ %d Tage des Abrechnungszeitraums ergeben %s.',
+            '%s monatlich für %s im Nutzungszeitraum (%d Nutzungstage) ergeben %s.',
             $monatlich->format(),
+            implode(' und ', $teile),
             $usage->days(),
-            $period->days(),
             $target->format()
         );
+    }
+
+    private function monthlyCents(?Money $monthlyOperating, ?Money $monthlyHeating, bool $heatingSeparate): int
+    {
+        $monthlyCents = $monthlyOperating->cents ?? 0;
+
+        if ($heatingSeparate) {
+            $monthlyCents += $monthlyHeating->cents ?? 0;
+        }
+
+        return $monthlyCents;
+    }
+
+    /**
+     * Zerlegt den Nutzungszeitraum in Kalendermonate mit genutzten Tagen.
+     *
+     * @return list<array{label: string, days: int, daysInMonth: int}>
+     */
+    private function monthShares(DatePeriodRange $usage): array
+    {
+        $shares = [];
+        $monthStart = $usage->start->modify('first day of this month');
+
+        while ($monthStart <= $usage->end) {
+            $monthEnd = $monthStart->modify('last day of this month');
+            $daysInMonth = (int) $monthStart->format('t');
+
+            $from = max($monthStart, $usage->start);
+            $to = min($monthEnd, $usage->end);
+            $days = (int) $from->diff($to)->days + 1;
+
+            $shares[] = [
+                'label' => $monthStart->format('m/Y'),
+                'days' => $days,
+                'daysInMonth' => $daysInMonth,
+            ];
+
+            $monthStart = $monthStart->modify('first day of next month');
+        }
+
+        return $shares;
     }
 
     private function source(?string $herkunft, bool $annahme): ValueSource

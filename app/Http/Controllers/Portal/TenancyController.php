@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Portal;
 use App\Application\Account\AuditRecorder;
 use App\Application\Account\OrganizationContext;
 use App\Application\BillingRun\OccupancyTimeline;
+use App\Application\Heating\EuroAmountInput;
 use App\Domain\Period\DatePeriodRange;
 use App\Enums\TenancyKind;
 use App\Enums\TenancyStatus;
@@ -473,34 +474,21 @@ class TenancyController extends Controller
     /**
      * Wandelt einen Eurobetrag als Zeichenkette in ganze Cent.
      *
-     * Es wird ausdruecklich nicht ueber float gerechnet. Der Betrag wird in
-     * Ganzzahlanteile zerlegt (ARCHITECTURE.md Grundsatz 8).
+     * Es wird ausdruecklich nicht ueber float gerechnet (ARCHITECTURE.md
+     * Grundsatz 8). Die Umrechnung laeuft zentral ueber EuroAmountInput; die
+     * Gueltigkeit der Eingabe ist durch TenancyRequest bereits sichergestellt.
      */
     private function cent(mixed $eur): ?int
     {
-        if ($eur === null) {
+        if (is_int($eur)) {
+            $eur = (string) $eur;
+        }
+
+        if (! is_string($eur)) {
             return null;
         }
 
-        $text = is_string($eur) ? trim($eur) : (is_int($eur) ? (string) $eur : '');
-
-        if ($text === '') {
-            return null;
-        }
-
-        if (! preg_match('/^-?\d+(\.\d{1,2})?$/', $text)) {
-            return null;
-        }
-
-        $negativ = str_starts_with($text, '-');
-        $text = ltrim($text, '-');
-
-        [$ganz, $bruch] = array_pad(explode('.', $text, 2), 2, '');
-        $bruch = substr(str_pad($bruch, 2, '0'), 0, 2);
-
-        $cent = (int) $ganz * 100 + (int) $bruch;
-
-        return $negativ ? -$cent : $cent;
+        return EuroAmountInput::parse($eur)?->cents;
     }
 
     private function iso(mixed $wert): ?string

@@ -4,23 +4,57 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Review;
 
+use App\Application\Heating\EuroAmountInput;
 use App\Http\Requests\GermanFormRequest;
-use Brick\Math\BigDecimal;
-use Brick\Math\Exception\MathException;
-use Brick\Math\RoundingMode;
+use Illuminate\Contracts\Validation\Validator;
 
 /**
  * Bearbeitung einer Kostenposition in der Pruefung.
  *
- * Der Betrag wird in Euro erfasst und serverseitig in Cent umgerechnet. Eine
- * bewusste Aufnahme einer nicht umlagefaehigen Position erfordert eine
- * Begruendung.
+ * Der Betrag wird in Euro erfasst und serverseitig ueber
+ * App\Application\Heating\EuroAmountInput in Cent umgerechnet. Ein nicht
+ * auswertbarer Betrag ist ein Validierungsfehler und wird weder gerundet noch
+ * still verworfen. Eine bewusste Aufnahme einer nicht umlagefaehigen Position
+ * erfordert eine Begruendung.
  */
 class UpdateCostItemRequest extends GermanFormRequest
 {
+    /**
+     * @var list<string>
+     */
+    public const array AMOUNT_FIELDS = ['betrag_euro', 'lohnanteil_euro'];
+
     public function authorize(): bool
     {
         return true;
+    }
+
+    /**
+     * Jeder erfasste Betrag muss exakt auswertbar sein. Es wird nie gerundet
+     * und nie geschaetzt.
+     */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            foreach (self::AMOUNT_FIELDS as $feld) {
+                $wert = $this->input($feld);
+
+                if ($wert === null || $validator->errors()->has($feld)) {
+                    continue;
+                }
+
+                if (! is_string($wert) || ! EuroAmountInput::isValid($wert)) {
+                    $validator->errors()->add(
+                        $feld,
+                        sprintf(
+                            'Bitte geben Sie %s in der Form 1.234,56 an. Mehr als zwei Nachkommastellen '
+                            .'sind nicht zulässig. Ein Betrag wird nicht geschätzt.',
+                            $this->attributes()[$feld] ?? $feld
+                        )
+                    );
+                }
+            }
+        });
     }
 
     /**
@@ -67,36 +101,23 @@ class UpdateCostItemRequest extends GermanFormRequest
     }
 
     /**
-     * Deutscher Eurobetrag als Integer in Cent.
+     * Eurobetrag als Integer in Cent.
      *
-     * Die Umrechnung laeuft ausschliesslich ueber BigDecimal. Ein Zwischenschritt
-     * ueber float ist nach Grundsatz 8 unzulaessig, weil ein binaerer
-     * Gleitkommawert einen Betrag wie 8.235,70 EUR nicht exakt darstellt und
-     * damit einen Rundungsfehler in die Abrechnung tragen koennte.
+     * Die Umrechnung laeuft ausschliesslich ueber BigDecimal (EuroAmountInput).
+     * Ein Zwischenschritt ueber float ist nach Grundsatz 8 unzulaessig, weil
+     * ein binaerer Gleitkommawert einen Betrag wie 8.235,70 EUR nicht exakt
+     * darstellt und damit einen Rundungsfehler in die Abrechnung tragen
+     * koennte. Die Gueltigkeit ist durch withValidator() sichergestellt.
      */
     protected function cent(string $feld): ?int
     {
         $wert = $this->input($feld);
 
-        if (! is_string($wert) || trim($wert) === '') {
+        if (! is_string($wert)) {
             return null;
         }
 
-        $normalisiert = str_replace([' ', '.'], '', trim($wert));
-        $normalisiert = str_replace(',', '.', $normalisiert);
-
-        if ($normalisiert === '') {
-            return null;
-        }
-
-        try {
-            return BigDecimal::of($normalisiert)
-                ->withPointMovedRight(2)
-                ->toScale(0, RoundingMode::HALF_UP)
-                ->toInt();
-        } catch (MathException) {
-            return null;
-        }
+        return EuroAmountInput::parse($wert)?->cents;
     }
 
     /**

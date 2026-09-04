@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Portal;
 
+use App\Application\Heating\EuroAmountInput;
 use App\Enums\TenancyKind;
 use App\Http\Requests\GermanFormRequest;
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Validation\Rule;
 
 /**
@@ -27,16 +29,75 @@ class TenancyRequest extends GermanFormRequest
         return true;
     }
 
+    /**
+     * @var list<string>
+     */
+    public const array AMOUNT_FIELDS = ['monthly_operating_prepayment_eur', 'monthly_heating_prepayment_eur'];
+
+    /**
+     * Geldbetraege werden ueber EuroAmountInput gelesen, damit "1.500" als
+     * 1.500,00 EUR gilt (Punkt mit genau drei Folgeziffern ist ein
+     * Tausendertrennzeichen) und nicht als 1,50 EUR. Ein gueltiger Betrag wird
+     * auf die Form 1500.00 gebracht, damit die Regel numeric und der
+     * Controller mit einer eindeutigen Schreibweise arbeiten. Ein
+     * ungueltiger Betrag bleibt unveraendert und wird in withValidator()
+     * abgelehnt.
+     */
     protected function prepareForValidation(): void
     {
-        $this->merge([
-            'monthly_operating_prepayment_eur' => DecimalInput::value(
-                $this->input('monthly_operating_prepayment_eur')
-            ),
-            'monthly_heating_prepayment_eur' => DecimalInput::value(
-                $this->input('monthly_heating_prepayment_eur')
-            ),
-        ]);
+        $werte = [];
+
+        foreach (self::AMOUNT_FIELDS as $feld) {
+            $wert = $this->input($feld);
+
+            if (is_int($wert)) {
+                $wert = (string) $wert;
+            }
+
+            if (! is_string($wert)) {
+                $werte[$feld] = null;
+
+                continue;
+            }
+
+            if (EuroAmountInput::isValid($wert)) {
+                $werte[$feld] = EuroAmountInput::parse($wert)?->toDecimalEuros()->__toString();
+
+                continue;
+            }
+
+            $werte[$feld] = trim($wert);
+        }
+
+        $this->merge($werte);
+    }
+
+    /**
+     * Ein Betrag mit mehr als zwei Nachkommastellen oder in nicht auswertbarer
+     * Schreibweise ist ein Fehler, kein Betrag von null.
+     */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            foreach (self::AMOUNT_FIELDS as $feld) {
+                $wert = $this->input($feld);
+
+                if ($wert === null || $validator->errors()->has($feld)) {
+                    continue;
+                }
+
+                if (! is_string($wert) || ! EuroAmountInput::isValid($wert)) {
+                    $validator->errors()->add(
+                        $feld,
+                        sprintf(
+                            'Bitte geben Sie %s in der Form 1.234,56 an. Mehr als zwei Nachkommastellen '
+                            .'sind nicht zulässig.',
+                            $this->attributes()[$feld] ?? $feld
+                        )
+                    );
+                }
+            }
+        });
     }
 
     /**
