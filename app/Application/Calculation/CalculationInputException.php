@@ -79,6 +79,38 @@ final class CalculationInputException extends RuntimeException
         ));
     }
 
+    public static function missingPersonSegments(string $keyLabel, string $tenantLabel): self
+    {
+        return new self(sprintf(
+            'Für den Verteilerschlüssel %s fehlen die Personenangaben des Mietverhältnisses %s für den gesamten '
+            .'Nutzungszeitraum. Bitte erfassen Sie die Belegungszeiträume in Schritt 5. Ohne Personenangabe '
+            .'würde der Anteil stillschweigend auf die übrigen Mieter verschoben; das wird nicht getan.',
+            $keyLabel,
+            $tenantLabel
+        ));
+    }
+
+    public static function directAssignmentExceedsAmount(string $keyLabel, string $assigned, string $amount): self
+    {
+        return new self(sprintf(
+            'Die Direktzuordnung %s ordnet insgesamt %s EUR zu, die zugehörige Kostenposition beträgt aber nur '
+            .'%s EUR. Bitte prüfen Sie die zugeordneten Beträge in Schritt 8 oder den Positionsbetrag in der '
+            .'Kostenprüfung. Es wird nichts umverteilt.',
+            $keyLabel,
+            $assigned,
+            $amount
+        ));
+    }
+
+    public static function unknownDirectUnit(string $costItemLabel): self
+    {
+        return new self(sprintf(
+            'Die Kostenposition %s ist einer Einheit direkt zugeordnet, die nicht zum Objekt dieses '
+            .'Abrechnungslaufs gehört. Bitte korrigieren Sie die Zuordnung in der Kostenprüfung.',
+            $costItemLabel
+        ));
+    }
+
     public static function noCostItems(): self
     {
         return new self(

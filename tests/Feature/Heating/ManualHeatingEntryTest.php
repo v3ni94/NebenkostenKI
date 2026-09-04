@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Heating;
 
+use App\Application\Calculation\BillingRunInputAssembler;
+use App\Domain\Calculation\StatementCalculator;
 use App\Enums\AllocationKeyType;
 use App\Enums\HeatingSupplyCase;
+use App\Enums\PrepaymentKind;
+use App\Enums\ValueSource;
 use App\Models\AllocationKey;
 use App\Models\AllocationKeyValue;
 use App\Models\BillingRun;
@@ -13,6 +17,7 @@ use App\Models\CostItem;
 use App\Models\HeatingStatement;
 use App\Models\HeatingStatementLine;
 use App\Models\Organization;
+use App\Models\Prepayment;
 use App\Models\Property;
 use App\Models\Tenancy;
 use App\Models\Unit;
@@ -184,6 +189,116 @@ final class ManualHeatingEntryTest extends ManualHeatingTestCase
         self::assertSame(184, (int) $zweite->getAttribute('usage_days'));
         self::assertSame(59507, (int) $erste->getAttribute('share_heating_cent'));
         self::assertSame(60493, (int) $zweite->getAttribute('share_heating_cent'));
+    }
+
+    public function test_betrag_einer_unbelegten_einheit_bleibt_beim_eigentuemer(): void
+    {
+        $mandant = $this->mandant();
+        $lauf = $this->lauf($mandant['organization'], $mandant['property']);
+        $this->vorauszahlung($lauf, $mandant['tenancy']);
+
+        /** @var Unit $leer */
+        $leer = Unit::factory()->create([
+            'organization_id' => $mandant['organization']->getKey(),
+            'property_id' => $mandant['property']->getKey(),
+            'label' => 'Wohnung 2',
+        ]);
+
+        // Einheit A: Mieter ganzjährig, 1.000,00 EUR. Einheit B: ganzjährig
+        // ohne Mietverhältnis, 500,00 EUR.
+        $this->speichern($mandant, $lauf, [
+            (string) $mandant['unit']->getKey() => ['heizung' => '1.000,00'],
+            (string) $leer->getKey() => ['heizung' => '500,00'],
+        ])->assertRedirect();
+
+        /** @var CostItem $position */
+        $position = CostItem::query()->where('manual_heating_entry', true)->firstOrFail();
+
+        self::assertSame(150000, (int) $position->getAttribute('amount_cent'));
+
+        $werte = AllocationKeyValue::query()
+            ->whereIn('allocation_key_id', AllocationKey::query()->where('cost_item_id', $position->getKey())->select('id'))
+            ->get();
+
+        self::assertCount(1, $werte);
+        self::assertSame('100000', (string) (int) $werte->first()?->getAttribute('numerator'));
+
+        $ergebnis = app(StatementCalculator::class)->calculate(
+            app(BillingRunInputAssembler::class)->assemble($lauf->refresh())->input
+        );
+
+        // Mieter A zahlt 1.000,00 EUR, die 500,00 EUR der leeren Einheit
+        // verbleiben als Restanteil beim Eigentümer. Vorher: 1.500,00 EUR.
+        self::assertSame(100000, $ergebnis->statements[0]->allocableTotal->cents);
+        self::assertSame(50000, $ergebnis->ownerOverview->residualTotal->cents);
+        self::assertTrue($ergebnis->ownerOverview->isBalanced());
+        self::assertSame(
+            'Direktzuordnung 1.000,00 EUR von 1.500,00 EUR',
+            $ergebnis->statements[0]->lines[0]->allocationExplanation
+        );
+    }
+
+    public function test_leerstandstage_einer_teilbelegten_einheit_bleiben_beim_eigentuemer(): void
+    {
+        $mandant = $this->mandant();
+        $lauf = $this->lauf($mandant['organization'], $mandant['property']);
+        $this->vorauszahlung($lauf, $mandant['tenancy']);
+
+        // Mieter nur 01.01. bis 30.06.2025 (181 Tage), danach kein Nachfolger.
+        $mandant['tenancy']->forceFill(['starts_on' => '2025-01-01', 'ends_on' => '2025-06-30'])->save();
+
+        $this->speichern($mandant, $lauf, [
+            (string) $mandant['unit']->getKey() => ['heizung' => '1.200,00'],
+        ])->assertRedirect();
+
+        // 1.200,00 EUR auf 181 und 184 Tage: exakt 595,07 und 604,93 EUR.
+        $zeilen = HeatingStatementLine::query()->get();
+
+        self::assertCount(2, $zeilen);
+
+        $mieter = $zeilen->firstWhere('tenancy_id', (string) $mandant['tenancy']->getKey());
+        $leerstand = $zeilen->firstWhere('tenancy_id', null);
+
+        self::assertNotNull($mieter);
+        self::assertNotNull($leerstand);
+        self::assertSame(59507, (int) $mieter->getAttribute('share_heating_cent'));
+        self::assertSame(60493, (int) $leerstand->getAttribute('share_heating_cent'));
+        self::assertSame(184, (int) $leerstand->getAttribute('usage_days'));
+
+        /** @var CostItem $position */
+        $position = CostItem::query()->where('manual_heating_entry', true)->firstOrFail();
+
+        self::assertSame(120000, (int) $position->getAttribute('amount_cent'));
+
+        /** @var AllocationKeyValue $wert */
+        $wert = AllocationKeyValue::query()
+            ->whereIn('allocation_key_id', AllocationKey::query()->where('cost_item_id', $position->getKey())->select('id'))
+            ->firstOrFail();
+
+        self::assertSame('59507', (string) (int) $wert->getAttribute('numerator'));
+
+        $ergebnis = app(StatementCalculator::class)->calculate(
+            app(BillingRunInputAssembler::class)->assemble($lauf->refresh())->input
+        );
+
+        self::assertSame(59507, $ergebnis->statements[0]->allocableTotal->cents);
+        self::assertSame(60493, $ergebnis->ownerOverview->residualTotal->cents);
+        self::assertTrue($ergebnis->ownerOverview->isBalanced());
+    }
+
+    public function test_negative_betraege_je_einheit_werden_als_feldfehler_abgelehnt(): void
+    {
+        $mandant = $this->mandant();
+        $lauf = $this->lauf($mandant['organization'], $mandant['property']);
+
+        $antwort = $this->speichern($mandant, $lauf, [
+            (string) $mandant['unit']->getKey() => ['heizung' => '-12,50', 'warmwasser' => '300,00'],
+        ]);
+
+        $antwort->assertRedirect();
+        $antwort->assertSessionHasErrors(sprintf('einheiten.%s.heizung', $mandant['unit']->getKey()));
+        self::assertSame(0, HeatingStatement::query()->count());
+        self::assertSame(0, CostItem::query()->where('manual_heating_entry', true)->count());
     }
 
     public function test_eine_pruefsumme_innerhalb_der_toleranz_blockiert_nicht(): void
@@ -395,6 +510,23 @@ final class ManualHeatingEntryTest extends ManualHeatingTestCase
         $antwort->assertOk();
         $antwort->assertSee('Die Beträge werden nicht addiert', false);
         $antwort->assertSee('derzeit nicht angesetzt', false);
+    }
+
+    private function vorauszahlung(BillingRun $lauf, Tenancy $mietverhaeltnis): void
+    {
+        Prepayment::query()->create([
+            'organization_id' => $lauf->getAttribute('organization_id'),
+            'billing_run_id' => $lauf->getKey(),
+            'tenancy_id' => $mietverhaeltnis->getKey(),
+            'kind' => PrepaymentKind::HEIZKOSTEN,
+            'period_start' => '2025-01-01',
+            'period_end' => '2025-12-31',
+            'target_cent' => 60000,
+            'actual_cent' => 60000,
+            'source' => ValueSource::ZAHLUNGSUEBERSICHT,
+            'assumed_equal_to_target' => false,
+            'confirmed_at' => now(),
+        ]);
     }
 
     /**

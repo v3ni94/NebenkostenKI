@@ -22,6 +22,14 @@ use Brick\Math\RoundingMode;
  *   betroffene Nutzungszeitraum im Ergebnis gekennzeichnet, damit das PDF den
  *   Hinweis druckt.
  *
+ * Beteiligte des Eigentümers (erfasster Leerstand) verlangen keine
+ * Zwischenablesung: Liegen Ablesewerte je Mietverhältnis vor, erhält ein
+ * Leerstand ohne eigenen Ablesewert den Rest des Einheitenverbrauchs, sofern
+ * ein Einheitenwert erfasst ist, sonst den Verbrauch null. Eine Einheit ganz
+ * ohne Nutzungszeitraum (zum Beispiel eigengenutzt) bleibt ohne Beteiligten;
+ * ihr Einheitenverbrauch geht nur in den Nenner ein, damit der Anteil beim
+ * Eigentümer verbleibt und nicht auf die Mieter verschoben wird.
+ *
  * Die Ersatzverteilung erfolgt mit dem Largest-Remainder-Verfahren auf der
  * angegebenen Nachkommastelle, damit die Summe der Teilverbräuche exakt dem
  * Gesamtverbrauch der Einheit entspricht.
@@ -41,12 +49,14 @@ final class ConsumptionKeyBuilder
      * @param  list<ConsumptionRecord>  $records
      * @param  array<string, array<string, int>>  $participantDaysByUnit  Einheit => (Nutzungszeitraum => Tage)
      * @param  list<string>  $substituteDistributionConfirmedUnits  Einheiten mit bestätigter Ersatzverteilung
+     * @param  list<string>  $ownerParticipantKeys  Nutzungszeiträume des Eigentümers (Leerstand), die keine Ablesung verlangen
      */
     public function build(
         array $records,
         array $participantDaysByUnit,
         string $measurementUnit = '',
         array $substituteDistributionConfirmedUnits = [],
+        array $ownerParticipantKeys = [],
     ): ConsumptionKey {
         /** @var array<string, array<string, BigDecimal>> $occupancyRecords */
         $occupancyRecords = [];
@@ -65,6 +75,7 @@ final class ConsumptionKeyBuilder
 
         $values = [];
         $substituteParticipants = [];
+        $unassigned = BigDecimal::zero();
 
         foreach ($participantDaysByUnit as $unitKey => $participantDays) {
             $unitKey = (string) $unitKey;
@@ -72,23 +83,56 @@ final class ConsumptionKeyBuilder
                 static fn (int|string $key): string => (string) $key,
                 array_keys($participantDays)
             );
+            $unitTotal = $unitRecords[$unitKey] ?? null;
 
-            if (isset($occupancyRecords[$unitKey])) {
-                foreach ($participantKeys as $participantKey) {
-                    if (! isset($occupancyRecords[$unitKey][$participantKey])) {
-                        throw MissingInterimReadingException::forUnit($unitKey, count($participantKeys));
-                    }
-
-                    $values[$participantKey] = $occupancyRecords[$unitKey][$participantKey];
+            if ($participantKeys === []) {
+                // Einheit ohne Nutzungszeitraum: kein Beteiligter. Der Wert
+                // bleibt beim Eigentümer und erhöht nur den Nenner.
+                if ($unitTotal instanceof BigDecimal) {
+                    $unassigned = $unassigned->plus($unitTotal);
                 }
 
                 continue;
             }
 
-            $unitTotal = $unitRecords[$unitKey] ?? BigDecimal::zero();
+            if (isset($occupancyRecords[$unitKey])) {
+                $withoutReading = [];
+                $assigned = BigDecimal::zero();
+
+                foreach ($participantKeys as $participantKey) {
+                    if (isset($occupancyRecords[$unitKey][$participantKey])) {
+                        $values[$participantKey] = $occupancyRecords[$unitKey][$participantKey];
+                        $assigned = $assigned->plus($occupancyRecords[$unitKey][$participantKey]);
+
+                        continue;
+                    }
+
+                    if (in_array($participantKey, $ownerParticipantKeys, true)) {
+                        $withoutReading[] = $participantKey;
+
+                        continue;
+                    }
+
+                    throw MissingInterimReadingException::forUnit($unitKey, count($participantKeys));
+                }
+
+                if ($withoutReading !== []) {
+                    $rest = $unitTotal instanceof BigDecimal && $unitTotal->isGreaterThan($assigned)
+                        ? $unitTotal->minus($assigned)
+                        : BigDecimal::zero();
+
+                    foreach ($this->ownerShares($rest, $withoutReading, $participantDays) as $participantKey => $value) {
+                        $values[$participantKey] = $value;
+                    }
+                }
+
+                continue;
+            }
+
+            $total = $unitTotal ?? BigDecimal::zero();
 
             if (count($participantKeys) === 1) {
-                $values[$participantKeys[0]] = $unitTotal;
+                $values[$participantKeys[0]] = $total;
 
                 continue;
             }
@@ -97,13 +141,55 @@ final class ConsumptionKeyBuilder
                 throw MissingInterimReadingException::forUnit($unitKey, count($participantKeys));
             }
 
-            foreach ($this->splitByDays($unitTotal, $participantDays) as $participantKey => $value) {
+            foreach ($this->splitByDays($total, $participantDays) as $participantKey => $value) {
                 $values[$participantKey] = $value;
                 $substituteParticipants[] = $participantKey;
             }
         }
 
-        return ConsumptionKey::create($values, $measurementUnit, $substituteParticipants);
+        $denominator = null;
+
+        if (! $unassigned->isZero()) {
+            $sum = BigDecimal::zero();
+
+            foreach ($values as $value) {
+                $sum = $sum->plus($value);
+            }
+
+            $denominator = $sum->plus($unassigned);
+        }
+
+        return ConsumptionKey::create($values, $measurementUnit, $substituteParticipants, $denominator);
+    }
+
+    /**
+     * Rest des Einheitenverbrauchs für Beteiligte des Eigentümers ohne eigene
+     * Ablesung. Ein einzelner Leerstand erhält den Rest vollständig, mehrere
+     * Leerstände teilen ihn taggenau; alle Anteile verbleiben beim Eigentümer.
+     *
+     * @param  list<string>  $participantKeys
+     * @param  array<string, int>  $participantDays
+     * @return array<string, BigDecimal>
+     */
+    private function ownerShares(BigDecimal $rest, array $participantKeys, array $participantDays): array
+    {
+        if (count($participantKeys) === 1 || $rest->isZero()) {
+            $shares = [];
+
+            foreach ($participantKeys as $index => $participantKey) {
+                $shares[$participantKey] = $index === 0 ? $rest : BigDecimal::zero();
+            }
+
+            return $shares;
+        }
+
+        $days = [];
+
+        foreach ($participantKeys as $participantKey) {
+            $days[$participantKey] = $participantDays[$participantKey] ?? 0;
+        }
+
+        return $this->splitByDays($rest, $days);
     }
 
     /**

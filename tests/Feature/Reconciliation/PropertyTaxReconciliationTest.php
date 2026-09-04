@@ -115,6 +115,51 @@ final class PropertyTaxReconciliationTest extends ReviewTestCase
         );
     }
 
+    public function test_unbekannter_zeitraum_wird_nicht_dem_abrechnungszeitraum_gleichgesetzt(): void
+    {
+        $mandant = $this->mandant();
+        $lauf = $this->lauf($mandant['organization'], $mandant['property']);
+
+        // Betrag und Aktenzeichen wurden ausgelesen, Zeitraum und Steuerjahr
+        // nicht. Vorher entstand eine Position mit Leistungszeitraum 2025 und
+        // Prüfergebnis "übernommen".
+        $bescheid = $this->grundsteuer($lauf, [
+            'steuerjahr' => null,
+            'zeitraum_von' => null,
+            'zeitraum_bis' => null,
+        ]);
+
+        $ergebnis = app(ReconcileBillingRun::class)->run($lauf);
+
+        self::assertNotNull($ergebnis->propertyTax);
+        self::assertFalse($ergebnis->propertyTax->added);
+        self::assertTrue($ergebnis->propertyTax->needsPeriodConfirmation);
+        self::assertSame(0, CostItem::query()->where('document_id', $bescheid->getKey())->count());
+
+        self::assertTrue(
+            ValidationIssue::query()
+                ->where('billing_run_id', $lauf->getKey())
+                ->where('rule_code', RuleCode::PROPERTY_TAX_NEEDS_CONFIRMATION)
+                ->exists()
+        );
+    }
+
+    public function test_steuerjahr_allein_genuegt_fuer_die_uebernahme(): void
+    {
+        $mandant = $this->mandant();
+        $lauf = $this->lauf($mandant['organization'], $mandant['property']);
+
+        $bescheid = $this->grundsteuer($lauf, ['zeitraum_von' => null, 'zeitraum_bis' => null]);
+
+        app(ReconcileBillingRun::class)->run($lauf);
+
+        $position = CostItem::query()->where('document_id', $bescheid->getKey())->firstOrFail();
+
+        self::assertSame(43200, $position->getAttribute('amount_cent'));
+        self::assertSame('2025-01-01', $position->getAttribute('service_period_start')?->format('Y-m-d'));
+        self::assertSame('2025-12-31', $position->getAttribute('service_period_end')?->format('Y-m-d'));
+    }
+
     public function test_eigentumswechsel_wird_nicht_geraten(): void
     {
         $mandant = $this->mandant();

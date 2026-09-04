@@ -8,7 +8,9 @@ use App\Application\Reconciliation\Dto\HeatingSourceKind;
 use App\Application\Reconciliation\HeatingReconciler;
 use App\Application\Reconciliation\ReconcileBillingRun;
 use App\Application\Reconciliation\RuleCode;
+use App\Enums\ApportionmentStatus;
 use App\Enums\BillingMode;
+use App\Enums\CostItemStatus;
 use App\Enums\DocumentType;
 use App\Models\BillingRun;
 use App\Models\CostItem;
@@ -45,6 +47,66 @@ final class HeatingReconciliationTest extends ReviewTestCase
                 ->where('rule_code', RuleCode::HEATING_DOUBLE_COUNT_PREVENTED)
                 ->exists()
         );
+    }
+
+    public function test_externe_abrechnung_erzeugt_heizkostenpositionen_je_einheit(): void
+    {
+        $mandant = $this->mandant();
+        $mandant['unit']->forceFill(['label' => 'Wohnung 1'])->save();
+        $lauf = $this->lauf($mandant['organization'], $mandant['property']);
+
+        $this->wegMitHeizkosten($lauf);
+        $extern = $this->externeAbrechnung($lauf, 90000, [60000, 30000]);
+
+        app(ReconcileBillingRun::class)->run($lauf);
+
+        $positionen = CostItem::query()
+            ->where('document_id', $extern->getKey())
+            ->orderBy('amount_cent', 'desc')
+            ->get();
+
+        // Vorher entstand keine einzige Position: die WEG-Heizkosten waren
+        // ausgeschlossen und die externen Beträge nirgends angesetzt.
+        self::assertCount(2, $positionen);
+        self::assertSame(60000, $positionen[0]->getAttribute('amount_cent'));
+        self::assertSame(30000, $positionen[1]->getAttribute('amount_cent'));
+
+        foreach ($positionen as $position) {
+            self::assertSame(CostItemStatus::VORGESCHLAGEN, $position->getAttribute('status'));
+            self::assertTrue((bool) $position->getAttribute('is_heating_cost'));
+            self::assertSame('HEIZUNG', $position->costCategory?->getAttribute('code'));
+            self::assertStringContainsString('Abrechnungsdienst Beispiel', (string) $position->getAttribute('description'));
+        }
+
+        // Wohnung 1 ist eindeutig zugeordnet, Wohnung 2 gibt es im Objekt
+        // nicht: die Position bleibt prüfpflichtig mit Prüfaufgabe.
+        self::assertSame((string) $mandant['unit']->getKey(), $positionen[0]->getAttribute('direct_unit_id'));
+        self::assertNull($positionen[1]->getAttribute('direct_unit_id'));
+        self::assertSame(ApportionmentStatus::PRUEFPFLICHTIG, $positionen[1]->getAttribute('apportionment_status'));
+
+        self::assertTrue(
+            ValidationIssue::query()
+                ->where('billing_run_id', $lauf->getKey())
+                ->where('rule_code', RuleCode::MISSING_MANDATORY)
+                ->where('title', 'Angabe fehlt: Zuordnung der Heizkosten zur Einheit')
+                ->exists()
+        );
+    }
+
+    public function test_einziger_anteil_wird_der_einzigen_einheit_zugeordnet(): void
+    {
+        $mandant = $this->mandant();
+        $lauf = $this->lauf($mandant['organization'], $mandant['property']);
+
+        $extern = $this->externeAbrechnung($lauf, 115000, [115000]);
+
+        app(ReconcileBillingRun::class)->run($lauf);
+
+        $position = CostItem::query()->where('document_id', $extern->getKey())->firstOrFail();
+
+        self::assertSame(115000, $position->getAttribute('amount_cent'));
+        self::assertSame((string) $mandant['unit']->getKey(), $position->getAttribute('direct_unit_id'));
+        self::assertSame(ApportionmentStatus::UMLAGEFAEHIG, $position->getAttribute('apportionment_status'));
     }
 
     public function test_ohne_externe_abrechnung_ist_die_weg_position_kostenquelle(): void

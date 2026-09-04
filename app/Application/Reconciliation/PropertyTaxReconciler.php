@@ -37,7 +37,9 @@ use Illuminate\Support\Carbon;
  *  2. Ist die Grundsteuer eindeutig separat und der Einheit direkt zugeordnet,
  *     wird sie als direkte Betriebskostenposition vorgeschlagen.
  *  3. Teilzeitraeume und Eigentumswechsel werden nicht geraten. Sie werden dem
- *     Nutzer zur Bestaetigung vorgelegt.
+ *     Nutzer zur Bestaetigung vorgelegt. Dasselbe gilt, wenn weder Zeitraum
+ *     noch Steuerjahr ausgelesen wurden: ein unbekannter Zeitraum wird nicht
+ *     dem Abrechnungszeitraum gleichgesetzt.
  */
 final class PropertyTaxReconciler
 {
@@ -86,11 +88,39 @@ final class PropertyTaxReconciler
             );
         }
 
-        $period = $this->period($billingRun, $bag);
+        $period = $this->period($bag);
         $fileReference = $bag->text('aktenzeichen', 80);
         $unitLabel = $bag->text('einheitsbezeichnung', 120);
         $partialPeriod = $bag->boolean('betrifft_teilzeitraum') === true
             || $bag->boolean('eigentumswechsel_erwaehnt') === true;
+
+        // Ohne ausgelesenen Zeitraum und ohne Steuerjahr wird der Zeitraum
+        // nicht mit dem Abrechnungszeitraum gleichgesetzt. Ohne
+        // ausdrueckliche Bestaetigung entsteht keine Position.
+        if (! $period instanceof DatePeriodRange && ! $periodConfirmed) {
+            $explanation = sprintf(
+                'Aus %s ließ sich weder der Zeitraum noch das Steuerjahr auslesen. Der Bescheid wird nicht '
+                .'ungeprüft dem Abrechnungszeitraum zugeordnet. Bitte bestätigen Sie Zeitraum und Betrag.',
+                $sourceLabel
+            );
+
+            return new PropertyTaxOutcome(
+                new MappingOutcome([], [new MissingRequirement(
+                    'Zeitraum des Grundsteuerbescheids',
+                    $explanation,
+                    $documentId,
+                )]),
+                false,
+                false,
+                $explanation,
+                $amount,
+                $fileReference,
+                'nicht erkannt',
+                true,
+            );
+        }
+
+        $period ??= $this->billingPeriod($billingRun);
 
         // Ein Teilzeitraum oder ein Eigentumswechsel wird nicht geraten. Ohne
         // ausdrueckliche Bestaetigung entsteht keine Position.
@@ -215,7 +245,11 @@ final class PropertyTaxReconciler
         );
     }
 
-    private function period(BillingRun $billingRun, ExtractedFieldBag $bag): DatePeriodRange
+    /**
+     * Ausgelesener Zeitraum des Bescheids. Fehlen Zeitraum und Steuerjahr,
+     * bleibt der Zeitraum unbekannt; er wird nicht geraten.
+     */
+    private function period(ExtractedFieldBag $bag): ?DatePeriodRange
     {
         $start = $bag->date('zeitraum_von');
         $end = $bag->date('zeitraum_bis');
@@ -230,7 +264,7 @@ final class PropertyTaxReconciler
             return DatePeriodRange::calendarYear($year);
         }
 
-        return $this->billingPeriod($billingRun);
+        return null;
     }
 
     private function billingPeriod(BillingRun $billingRun): DatePeriodRange

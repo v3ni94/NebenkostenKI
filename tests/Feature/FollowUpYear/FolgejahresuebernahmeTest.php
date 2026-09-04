@@ -362,6 +362,47 @@ final class FolgejahresuebernahmeTest extends TestCase
         $this->assertSame('72.500000', $wert->getAttribute('numerator'));
     }
 
+    public function test_verbrauchs_und_direktwerte_des_vorjahres_werden_nicht_als_zaehler_uebernommen(): void
+    {
+        $welt = $this->vorjahr();
+
+        /** @var CostCategory $wasser */
+        $wasser = CostCategory::factory()->create();
+
+        /** @var AllocationKey $verbrauch */
+        $verbrauch = AllocationKey::factory()->create([
+            'organization_id' => $welt['organization']->getKey(),
+            'billing_run_id' => $welt['run']->getKey(),
+            'cost_category_id' => $wasser->getKey(),
+            'key_type' => AllocationKeyType::VERBRAUCH,
+            'source' => AllocationKeySource::MANUELL,
+            'measurement_unit' => 'm3',
+            'confirmed_at' => now(),
+        ]);
+
+        // Vorjahresverbrauch des laufenden Mietverhaeltnisses: 60 m3.
+        AllocationKeyValue::factory()->create([
+            'organization_id' => $welt['organization']->getKey(),
+            'allocation_key_id' => $verbrauch->getKey(),
+            'tenancy_id' => $welt['laufend']->getKey(),
+            'numerator' => '60.000000',
+            'source' => ValueSource::MANUELL,
+        ]);
+
+        $ergebnis = $this->uebernahme()->handle($welt['property'], $welt['user']);
+
+        /** @var AllocationKey $kopie */
+        $kopie = AllocationKey::query()
+            ->where('billing_run_id', $ergebnis->lauf->getKey())
+            ->where('cost_category_id', $wasser->getKey())
+            ->firstOrFail();
+
+        // Der Typ wird als Vorschlag uebernommen, die Vorjahresmenge nicht.
+        $this->assertSame(AllocationKeyType::VERBRAUCH, $kopie->getAttribute('key_type'));
+        $this->assertSame('m3', $kopie->getAttribute('measurement_unit'));
+        $this->assertSame(0, AllocationKeyValue::query()->where('allocation_key_id', $kopie->getKey())->count());
+    }
+
     public function test_positionsbezogener_schluessel_wird_nicht_uebernommen(): void
     {
         $welt = $this->vorjahr();

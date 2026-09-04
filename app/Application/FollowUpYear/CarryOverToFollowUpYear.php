@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Application\FollowUpYear;
 
 use App\Application\Account\AuditRecorder;
+use App\Application\Calculation\BillingRunInputAssembler;
+use App\Domain\Allocation\AllocationKeyScope;
 use App\Enums\AllocationKeySource;
+use App\Enums\AllocationKeyType;
 use App\Enums\BillingRunStatus;
 use App\Enums\TenancyStatus;
 use App\Enums\ValueSource;
@@ -234,8 +237,12 @@ class CarryOverToFollowUpYear
      * Position selbst nicht uebernommen wird.
      *
      * Werte werden nur fuer noch bestehende Einheiten und fortlaufende
-     * Mietverhaeltnisse uebernommen. Verbrauchswerte und Personentage bleiben
-     * damit pruefpflichtig, weil sie fuer das neue Jahr neu erfasst werden.
+     * Mietverhaeltnisse uebernommen, und nur fuer Schluessel der Bezugsebene
+     * Einheit (Flaechen, Anteile, individuelle Werte). Fuer Schluessel der
+     * Bezugsebene Nutzungszeitraum (Verbrauch, Personentage, Direktzuordnung)
+     * wird ausschliesslich der Typ uebernommen: Verbrauchsmengen und Betraege
+     * des Vorjahres duerfen niemals als Zaehler des neuen Jahres gelten und
+     * werden fuer das neue Jahr neu erfasst.
      *
      * @param  list<string>  $laufendeMietverhaeltnisse
      * @return list<string>
@@ -256,6 +263,10 @@ class CarryOverToFollowUpYear
             ->get();
 
         foreach ($vorlagen as $vorlage) {
+            $typ = $vorlage->getAttribute('key_type');
+            $werteUebernehmen = $typ instanceof AllocationKeyType
+                && BillingRunInputAssembler::scopeOf($typ) === AllocationKeyScope::UNIT;
+
             /** @var AllocationKey $kopie */
             $kopie = AllocationKey::query()->create([
                 'organization_id' => $organisation,
@@ -275,6 +286,10 @@ class CarryOverToFollowUpYear
             ]);
 
             $neueKennungen[] = (string) $kopie->getKey();
+
+            if (! $werteUebernehmen) {
+                continue;
+            }
 
             foreach ($vorlage->values as $wert) {
                 $einheitId = $wert->getAttribute('unit_id');
