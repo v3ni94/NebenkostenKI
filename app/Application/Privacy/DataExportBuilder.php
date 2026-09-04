@@ -62,8 +62,9 @@ use ZipArchive;
  * 2. KEINE FREMDDATEN. Jede Query ist über organization_id auf die
  *    Organisationen des anfordernden Nutzers gescopet. Es gibt keinen
  *    ungescopten Zugriff. Personenbezogene Sammlungen (Nachrichten,
- *    Erinnerungen, Revisionsprotokoll) sind zusätzlich auf den Antragsteller
- *    selbst begrenzt, damit ein geteilter Mandant nicht die Daten anderer
+ *    Erinnerungen, Revisionsprotokoll, Rechtsnachweise, eigene
+ *    Exportanforderungen) sind zusätzlich auf den Antragsteller selbst
+ *    begrenzt, damit ein geteilter Mandant nicht die Daten anderer
  *    Mitglieder preisgibt.
  * 3. MASCHINENLESBAR. Je Entität eine JSON-Datei mit UTF-8 und unescapten
  *    Zeichen, dazu eine lesbare Übersicht als Textdatei.
@@ -107,15 +108,14 @@ final class DataExportBuilder
         'manuelle_aenderungen' => ManualOverride::class,
         'zahlungen' => Payment::class,
         'rechnungen' => Invoice::class,
-        'erzeugte_dokumente' => GeneratedDocument::class,
-        'rechtsnachweise' => LegalAcceptance::class,
         'loeschnachweise' => SourceDeletionEvent::class,
     ];
 
     /**
      * Personenbezogene Sammlungen eines geteilten Mandanten.
      *
-     * Nachrichten, Erinnerungen und Protokolleintraege tragen zwar eine
+     * Nachrichten, Erinnerungen, Protokolleintraege und Rechtsnachweise
+     * (mit gekuerzter IP-Adresse und User-Agent-Hash) tragen zwar eine
      * organization_id, gehoeren aber einer bestimmten Person: der
      * Empfaengeradresse beziehungsweise dem handelnden Nutzer. In einem
      * Mandanten mit mehreren Mitgliedern erhaelt der Antragsteller deshalb nur
@@ -130,6 +130,7 @@ final class DataExportBuilder
         'erinnerungseinstellungen' => [ReminderPreference::class, ['user_id']],
         'erinnerungsereignisse' => [ReminderEvent::class, ['user_id', 'recipient_email']],
         'revisionsprotokoll' => [AuditLog::class, ['actor_user_id']],
+        'rechtsnachweise' => [LegalAcceptance::class, ['user_id']],
     ];
 
     /**
@@ -238,6 +239,24 @@ final class DataExportBuilder
                 ? []
                 : $this->rows($this->userScopedQuery($model, $spalten, $user, $organizationIds)->get()->all());
         }
+
+        // Erzeugte Dokumente gehoeren dem Mandanten, mit einer Ausnahme: Ein
+        // DSGVO-Export ist die Anforderung einer bestimmten Person. Seine
+        // Metadaten (Anforderer, Ablagepfad, Groesse) erhalten in einem
+        // geteilten Mandanten nur der Antragsteller selbst, nicht die anderen
+        // Mitglieder.
+        $ergebnis['erzeugte_dokumente'] = $organizationIds === []
+            ? []
+            : $this->rows(
+                GeneratedDocument::query()
+                    ->whereIn('organization_id', $organizationIds)
+                    ->where(function (Builder $query) use ($user): void {
+                        $query->where('kind', '!=', GeneratedDocumentKind::DSGVO_EXPORT->value)
+                            ->orWhere('requested_by_user_id', (string) $user->getKey());
+                    })
+                    ->get()
+                    ->all()
+            );
 
         // Rechnungspositionen hängen an der Rechnung und tragen selbst keine
         // Mandantenspalte. Sie werden deshalb über die eigenen Rechnungen

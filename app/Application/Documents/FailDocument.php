@@ -20,7 +20,9 @@ use App\Services\Storage\UploadErrorCode;
  * spaeteren Fehlersuche aufzubewahren.
  *
  * Gespeichert bleiben nur Fehlercode und verstaendliche deutsche Meldung, ohne
- * jeden Dateiinhalt.
+ * jeden Dateiinhalt. Der Fehlercode bleibt der fachliche Code zur
+ * Nachverfolgung; die Meldung beschreibt den Endzustand und verspricht keine
+ * automatische Wiederholung mehr, weil die Quelldatei geloescht ist.
  */
 final class FailDocument
 {
@@ -34,7 +36,7 @@ final class FailDocument
         $document->forceFill([
             'processing_status' => $status,
             'failure_code' => $errorCode->value,
-            'failure_message' => mb_substr($errorCode->message(), 0, 500),
+            'failure_message' => mb_substr($errorCode->finalMessage(), 0, 500),
         ])->save();
 
         return ($this->deleteSources)($document, DeletionReason::ENDGUELTIGER_FEHLER);

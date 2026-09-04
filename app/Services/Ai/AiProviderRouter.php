@@ -14,6 +14,7 @@ use App\Services\Ai\Dto\HealthCheckRequest;
 use App\Services\Ai\Dto\HealthCheckResult;
 use App\Services\Ai\Dto\ReconcileDocumentsRequest;
 use App\Services\Ai\Dto\ReconciliationResult;
+use App\Services\Ai\Exceptions\AiException;
 use App\Services\Ai\Exceptions\ProviderNotReleasedException;
 use App\Services\Ai\Exceptions\ProviderTransportException;
 use App\Services\Ai\Exceptions\RateLimitException;
@@ -242,9 +243,14 @@ final class AiProviderRouter implements AiDocumentProviderInterface
         // aber nicht: der Primaerprovider hat bis zu maxRetries + 1 Anfragen
         // mit Dokument gesendet. Die Metadaten wandern als vorangegangener
         // Aufruf mit, damit ai_calls, Tagesbudget und Kostenuebersicht
-        // vollstaendig bleiben.
-        return $this->callWithFallbackMetadata($call, $primaryKey, $fallbackKey, self::FALLBACK_REASON_SCHEMA)
-            ->withPrecedingCall($result->metadata);
+        // vollstaendig bleiben. Das gilt auch, wenn der Zweitaufruf mit einer
+        // Ausnahme endet: dann traegt die Ausnahme die Primaermetadaten.
+        try {
+            return $this->callWithFallbackMetadata($call, $primaryKey, $fallbackKey, self::FALLBACK_REASON_SCHEMA)
+                ->withPrecedingCall($result->metadata);
+        } catch (AiException $exception) {
+            throw $exception->withPrecedingCall($result->metadata);
+        }
     }
 
     /**

@@ -40,6 +40,18 @@ interface AiCallObserver
     public function beforeProviderRequest(string $providerKey): void;
 
     /**
+     * Darf der Aufruf jetzt eine temporaere Datei beim Provider anlegen?
+     *
+     * Wird unmittelbar VOR dem Upload befragt, mit dem aktuellen Zustand des
+     * Kurzzeitdatensatzes. Der vorab berechnete Kontextwert reicht nicht aus,
+     * weil ein vorangegangener Aufruf desselben Vorgangs (Schema-Fallback,
+     * Dual Review) inzwischen eine Datei hinterlassen haben kann, deren
+     * Loeschung nicht bestaetigt ist. Liefert die Methode false, wird keine
+     * Datei uebertragen.
+     */
+    public function mayCreateProviderFile(string $providerKey): bool;
+
+    /**
      * Eine temporaere Datei wurde beim Provider angelegt. Die ID ist waehrend
      * der Verarbeitung festzuhalten und nach bestaetigter Loeschung zu
      * entfernen.

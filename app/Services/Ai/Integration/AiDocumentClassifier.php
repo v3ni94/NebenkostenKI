@@ -13,6 +13,7 @@ use App\Services\Ai\AiDocumentProviderInterface;
 use App\Services\Ai\Dto\AiRequestContext;
 use App\Services\Ai\Dto\ClassificationResult;
 use App\Services\Ai\Dto\ClassifyDocumentRequest;
+use App\Services\Ai\Exceptions\AiException;
 use App\Services\Ai\Exceptions\CostBasisMissingException;
 use App\Services\Ai\Exceptions\DailyCostLimitExceededException;
 use App\Services\Ai\Exceptions\ProviderFileNotReleasedException;
@@ -90,6 +91,12 @@ final class AiDocumentClassifier implements DocumentClassifier
                 ),
             ));
         } catch (Throwable $exception) {
+            // Auch im Fehlerpfad bleibt der Verbrauch verworfener
+            // Primaeraufrufe nachgewiesen.
+            if ($exception instanceof AiException) {
+                $this->calls->recordPreceding($document, $exception->precedingCalls());
+            }
+
             return ClassificationOutcome::failed($this->failureFor($exception)->outcomeCode());
         }
 
