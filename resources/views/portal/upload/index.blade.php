@@ -68,13 +68,10 @@
 
                 <div class="mt-6">
                     {{-- Das Label loest die Dateiauswahl aus und traegt das Erscheinungsbild des Primaerbuttons. --}}
-                    <label
-                        for="upload-dateien"
-                        class="inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-full border border-hvm-orange bg-hvm-orange px-6 py-3 text-base font-semibold text-hvm-textschwarz transition-colors duration-150 hover:border-hvm-orange-dark hover:bg-hvm-orange-dark"
-                    >
+                    <x-hvm.button as="label" for="upload-dateien" variant="primary">
                         <x-hvm.icon name="plus" class="h-4 w-4" />
                         Dateien auswählen
-                    </label>
+                    </x-hvm.button>
                     <input
                         id="upload-dateien"
                         data-upload-input

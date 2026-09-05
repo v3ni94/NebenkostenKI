@@ -28,6 +28,7 @@
                     inputmode="text"
                     spellcheck="false"
                     hint="Der Code wechselt alle 30 Sekunden. Alternativ können Sie einen Ihrer Wiederherstellungscodes eingeben. Jeder Wiederherstellungscode gilt genau einmal."
+                    hintPosition="below"
                     class="tracking-widest"
                     :required="true"
                     autofocus />

@@ -9,10 +9,10 @@
     @if ($werte === [])
         <p class="text-sm text-hvm-text-sekundaer">Kein Eintrag.</p>
     @else
-        <dl class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-2 gap-3">
             @foreach ($werte as $schluessel => $anzahl)
-                <x-hvm.rollout-admin-kennzahl :label="$schluessel">{{ $anzahl }}</x-hvm.rollout-admin-kennzahl>
+                <x-hvm.stat size="sm" tone="canvas" :icon="false" :label="$schluessel" :value="$anzahl" />
             @endforeach
-        </dl>
+        </div>
     @endif
 </x-hvm.card>

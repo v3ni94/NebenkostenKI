@@ -14,7 +14,7 @@
         title="Regel- und Promptversionen"
         lead="Eine Änderung an Regel oder Prompt wirkt ausschließlich auf neue Berechnungsstände. Gespeicherte Stände bleiben reproduzierbar." />
 
-    <x-hvm.rollout-admin-abschnitt class="mt-10" eyebrow="Regeln" title="Regelstände" :leer="$regelstaende === []" leer-icon="document">
+    <x-hvm.abschnitt class="mt-10" eyebrow="Regeln" title="Regelstände" :leer="$regelstaende === []" leer-icon="document">
         <table class="hvm-table hvm-table-zebra hvm-table-stack text-sm">
             <caption class="sr-only">Regelstände</caption>
             <thead>
@@ -38,7 +38,7 @@
                 @endforeach
             </tbody>
         </table>
-    </x-hvm.rollout-admin-abschnitt>
+    </x-hvm.abschnitt>
 
     <div class="mt-16 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <x-hvm.card title="Domainversionen in gespeicherten Ständen" eyebrow="Berechnung" class="min-w-0">
@@ -47,7 +47,7 @@
             @else
                 <dl class="divide-y divide-hvm-linie">
                     @foreach ($domainversionen as $version => $anzahl)
-                        <x-hvm.rollout-admin-kv :label="(string) $version">{{ $anzahl }}</x-hvm.rollout-admin-kv>
+                        <x-hvm.kv :label="(string) $version">{{ $anzahl }}</x-hvm.kv>
                     @endforeach
                 </dl>
             @endif

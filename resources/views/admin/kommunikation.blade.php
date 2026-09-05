@@ -26,7 +26,7 @@
             </p>
             <dl class="mt-4 divide-y divide-hvm-linie">
                 @foreach ($erinnerungsplan as $fenster => $termin)
-                    <x-hvm.rollout-admin-kv :label="$fenster">{{ $termin }}</x-hvm.rollout-admin-kv>
+                    <x-hvm.kv :label="$fenster">{{ $termin }}</x-hvm.kv>
                 @endforeach
             </dl>
         </x-hvm.card>
@@ -39,16 +39,16 @@
             @if ($vorlagen === [])
                 <p class="text-sm text-hvm-text-sekundaer">Kein Eintrag.</p>
             @else
-                <dl class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     @foreach ($vorlagen as $vorlage => $anzahl)
-                        <x-hvm.rollout-admin-kennzahl :label="$vorlage">{{ $anzahl }}</x-hvm.rollout-admin-kennzahl>
+                        <x-hvm.stat size="sm" tone="canvas" :icon="false" :label="$vorlage" :value="$anzahl" />
                     @endforeach
-                </dl>
+                </div>
             @endif
         </x-hvm.card>
     </div>
 
-    <x-hvm.rollout-admin-abschnitt class="mt-16" eyebrow="Zustellung" title="Fehlgeschlagene E-Mails" :leer="$fehlgeschlagen === []" leer-icon="mail">
+    <x-hvm.abschnitt class="mt-16" eyebrow="Zustellung" title="Fehlgeschlagene E-Mails" :leer="$fehlgeschlagen === []" leer-icon="mail">
         <table class="hvm-table hvm-table-zebra hvm-table-stack text-sm">
             <caption class="sr-only">Fehlgeschlagene E-Mails</caption>
             <thead>
@@ -86,9 +86,9 @@
                 @endforeach
             </tbody>
         </table>
-    </x-hvm.rollout-admin-abschnitt>
+    </x-hvm.abschnitt>
 
-    <x-hvm.rollout-admin-abschnitt class="mt-16" eyebrow="Zustellung" title="Sperrliste" :leer="$sperrliste === []" leer-icon="mail">
+    <x-hvm.abschnitt class="mt-16" eyebrow="Zustellung" title="Sperrliste" :leer="$sperrliste === []" leer-icon="mail">
         <table class="hvm-table hvm-table-zebra hvm-table-stack text-sm">
             <caption class="sr-only">Sperrliste</caption>
             <thead>
@@ -121,9 +121,9 @@
                 @endforeach
             </tbody>
         </table>
-    </x-hvm.rollout-admin-abschnitt>
+    </x-hvm.abschnitt>
 
-    <x-hvm.rollout-admin-abschnitt class="mt-16" eyebrow="Erinnerungen" title="Anstehende Erinnerungen" :leer="$anstehend === []" leer-icon="calendar">
+    <x-hvm.abschnitt class="mt-16" eyebrow="Erinnerungen" title="Anstehende Erinnerungen" :leer="$anstehend === []" leer-icon="calendar">
         <table class="hvm-table hvm-table-zebra hvm-table-stack text-sm">
             <caption class="sr-only">Anstehende Erinnerungen</caption>
             <thead>
@@ -145,5 +145,5 @@
                 @endforeach
             </tbody>
         </table>
-    </x-hvm.rollout-admin-abschnitt>
+    </x-hvm.abschnitt>
 @endsection

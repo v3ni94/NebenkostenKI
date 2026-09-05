@@ -43,30 +43,14 @@
                     autocomplete="new-password"
                     :required="true" />
 
-                {{--
-                    Kontrollkaestchen ohne x-hvm.field, weil die Beschriftung einen
-                    Link enthaelt (die Komponente rendert das Label als Text).
-                    Aufbau nach Rezept 4.6: .hvm-choice mit .hvm-check.
-                --}}
-                <div class="min-w-0">
-                    <label for="datenschutz" class="hvm-choice items-start">
-                        <input id="datenschutz" name="datenschutz" type="checkbox" value="1"
-                               class="hvm-check mt-0.5"
-                               @checked(old('datenschutz') !== null)
-                               @error('datenschutz') aria-invalid="true" aria-describedby="datenschutz-fehler" @enderror>
-                        <span class="min-w-0">
-                            Ich habe die
-                            <a class="font-medium underline decoration-hvm-hellgrau underline-offset-4 hover:decoration-hvm-textschwarz" href="{{ route('legal.datenschutz') }}">Datenschutzerklärung</a>
-                            zur Kenntnis genommen.
-                        </span>
-                    </label>
-                    @error('datenschutz')
-                        <p id="datenschutz-fehler" class="mt-1 flex items-start gap-1.5 text-sm font-medium text-status-error">
-                            <x-hvm.icon name="warning" class="mt-0.5 h-4 w-4" />
-                            <span>{{ $message }}</span>
-                        </p>
-                    @enderror
-                </div>
+                {{-- Beschriftung mit Link ueber den Slot labelHtml der Komponente. --}}
+                <x-hvm.field name="datenschutz" type="checkbox" value="1" align="start" :checked="old('datenschutz') !== null">
+                    <x-slot:labelHtml>
+                        Ich habe die
+                        <a class="font-medium underline decoration-hvm-hellgrau underline-offset-4 hover:decoration-hvm-textschwarz" href="{{ route('legal.datenschutz') }}">Datenschutzerklärung</a>
+                        zur Kenntnis genommen.
+                    </x-slot:labelHtml>
+                </x-hvm.field>
 
                 <x-hvm.button type="submit" variant="primary" size="lg" class="w-full">Konto anlegen</x-hvm.button>
             </form>

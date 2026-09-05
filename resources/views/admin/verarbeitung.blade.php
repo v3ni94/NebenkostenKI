@@ -19,7 +19,7 @@
     </div>
 
     @foreach ([['Fehlgeschlagene Teiljobs', $fehlgeschlagen, 'Wiederholbar'], ['Endgültig fehlgeschlagene Teiljobs (Dead Letter)', $deadletter, 'Endgültig']] as [$titel, $zeilen, $eyebrow])
-        <x-hvm.rollout-admin-abschnitt class="mt-16" :eyebrow="$eyebrow" :title="$titel" :leer="$zeilen === []" leer-icon="layers">
+        <x-hvm.abschnitt class="mt-16" :eyebrow="$eyebrow" :title="$titel" :leer="$zeilen === []" leer-icon="layers">
             <table class="hvm-table hvm-table-zebra hvm-table-stack text-sm">
                 <caption class="sr-only">{{ $titel }}</caption>
                 <thead>
@@ -52,6 +52,6 @@
                     @endforeach
                 </tbody>
             </table>
-        </x-hvm.rollout-admin-abschnitt>
+        </x-hvm.abschnitt>
     @endforeach
 @endsection

@@ -13,6 +13,10 @@
                  hellen Flaechen
       inverse    weisse Flaeche mit Textschwarz, fuer dunkle Flaechen
 
+    Element: href rendert einen Link, as="label" ein Label (Dateiauswahl:
+    zusammen mit for="{id}" des versteckten input type="file"), sonst einen
+    button mit type.
+
     Groessen: sm (44 px), md (48 px), lg (56 px). Alle Groessen erfuellen die
     Mindesthoehe fuer Touchziele. Wird href gesetzt, rendert die Komponente
     einen Link. Schaltflaechen sind Pills (rounded-full). Unter sm duerfen
@@ -24,6 +28,7 @@
     'size' => 'md',
     'href' => null,
     'type' => 'button',
+    'as' => null,
 ])
 
 @php
@@ -51,6 +56,10 @@
     <a href="{{ $href }}" {{ $attributes->class($klassen) }}>
         {{ $slot }}
     </a>
+@elseif ($as === 'label')
+    <label {{ $attributes->class([$klassen, 'cursor-pointer']) }}>
+        {{ $slot }}
+    </label>
 @else
     <button type="{{ $type }}" {{ $attributes->class($klassen) }}>
         {{ $slot }}

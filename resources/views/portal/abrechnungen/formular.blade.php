@@ -6,9 +6,17 @@
     $legende = 'text-lg font-semibold tracking-tight text-hvm-textschwarz sm:text-xl';
     $erlaeuterung = 'mt-2 max-w-prose text-sm leading-relaxed text-hvm-text-sekundaer';
 
-    // Weicher Trennstrich (U+00AD) als Zeichen statt &shy;, weil die
-    // Ueberschriftenkomponente den Titel escaped. Sichtbarer Text bleibt gleich.
-    $seitentitel = "Abrechnungs\u{00AD}zeitraum und Weg";
+    // Optionen des Abrechnungswegs mit den bisherigen IDs (mode-<wert>).
+    $wege = [];
+    foreach (BillingMode::cases() as $modus) {
+        $wege[$modus->value] = [
+            'label' => $modus->label(),
+            'id' => 'mode-'.$modus->value,
+            'hint' => $modus === BillingMode::QUICK_CONDO
+                ? 'Für eine vermietete Eigentumswohnung mit Hausgeldabrechnung, Grundsteuerbescheid und gegebenenfalls externer Heizkostenabrechnung.'
+                : 'Für ein Mehrfamilienhaus oder mehrere Einheiten mit allen Rechnungen, Bescheiden, Zählerdaten und Mietverträgen.',
+        ];
+    }
 @endphp
 
 @extends('layouts.portal')
@@ -19,7 +27,7 @@
     <div class="mx-auto max-w-2xl">
         <x-hvm.page-header
             eyebrow="Schritt 1"
-            :title="$seitentitel"
+            title="Abrechnungs&shy;zeitraum und Weg"
             lead="Voreingestellt ist das vollständige Vorjahr. Ein unterjähriger Zeitraum ist möglich."
             :back="route('portal.abrechnungen.index')"
             backLabel="Zurück zu den Abrechnungen" />
@@ -86,47 +94,16 @@
                     </div>
 
                     {{-- Abrechnungsweg ------------------------------------------------ --}}
-                    {{--
-                        Die Optionen behalten ihre bisherigen IDs (mode-<wert>), deshalb
-                        werden sie nach dem Rezept .hvm-choice/.hvm-check direkt gesetzt.
-                    --}}
 
                     <div class="border-t border-hvm-linie pt-8">
-                        <fieldset @if ($errors->has('mode')) aria-invalid="true" aria-describedby="mode-fehler" @endif>
-                            <legend class="{{ $legende }}">Abrechnungsweg</legend>
-                            <p class="{{ $erlaeuterung }}">
-                                Empfehlung für das gewählte Objekt: {{ $empfehlung->label() }}. Sie können den Weg jederzeit
-                                wechseln, bereits ausgelesene Inhaltsdaten bleiben dabei erhalten.
-                            </p>
-
-                            <div class="mt-4 flex flex-col gap-1">
-                                @foreach (BillingMode::cases() as $modus)
-                                    <label for="mode-{{ $modus->value }}" class="hvm-choice items-start">
-                                        <input id="mode-{{ $modus->value }}" name="mode" type="radio" value="{{ $modus->value }}"
-                                               @checked($wert('mode', $empfehlung->value) === $modus->value)
-                                               class="hvm-check mt-0.5">
-                                        <span class="min-w-0">
-                                            <span class="block font-semibold">{{ $modus->label() }}</span>
-                                            <span class="block text-xs leading-relaxed text-hvm-text-sekundaer">
-                                                @if ($modus === BillingMode::QUICK_CONDO)
-                                                    Für eine vermietete Eigentumswohnung mit Hausgeldabrechnung, Grundsteuerbescheid
-                                                    und gegebenenfalls externer Heizkostenabrechnung.
-                                                @else
-                                                    Für ein Mehrfamilienhaus oder mehrere Einheiten mit allen Rechnungen,
-                                                    Bescheiden, Zählerdaten und Mietverträgen.
-                                                @endif
-                                            </span>
-                                        </span>
-                                    </label>
-                                @endforeach
-                            </div>
-                            @error('mode')
-                                <p id="mode-fehler" class="mt-2 flex items-start gap-1.5 text-sm font-medium text-status-error">
-                                    <x-hvm.icon name="warning" class="mt-0.5 h-4 w-4" />
-                                    <span>{{ $message }}</span>
-                                </p>
-                            @enderror
-                        </fieldset>
+                        <x-hvm.field
+                            name="mode"
+                            label="Abrechnungsweg"
+                            labelSize="lg"
+                            type="radio-group"
+                            :hint="'Empfehlung für das gewählte Objekt: '.$empfehlung->label().'. Sie können den Weg jederzeit wechseln, bereits ausgelesene Inhaltsdaten bleiben dabei erhalten.'"
+                            :options="$wege"
+                            :value="$wert('mode', $empfehlung->value)" />
                     </div>
 
                     <div class="flex flex-wrap gap-3 border-t border-hvm-linie pt-8">

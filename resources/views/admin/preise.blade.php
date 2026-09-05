@@ -17,16 +17,16 @@
     <div class="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <x-hvm.card title="Geltender Stand" eyebrow="Konfiguration" class="min-w-0">
             <dl class="divide-y divide-hvm-linie">
-                <x-hvm.rollout-admin-kv label="Preis je Mieterabrechnung (brutto)">{{ \App\Application\Admin\PricingSettings::formatCent($zustand['preis_je_abrechnung_cent']) }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Grundpreis (brutto)">{{ \App\Application\Admin\PricingSettings::formatCent($zustand['grundpreis_cent']) }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Umsatzsteuersatz">{{ $zustand['steuersatz_prozent'] }} Prozent</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Zulässiger Korridor">
+                <x-hvm.kv label="Preis je Mieterabrechnung (brutto)">{{ \App\Application\Admin\PricingSettings::formatCent($zustand['preis_je_abrechnung_cent']) }}</x-hvm.kv>
+                <x-hvm.kv label="Grundpreis (brutto)">{{ \App\Application\Admin\PricingSettings::formatCent($zustand['grundpreis_cent']) }}</x-hvm.kv>
+                <x-hvm.kv label="Umsatzsteuersatz">{{ $zustand['steuersatz_prozent'] }} Prozent</x-hvm.kv>
+                <x-hvm.kv label="Zulässiger Korridor">
                     {{ \App\Application\Admin\PricingSettings::formatCent($zustand['korridor_min_cent']) }}
                     bis
                     {{ \App\Application\Admin\PricingSettings::formatCent($zustand['korridor_max_cent']) }}
-                </x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Korrektur nach Zahlung">nicht verfügbar</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Geschützte Berechnungsstände">{{ $geschuetzte_staende }}</x-hvm.rollout-admin-kv>
+                </x-hvm.kv>
+                <x-hvm.kv label="Korrektur nach Zahlung">nicht verfügbar</x-hvm.kv>
+                <x-hvm.kv label="Geschützte Berechnungsstände">{{ $geschuetzte_staende }}</x-hvm.kv>
             </dl>
 
             <p class="mt-5 max-w-prose text-sm leading-relaxed text-hvm-text-sekundaer">

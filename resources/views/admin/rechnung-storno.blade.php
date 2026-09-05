@@ -28,12 +28,12 @@
 
         <x-hvm.card title="Rechnungsdaten" eyebrow="Ursprungsrechnung">
             <dl class="divide-y divide-hvm-linie">
-                <x-hvm.rollout-admin-kv label="Nummer" :mono="true">{{ $rechnung->getAttribute('number') }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Kunde">{{ $rechnung->getAttribute('customer_name') }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Netto">{{ \App\Application\Admin\MetricsOverview::formatCent((int) $rechnung->getAttribute('net_cent')) }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Umsatzsteuer">{{ \App\Application\Admin\MetricsOverview::formatCent((int) $rechnung->getAttribute('tax_cent')) }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Brutto">{{ \App\Application\Admin\MetricsOverview::formatCent((int) $rechnung->getAttribute('gross_cent')) }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Status">{{ $rechnung->getAttribute('status')->label() }}</x-hvm.rollout-admin-kv>
+                <x-hvm.kv label="Nummer" :mono="true">{{ $rechnung->getAttribute('number') }}</x-hvm.kv>
+                <x-hvm.kv label="Kunde">{{ $rechnung->getAttribute('customer_name') }}</x-hvm.kv>
+                <x-hvm.kv label="Netto">{{ \App\Application\Admin\MetricsOverview::formatCent((int) $rechnung->getAttribute('net_cent')) }}</x-hvm.kv>
+                <x-hvm.kv label="Umsatzsteuer">{{ \App\Application\Admin\MetricsOverview::formatCent((int) $rechnung->getAttribute('tax_cent')) }}</x-hvm.kv>
+                <x-hvm.kv label="Brutto">{{ \App\Application\Admin\MetricsOverview::formatCent((int) $rechnung->getAttribute('gross_cent')) }}</x-hvm.kv>
+                <x-hvm.kv label="Status">{{ $rechnung->getAttribute('status')->label() }}</x-hvm.kv>
             </dl>
         </x-hvm.card>
 

@@ -121,7 +121,7 @@
                                     {{--
                                         Die Feldnamen kommen auf der Seite mehrfach vor (je Mietverhaeltnis und
                                         beim Leerstand). Feldfehler stehen deshalb nur in der Sammelmeldung des
-                                        Layouts; errorKey zeigt auf einen leeren Schluessel.
+                                        Layouts (Prop errors=false).
                                     --}}
                                     <form method="POST"
                                           action="{{ route('portal.belegung.store', ['tenancy' => $schluessel]) }}"
@@ -131,7 +131,7 @@
                                             <x-hvm.field
                                                 name="starts_on"
                                                 :id="'belegung-start-'.$schluessel"
-                                                :errorKey="'belegung-start-'.$schluessel"
+                                                :errors="false"
                                                 label="Von"
                                                 type="date"
                                                 :required="true"
@@ -139,7 +139,7 @@
                                             <x-hvm.field
                                                 name="ends_on"
                                                 :id="'belegung-ende-'.$schluessel"
-                                                :errorKey="'belegung-ende-'.$schluessel"
+                                                :errors="false"
                                                 label="Bis"
                                                 type="date"
                                                 :required="true"
@@ -147,7 +147,7 @@
                                             <x-hvm.field
                                                 name="person_count"
                                                 :id="'belegung-anzahl-'.$schluessel"
-                                                :errorKey="'belegung-anzahl-'.$schluessel"
+                                                :errors="false"
                                                 label="Personen"
                                                 type="number"
                                                 min="0"
@@ -228,7 +228,7 @@
                     <x-hvm.field
                         name="starts_on"
                         id="leerstand-start"
-                        errorKey="leerstand-start"
+                        :errors="false"
                         label="Von"
                         type="date"
                         :required="true"
@@ -236,7 +236,7 @@
                     <x-hvm.field
                         name="ends_on"
                         id="leerstand-ende"
-                        errorKey="leerstand-ende"
+                        :errors="false"
                         label="Bis"
                         type="date"
                         :required="true"
@@ -244,7 +244,7 @@
                     <x-hvm.field
                         name="reason"
                         id="leerstand-grund"
-                        errorKey="leerstand-grund"
+                        :errors="false"
                         label="Grund"
                         :optional="true"
                         :value="old('reason')" />

@@ -63,13 +63,11 @@
                                 inputmode="numeric"
                                 :required="true"
                                 :value="$wert('postal_code', $objekt?->postal_code)" />
-                            <div class="sm:col-span-2">
-                                <x-hvm.field
-                                    name="city"
-                                    label="Ort"
-                                    :required="true"
-                                    :value="$wert('city', $objekt?->city)" />
-                            </div>
+                            <x-hvm.field wrapperClass="sm:col-span-2"
+                                name="city"
+                                label="Ort"
+                                :required="true"
+                                :value="$wert('city', $objekt?->city)" />
                         </div>
     
                         <x-hvm.field name="kind" label="Objektart" type="select" :required="true">

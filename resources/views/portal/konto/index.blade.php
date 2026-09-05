@@ -94,10 +94,8 @@
                         <x-hvm.field name="billing_postal_code" label="Postleitzahl" type="text" inputmode="numeric"
                                      :value="$wert('billing_postal_code', $organisation->billing_postal_code)" />
 
-                        <div class="min-w-0 sm:col-span-2">
-                            <x-hvm.field name="billing_city" label="Ort" type="text"
-                                         :value="$wert('billing_city', $organisation->billing_city)" />
-                        </div>
+                        <x-hvm.field wrapperClass="sm:col-span-2" name="billing_city" label="Ort" type="text"
+                                     :value="$wert('billing_city', $organisation->billing_city)" />
                     </div>
 
                     <x-hvm.field name="vat_id" label="Umsatzsteuer-Identifikationsnummer" type="text"

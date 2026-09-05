@@ -1,5 +1,5 @@
 {{--
-    Abschnitt des Adminbereichs mit Unterabschnittskopf (Muster 4.3) und
+    Abschnitt der Anwendung (x-hvm.abschnitt) mit Unterabschnittskopf (Muster 4.3) und
     wahlweise einem weissen Rahmen fuer Tabellen (Muster 4.7) oder einem
     Leerzustand (Muster 4.11).
 

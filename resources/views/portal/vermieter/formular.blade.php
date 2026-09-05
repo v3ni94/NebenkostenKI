@@ -61,13 +61,11 @@
                                 inputmode="numeric"
                                 :required="true"
                                 :value="$wert('postal_code', $vermieter?->postal_code)" />
-                            <div class="sm:col-span-2">
-                                <x-hvm.field
-                                    name="city"
-                                    label="Ort"
-                                    :required="true"
-                                    :value="$wert('city', $vermieter?->city)" />
-                            </div>
+                            <x-hvm.field wrapperClass="sm:col-span-2"
+                                name="city"
+                                label="Ort"
+                                :required="true"
+                                :value="$wert('city', $vermieter?->city)" />
                         </div>
                     </div>
                 </fieldset>
@@ -115,14 +113,12 @@
                                 :value="$wert('account_holder', $vermieter?->account_holder)" />
 
                             <div class="grid gap-6 sm:grid-cols-3">
-                                <div class="sm:col-span-2">
-                                    <x-hvm.field
-                                        name="iban"
-                                        label="IBAN"
-                                        autocomplete="off"
-                                        spellcheck="false"
-                                        :value="$wert('iban', $vermieter?->iban)" />
-                                </div>
+                                <x-hvm.field wrapperClass="sm:col-span-2"
+                                    name="iban"
+                                    label="IBAN"
+                                    autocomplete="off"
+                                    spellcheck="false"
+                                    :value="$wert('iban', $vermieter?->iban)" />
                                 <x-hvm.field
                                     name="bic"
                                     label="BIC"

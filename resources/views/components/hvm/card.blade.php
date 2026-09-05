@@ -14,7 +14,9 @@
       eyebrow    kurze Einordnung ueber der Ueberschrift
       accent     true setzt eine kurze orange Akzentlinie ueber den Inhalt
       tone       white (Standard), canvas, dark
-      padding    md (Standard), sm, none (fuer Listen mit eigenen Zeilen)
+      padding    md (Standard), sm, none (fuer Listen und Tabellen mit eigenen
+                 Zeilen; ein title oder eyebrow bildet dann einen Kartenkopf
+                 mit Innenabstand und Trennlinie, der Slot wird direkt gerendert)
       kennlinie  true setzt die HVM-Kennlinie als obere Kartenkante
 --}}
 @props([
@@ -42,6 +44,8 @@
         default => 'p-6 sm:p-7',
     };
 
+    $kartenkopf = $padding === 'none' && ($title !== null || $eyebrow !== null || $accent);
+
     $titelfarbe = 'text-hvm-textschwarz [.hvm-dark_&]:text-white';
     $textfarbe = 'text-hvm-textschwarz [.hvm-dark_&]:text-hvm-hellgrau';
     $eyebrowfarbe = 'text-hvm-text-sekundaer [.hvm-dark_&]:text-hvm-hellgrau';
@@ -51,6 +55,10 @@
     @if ($kennlinie)
         <div class="hvm-kennlinie" aria-hidden="true"></div>
         <div class="{{ $innen }}">
+    @endif
+
+    @if ($kartenkopf)
+        <div class="border-b border-hvm-linie p-6 sm:p-7 [.hvm-dark_&]:border-hvm-graphit-soft">
     @endif
 
     @if ($accent)
@@ -65,7 +73,11 @@
         <{{ $level }} class="{{ $eyebrow !== null ? 'mt-2 ' : '' }}text-lg font-semibold tracking-tight {{ $titelfarbe }} sm:text-xl">{{ $title }}</{{ $level }}>
     @endif
 
-    @if ($padding === 'none' && $title === null && $eyebrow === null && ! $accent)
+    @if ($kartenkopf)
+        </div>
+    @endif
+
+    @if ($padding === 'none')
         {{ $slot }}
     @else
         <div class="{{ $title !== null || $eyebrow !== null ? 'mt-3 ' : '' }}text-base leading-relaxed {{ $textfarbe }}">

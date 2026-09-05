@@ -1,5 +1,5 @@
 {{--
-    Schluessel-Wert-Zeile fuer Definitionslisten im Adminbereich.
+    Schluessel-Wert-Zeile fuer Definitionslisten (x-hvm.kv).
 
     Wird innerhalb von <dl class="divide-y divide-hvm-linie"> verwendet:
     Bezeichnung links in Sekundaerfarbe, Wert rechts in Textschwarz mit

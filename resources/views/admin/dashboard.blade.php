@@ -54,8 +54,8 @@
                 </p>
             @endif
             <dl class="mt-4 divide-y divide-hvm-linie">
-                <x-hvm.rollout-admin-kv label="Offene lokale Löschungen">{{ $datenschutz['offene_lokale_loeschungen'] }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Offene Providerlöschungen">{{ $datenschutz['offene_providerloeschungen'] }}</x-hvm.rollout-admin-kv>
+                <x-hvm.kv label="Offene lokale Löschungen">{{ $datenschutz['offene_lokale_loeschungen'] }}</x-hvm.kv>
+                <x-hvm.kv label="Offene Providerlöschungen">{{ $datenschutz['offene_providerloeschungen'] }}</x-hvm.kv>
             </dl>
             <p class="mt-5">
                 <x-hvm.button href="{{ route('admin.datenschutz') }}" variant="secondary" size="sm">
@@ -94,11 +94,11 @@
         </x-hvm.card>
 
         <x-hvm.card title="Geschäftszahlen des laufenden Monats" eyebrow="Kennzahlen" class="min-w-0 lg:col-span-2">
-            <dl class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <x-hvm.rollout-admin-kennzahl label="Umsatz">{{ \App\Application\Admin\MetricsOverview::formatCent($umsatz['umsatz_cent']) }}</x-hvm.rollout-admin-kennzahl>
-                <x-hvm.rollout-admin-kennzahl label="Zahlungen">{{ $umsatz['zahlungen'] }}</x-hvm.rollout-admin-kennzahl>
-                <x-hvm.rollout-admin-kennzahl label="Vorschau zu Zahlung">{{ $conversion['quote_prozent'] === null ? 'keine Daten' : $conversion['quote_prozent'].' Prozent' }}</x-hvm.rollout-admin-kennzahl>
-            </dl>
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <x-hvm.stat size="sm" tone="canvas" :icon="false" label="Umsatz" :value="\App\Application\Admin\MetricsOverview::formatCent($umsatz['umsatz_cent'])" />
+                <x-hvm.stat size="sm" tone="canvas" :icon="false" label="Zahlungen" :value="$umsatz['zahlungen']" />
+                <x-hvm.stat size="sm" tone="canvas" :icon="false" label="Vorschau zu Zahlung" :value="$conversion['quote_prozent'] === null ? 'keine Daten' : $conversion['quote_prozent'].' Prozent'" />
+            </div>
         </x-hvm.card>
     </div>
 

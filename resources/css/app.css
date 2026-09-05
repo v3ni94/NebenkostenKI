@@ -243,6 +243,69 @@
     }
 
     /*
+      Kompakte Variante fuer horizontale Leisten mit vielen Eintraegen
+      (Admin-Bereichsnavigation): engerer Innenabstand, kleinere Schrift,
+      Icon erst ab 640 px. Die Trefferflaeche bleibt 44 px hoch.
+    */
+    .hvm-nav-item-compact {
+        gap: 0.375rem;
+        padding: 0.5rem 0.625rem;
+        font-size: 0.8125rem;
+    }
+
+    .hvm-nav-item-compact svg {
+        display: none;
+    }
+
+    @media (min-width: 640px) {
+        .hvm-nav-item-compact svg {
+            display: block;
+        }
+    }
+
+    /*
+      Fortschrittsbalken (x-hvm.progress): natives progress-Element ohne
+      Inline-Style. Bahn Canvas deep, Fortschritt Orange, Pillform.
+    */
+    .hvm-progress {
+        display: block;
+        width: 100%;
+        height: 0.375rem;
+        appearance: none;
+        -webkit-appearance: none;
+        border: 0;
+        border-radius: 9999px;
+        overflow: hidden;
+        background-color: var(--color-hvm-canvas-deep);
+        color: var(--color-hvm-orange);
+        accent-color: var(--color-hvm-orange);
+    }
+
+    .hvm-progress-md {
+        height: 0.625rem;
+    }
+
+    .hvm-progress::-webkit-progress-bar {
+        background-color: var(--color-hvm-canvas-deep);
+        border-radius: 9999px;
+    }
+
+    .hvm-progress::-webkit-progress-value {
+        background-color: var(--color-hvm-orange);
+        border-radius: 9999px;
+    }
+
+    .hvm-progress::-moz-progress-bar {
+        background-color: var(--color-hvm-orange);
+        border-radius: 9999px;
+    }
+
+    .hvm-dark .hvm-progress,
+    .hvm-dark .hvm-progress::-webkit-progress-bar {
+        background-color: var(--color-hvm-graphit-soft);
+    }
+
+    /*
       Eingabefeld des Systems. Gross (min-h-12), ruhiger Rahmen, deutlicher
       Fokusring in Orange. Wird von x-hvm.field verwendet und kann auf jedes
       input, select und textarea direkt gesetzt werden.

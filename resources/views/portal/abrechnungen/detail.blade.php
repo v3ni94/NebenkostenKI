@@ -79,7 +79,7 @@
 
     {{-- Fortschritt ueber alle Schritte --------------------------------------- --}}
 
-    <x-hvm.stepper class="mt-10" :steps="$schritte" :compact="true">
+    <x-hvm.stepper class="mt-10" :steps="$schritte">
         Jeder Schritt speichert sofort. Sie können jederzeit unterbrechen und später ohne Datenverlust fortfahren.
     </x-hvm.stepper>
 

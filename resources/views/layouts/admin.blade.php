@@ -107,7 +107,7 @@
                 <li>
                     <a href="{{ route($eintrag['route']) }}"
                        @if (request()->routeIs($eintrag['route'])) aria-current="page" @endif
-                       class="hvm-nav-item">
+                       class="hvm-nav-item hvm-nav-item-compact">
                         <x-hvm.icon :name="$eintrag['icon']" class="h-4 w-4" />
                         {{ $eintrag['label'] }}
                         @if ($eintrag['route'] === 'admin.livegang' && ! $blockerbericht->isClear())

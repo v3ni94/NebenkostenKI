@@ -118,24 +118,18 @@
             <x-hvm.field name="service_period_start" :id="$feldId('service_period_start')" label="Leistungszeitraum von" type="date" value="" />
             <x-hvm.field name="service_period_end" :id="$feldId('service_period_end')" label="Leistungszeitraum bis" type="date" value="" />
 
-            <div class="sm:col-span-2">
-                <x-hvm.field name="direct_unit_id" :id="$feldId('direct_unit_id')" label="Direkt einer Einheit zuordnen" type="select">
-                    <option value="">Keine direkte Zuordnung</option>
-                    @foreach ($einheiten as $einheit)
-                        <option value="{{ $einheit->getKey() }}">{{ $einheit->label }}</option>
-                    @endforeach
-                </x-hvm.field>
-            </div>
+            <x-hvm.field wrapperClass="sm:col-span-2" name="direct_unit_id" :id="$feldId('direct_unit_id')" label="Direkt einer Einheit zuordnen" type="select">
+                <option value="">Keine direkte Zuordnung</option>
+                @foreach ($einheiten as $einheit)
+                    <option value="{{ $einheit->getKey() }}">{{ $einheit->label }}</option>
+                @endforeach
+            </x-hvm.field>
 
-            <div class="sm:col-span-2">
-                <x-hvm.field name="include_despite_status" :id="$feldId('include_despite_status')" label="Trotz Einordnung umlegen" type="checkbox" value="1"
-                             :checked="false"
-                             hint="Nur mit Begründung. Die Begründung wird gespeichert und ist keine juristische Freigabe." />
-            </div>
+            <x-hvm.field wrapperClass="sm:col-span-2" name="include_despite_status" :id="$feldId('include_despite_status')" label="Trotz Einordnung umlegen" type="checkbox" value="1"
+                         :checked="false"
+                         hint="Nur mit Begründung. Die Begründung wird gespeichert und ist keine juristische Freigabe." />
 
-            <div class="sm:col-span-2">
-                <x-hvm.field name="apportionment_override_reason" :id="$feldId('apportionment_override_reason')" label="Begründung" type="textarea" rows="2" maxlength="1000" value="" />
-            </div>
+            <x-hvm.field wrapperClass="sm:col-span-2" name="apportionment_override_reason" :id="$feldId('apportionment_override_reason')" label="Begründung" type="textarea" rows="2" maxlength="1000" value="" />
         </div>
 
         <div class="flex flex-wrap gap-3">

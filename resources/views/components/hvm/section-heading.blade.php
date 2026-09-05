@@ -6,7 +6,8 @@
 
     Props:
       eyebrow  kurze Einordnung ueber der Ueberschrift (mit orangem Strich)
-      title    Ueberschriftentext
+      title    Ueberschriftentext. Ein &shy; im Text wird als weicher
+               Trennstrich (U+00AD) ausgegeben, alles andere bleibt escaped.
       level    Ueberschriftenebene, Standard h2
       lead     einleitender Satz unter der Ueberschrift
       align    left oder center
@@ -22,6 +23,8 @@
 ])
 
 @php
+    $titel = str_replace('&shy;', "\u{00AD}", $title);
+
     $titelgroesse = match ($size) {
         'lg' => 'text-4xl sm:text-5xl lg:text-6xl',
         'sm' => 'text-xl sm:text-2xl',
@@ -46,7 +49,7 @@
         </p>
     @endif
 
-    <{{ $level }} class="{{ $eyebrow !== null ? 'mt-4 ' : '' }}{{ $titelgroesse }} font-semibold tracking-tight text-hvm-textschwarz [.hvm-dark_&]:text-white">{{ $title }}</{{ $level }}>
+    <{{ $level }} class="{{ $eyebrow !== null ? 'mt-4 ' : '' }}{{ $titelgroesse }} font-semibold tracking-tight text-hvm-textschwarz [.hvm-dark_&]:text-white">{{ $titel }}</{{ $level }}>
 
     @if ($lead !== null)
         <p class="{{ $leadgroesse }} max-w-prose leading-relaxed text-hvm-text-sekundaer [.hvm-dark_&]:text-hvm-hellgrau {{ $align === 'center' ? 'mx-auto' : '' }}">{{ $lead }}</p>

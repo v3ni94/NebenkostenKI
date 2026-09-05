@@ -24,16 +24,16 @@
     <div class="mt-10 max-w-3xl">
         <x-hvm.card title="Stand des Laufs" eyebrow="Lauf">
             <dl class="divide-y divide-hvm-linie">
-                <x-hvm.rollout-admin-kv label="Kennung" :mono="true">{{ $lauf->getKey() }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Abrechnungsjahr">{{ $lauf->getAttribute('billing_year') }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Zeitraum">
+                <x-hvm.kv label="Kennung" :mono="true">{{ $lauf->getKey() }}</x-hvm.kv>
+                <x-hvm.kv label="Abrechnungsjahr">{{ $lauf->getAttribute('billing_year') }}</x-hvm.kv>
+                <x-hvm.kv label="Zeitraum">
                     {{ \Illuminate\Support\Carbon::parse((string) $lauf->getAttribute('period_start'))->format('d.m.Y') }}
                     bis
                     {{ \Illuminate\Support\Carbon::parse((string) $lauf->getAttribute('period_end'))->format('d.m.Y') }}
-                </x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Status">{{ $lauf->getAttribute('status')->label() }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Schritt">{{ $lauf->getAttribute('wizard_step') }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Mieterabrechnungen">{{ $lauf->getAttribute('statement_count') }}</x-hvm.rollout-admin-kv>
+                </x-hvm.kv>
+                <x-hvm.kv label="Status">{{ $lauf->getAttribute('status')->label() }}</x-hvm.kv>
+                <x-hvm.kv label="Schritt">{{ $lauf->getAttribute('wizard_step') }}</x-hvm.kv>
+                <x-hvm.kv label="Mieterabrechnungen">{{ $lauf->getAttribute('statement_count') }}</x-hvm.kv>
             </dl>
         </x-hvm.card>
     </div>

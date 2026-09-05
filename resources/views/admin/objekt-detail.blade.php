@@ -19,9 +19,9 @@
     <div class="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <x-hvm.card title="Stammdaten" eyebrow="Objekt" class="min-w-0">
             <dl class="divide-y divide-hvm-linie">
-                <x-hvm.rollout-admin-kv label="Kennung" :mono="true">{{ $objekt->getKey() }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Art">{{ $objekt->getAttribute('kind')->label() }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Ort">{{ $objekt->getAttribute('city') }}</x-hvm.rollout-admin-kv>
+                <x-hvm.kv label="Kennung" :mono="true">{{ $objekt->getKey() }}</x-hvm.kv>
+                <x-hvm.kv label="Art">{{ $objekt->getAttribute('kind')->label() }}</x-hvm.kv>
+                <x-hvm.kv label="Ort">{{ $objekt->getAttribute('city') }}</x-hvm.kv>
             </dl>
         </x-hvm.card>
 
