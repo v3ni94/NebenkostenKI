@@ -5,7 +5,12 @@ declare(strict_types=1);
 use App\Http\Controllers\Maintenance\CronController;
 use App\Http\Controllers\ReminderUnsubscribeController;
 use App\Http\Controllers\Webhook\StripeWebhookController;
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Cookie\Middleware\EncryptCookies;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 /*
 |------------------------------------------------------------------------------
@@ -52,8 +57,17 @@ Route::name('legal.')->group(function (): void {
 // Fuer Hosting ohne Shell (Cronjob nur als Webadresse). Nur mit CRON_TOKEN
 // aktiv, jeder Aufruf verlangt den Schluessel, siehe CronController.
 
+// Ohne Session, Cookies und CSRF: Der Aufruf muss auch funktionieren, bevor
+// die Datenbanktabellen fuer Sitzungen und Cache existieren (Erstinstallation).
 Route::get('/wartung/{aufgabe}', CronController::class)
     ->middleware('throttle:wartung')
+    ->withoutMiddleware([
+        EncryptCookies::class,
+        AddQueuedCookiesToResponse::class,
+        StartSession::class,
+        ShareErrorsFromSession::class,
+        ValidateCsrfToken::class,
+    ])
     ->where('aufgabe', '[a-z-]+')
     ->name('wartung');
 

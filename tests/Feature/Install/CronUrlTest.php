@@ -95,6 +95,16 @@ final class CronUrlTest extends TestCase
     {
         config()->set('smartabrechnen.cron_token', self::TOKEN);
 
-        $this->get('/wartung/admin?token='.self::TOKEN)->assertSessionHasErrors('email');
+        $this->get('/wartung/admin?token='.self::TOKEN)->assertStatus(422)->assertSee('Ungültige Eingabe');
+    }
+
+    public function test_wartungsaufruf_setzt_keine_sitzung_und_kein_cookie(): void
+    {
+        config()->set('smartabrechnen.cron_token', self::TOKEN);
+
+        $antwort = $this->get('/wartung/schedule?token='.self::TOKEN);
+
+        $antwort->assertOk();
+        self::assertSame([], $antwort->headers->getCookies(), 'Der Wartungsaufruf darf keine Cookies setzen.');
     }
 }

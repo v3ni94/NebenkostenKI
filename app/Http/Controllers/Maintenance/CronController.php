@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -79,10 +80,19 @@ final class CronController extends Controller
         $parameter = ['--no-interaction' => true];
 
         if ($aufgabe === 'admin') {
-            $eingaben = $request->validate([
+            // Ohne Session: Validierungsfehler werden als Text beantwortet,
+            // nicht als Redirect mit Fehlerbeutel.
+            $validator = Validator::make($request->query(), [
                 'email' => ['required', 'email:rfc', 'max:255'],
                 'name' => ['nullable', 'string', 'max:120', Rule::notIn([''])],
             ]);
+
+            if ($validator->fails()) {
+                return response('Ungültige Eingabe: '.implode(' ', $validator->errors()->all()), 422)
+                    ->header('Content-Type', 'text/plain; charset=UTF-8');
+            }
+
+            $eingaben = $validator->validated();
             $parameter['--email'] = $eingaben['email'];
             if (isset($eingaben['name'])) {
                 $parameter['--name'] = $eingaben['name'];
