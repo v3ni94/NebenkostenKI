@@ -17,26 +17,26 @@
     <section>
         <x-hvm.alert variant="info" title="Verständliche Erläuterung getrennt verfügbar">
             Die Funktionsweise der Uploadverarbeitung und der automatischen Löschung ist unter
-            <a href="{{ route('site.datenschutz-konzept') }}" class="underline underline-offset-2">Datenschutz und Löschung</a>
+            <a href="{{ route('site.datenschutz-konzept') }}" class="font-medium text-hvm-textschwarz underline decoration-hvm-orange decoration-2 underline-offset-4">Datenschutz und Löschung</a>
             allgemein verständlich beschrieben. Diese Erläuterung ist keine Datenschutzerklärung und ersetzt sie nicht.
         </x-hvm.alert>
     </section>
 
     <section>
-        <h2 class="text-xl font-semibold text-hvm-anthrazit">1. Verantwortlicher und Datenschutzbeauftragter</h2>
+        <h2 class="text-2xl font-semibold tracking-tight text-hvm-textschwarz">1. Verantwortlicher und Datenschutzbeauftragter</h2>
         <p class="mt-3">[Verantwortlicher im Sinne der Datenschutz-Grundverordnung, Angaben siehe Impressum]</p>
         <p class="mt-2">[Kontaktdaten für Datenschutzanfragen]</p>
         <p class="mt-2">[Angabe, ob ein Datenschutzbeauftragter benannt ist]</p>
     </section>
 
     <section>
-        <h2 class="text-xl font-semibold text-hvm-anthrazit">2. Begriffe und Grundsätze</h2>
+        <h2 class="text-2xl font-semibold tracking-tight text-hvm-textschwarz">2. Begriffe und Grundsätze</h2>
         <p class="mt-3">[Begriffsbestimmungen und Grundsätze der Verarbeitung]</p>
     </section>
 
     <section>
-        <h2 class="text-xl font-semibold text-hvm-anthrazit">3. Verarbeitete Datenkategorien</h2>
-        <ul class="mt-3 list-disc space-y-2 pl-5">
+        <h2 class="text-2xl font-semibold tracking-tight text-hvm-textschwarz">3. Verarbeitete Datenkategorien</h2>
+        <ul class="mt-4 list-disc space-y-2 pl-5 marker:text-hvm-mittelgrau">
             <li>[Konto- und Kontaktdaten]</li>
             <li>[Vertrags- und Abrechnungsdaten]</li>
             <li>[Objekt-, Einheiten- und Mietverhältnisdaten einschließlich Daten Dritter]</li>
@@ -49,14 +49,14 @@
     </section>
 
     <section>
-        <h2 class="text-xl font-semibold text-hvm-anthrazit">4. Zwecke und Rechtsgrundlagen</h2>
+        <h2 class="text-2xl font-semibold tracking-tight text-hvm-textschwarz">4. Zwecke und Rechtsgrundlagen</h2>
         <p class="mt-3">[Zwecke der Verarbeitung je Datenkategorie]</p>
         <p class="mt-2">[Rechtsgrundlagen je Verarbeitungsvorgang]</p>
         <p class="mt-2">[Hinweis auf die Verarbeitung von Daten der Mieter im Auftrag des Vermieters und die Rollenverteilung]</p>
     </section>
 
     <section>
-        <h2 class="text-xl font-semibold text-hvm-anthrazit">5. Uploads, temporäre Verarbeitung und Löschung</h2>
+        <h2 class="text-2xl font-semibold tracking-tight text-hvm-textschwarz">5. Uploads, temporäre Verarbeitung und Löschung</h2>
         <p class="mt-3">[Beschreibung des temporären verschlüsselten Arbeitsbereichs]</p>
         <p class="mt-2">[Löschung nach Auswertung, Löschung bei Fehler und maximale Aufbewahrungsdauer]</p>
         <p class="mt-2">[Ausschluss der temporären Daten aus Backups]</p>
@@ -65,7 +65,7 @@
     </section>
 
     <section>
-        <h2 class="text-xl font-semibold text-hvm-anthrazit">6. Einsatz von KI-Diensten</h2>
+        <h2 class="text-2xl font-semibold tracking-tight text-hvm-textschwarz">6. Einsatz von KI-Diensten</h2>
         <p class="mt-3">[Benennung des eingesetzten Dienstes und des Verarbeitungszwecks]</p>
         <p class="mt-2">[Umfang der übermittelten Inhalte]</p>
         <p class="mt-2">[Angaben zu Speicherdauer, Löschung und Datenschutzentscheidung des Anbieters]</p>
@@ -73,8 +73,8 @@
     </section>
 
     <section>
-        <h2 class="text-xl font-semibold text-hvm-anthrazit">7. Empfänger und Auftragsverarbeiter</h2>
-        <ul class="mt-3 list-disc space-y-2 pl-5">
+        <h2 class="text-2xl font-semibold tracking-tight text-hvm-textschwarz">7. Empfänger und Auftragsverarbeiter</h2>
+        <ul class="mt-4 list-disc space-y-2 pl-5 marker:text-hvm-mittelgrau">
             <li>[Hosting und Infrastruktur]</li>
             <li>[E-Mail-Versand]</li>
             <li>[Zahlungsdienstleister]</li>
@@ -84,31 +84,31 @@
     </section>
 
     <section>
-        <h2 class="text-xl font-semibold text-hvm-anthrazit">8. Speicherdauer</h2>
+        <h2 class="text-2xl font-semibold tracking-tight text-hvm-textschwarz">8. Speicherdauer</h2>
         <p class="mt-3">[Speicher- und Löschfristen je Datenkategorie]</p>
         <p class="mt-2">[gesetzliche Aufbewahrungspflichten für Rechnungen]</p>
     </section>
 
     <section>
-        <h2 class="text-xl font-semibold text-hvm-anthrazit">9. Cookies und technisch notwendige Speicherung</h2>
+        <h2 class="text-2xl font-semibold tracking-tight text-hvm-textschwarz">9. Cookies und technisch notwendige Speicherung</h2>
         <p class="mt-3">[Auflistung der technisch notwendigen Cookies und ihrer Laufzeit]</p>
         <p class="mt-2">[Hinweis, dass keine Analyse- und Marketingtracker eingesetzt werden]</p>
     </section>
 
     <section>
-        <h2 class="text-xl font-semibold text-hvm-anthrazit">10. Ihre Rechte</h2>
+        <h2 class="text-2xl font-semibold tracking-tight text-hvm-textschwarz">10. Ihre Rechte</h2>
         <p class="mt-3">[Auskunft, Berichtigung, Löschung, Einschränkung, Datenübertragbarkeit, Widerspruch]</p>
         <p class="mt-2">[Widerruf von Einwilligungen]</p>
         <p class="mt-2">[Beschwerderecht bei einer Aufsichtsbehörde und Angabe der zuständigen Behörde]</p>
     </section>
 
     <section>
-        <h2 class="text-xl font-semibold text-hvm-anthrazit">11. Datensicherheit</h2>
+        <h2 class="text-2xl font-semibold tracking-tight text-hvm-textschwarz">11. Datensicherheit</h2>
         <p class="mt-3">[technische und organisatorische Maßnahmen in zusammengefasster Form]</p>
     </section>
 
     <section>
-        <h2 class="text-xl font-semibold text-hvm-anthrazit">12. Änderungen dieser Erklärung</h2>
+        <h2 class="text-2xl font-semibold tracking-tight text-hvm-textschwarz">12. Änderungen dieser Erklärung</h2>
         <p class="mt-3">[Verfahren bei Aktualisierungen und Angabe des Stands]</p>
     </section>
 @endsection

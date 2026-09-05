@@ -21,7 +21,7 @@
 
 @section('legal_content')
     <section>
-        <h2 class="text-xl font-semibold text-hvm-anthrazit">Anbieter</h2>
+        <h2 class="text-2xl font-semibold tracking-tight text-hvm-textschwarz">Anbieter</h2>
         <p class="mt-3">
             Smart Abrechnen (smart-abrechnen.de) ist eine Marke und ein Dienst der {{ $operator['legal_name'] }}.
             Vertragspartnerin und Betreiberin ist:
@@ -34,13 +34,13 @@
     </section>
 
     <section>
-        <h2 class="text-xl font-semibold text-hvm-anthrazit">Vertretungsberechtigt</h2>
+        <h2 class="text-2xl font-semibold tracking-tight text-hvm-textschwarz">Vertretungsberechtigt</h2>
         <p class="mt-3">Geschäftsführer: {{ $operator['managing_director'] }}</p>
     </section>
 
     <section>
-        <h2 class="text-xl font-semibold text-hvm-anthrazit">Registereintrag</h2>
-        <dl class="mt-3 space-y-1">
+        <h2 class="text-2xl font-semibold tracking-tight text-hvm-textschwarz">Registereintrag</h2>
+        <dl class="mt-3 space-y-2">
             <div>
                 <dt class="inline font-medium">Registergericht:</dt>
                 <dd class="inline">{{ $operator['register_court'] }}</dd>
@@ -53,18 +53,18 @@
     </section>
 
     <section>
-        <h2 class="text-xl font-semibold text-hvm-anthrazit">Kontakt</h2>
-        <dl class="mt-3 space-y-1">
+        <h2 class="text-2xl font-semibold tracking-tight text-hvm-textschwarz">Kontakt</h2>
+        <dl class="mt-3 space-y-2">
             <div>
                 <dt class="inline font-medium">E-Mail:</dt>
                 <dd class="inline">
-                    <a href="mailto:kontakt@smart-abrechnen.de" class="underline underline-offset-2">kontakt@smart-abrechnen.de</a>
+                    <a href="mailto:kontakt@smart-abrechnen.de" class="font-medium text-hvm-textschwarz underline decoration-hvm-orange decoration-2 underline-offset-4">kontakt@smart-abrechnen.de</a>
                 </dd>
             </div>
             <div>
                 <dt class="inline font-medium">Website:</dt>
                 <dd class="inline">
-                    <a href="{{ $operator['website'] }}" class="underline underline-offset-2">{{ $operator['website'] }}</a>
+                    <a href="{{ $operator['website'] }}" class="font-medium text-hvm-textschwarz underline decoration-hvm-orange decoration-2 underline-offset-4">{{ $operator['website'] }}</a>
                 </dd>
             </div>
             <div>
@@ -72,14 +72,14 @@
                 <dd class="inline">{{ $platzhalter }}</dd>
             </div>
         </dl>
-        <p class="mt-3 text-sm">
+        <p class="mt-3 text-sm leading-relaxed text-hvm-text-sekundaer">
             Eine Telefonnummer wird erst aufgenommen, wenn die Betreiberin sie ausdrücklich freigibt.
         </p>
     </section>
 
     <section>
-        <h2 class="text-xl font-semibold text-hvm-anthrazit">Steuerliche Angaben</h2>
-        <dl class="mt-3 space-y-1">
+        <h2 class="text-2xl font-semibold tracking-tight text-hvm-textschwarz">Steuerliche Angaben</h2>
+        <dl class="mt-3 space-y-2">
             <div>
                 <dt class="inline font-medium">Umsatzsteuer-Identifikationsnummer:</dt>
                 <dd class="inline">
@@ -103,7 +103,7 @@
         </dl>
 
         @if (blank($operator['vat_id']) || blank($operator['tax_id']))
-            <div class="mt-4">
+            <div class="mt-5">
                 <x-hvm.alert variant="warning" title="Angabe fehlt noch">
                     Die steuerlichen Angaben sind noch nicht hinterlegt. Sie werden von der Betreiberin bestätigt und
                     vor dem Livegang ergänzt. Ob eine Veröffentlichung der Steuernummer erforderlich ist, wird
@@ -114,14 +114,14 @@
     </section>
 
     <section>
-        <h2 class="text-xl font-semibold text-hvm-anthrazit">Verantwortlich für den Inhalt</h2>
+        <h2 class="text-2xl font-semibold tracking-tight text-hvm-textschwarz">Verantwortlich für den Inhalt</h2>
         <p class="mt-3">[Angabe und Normverweis vor Livegang anwaltlich prüfen und ergänzen]</p>
     </section>
 
     <section>
-        <h2 class="text-xl font-semibold text-hvm-anthrazit">Weitere Pflichtangaben</h2>
+        <h2 class="text-2xl font-semibold tracking-tight text-hvm-textschwarz">Weitere Pflichtangaben</h2>
         <p class="mt-3">Die folgenden Punkte sind als Gliederung angelegt und noch ohne Text:</p>
-        <ul class="mt-3 list-disc space-y-2 pl-5">
+        <ul class="mt-4 list-disc space-y-2 pl-5 marker:text-hvm-mittelgrau">
             <li>[Norm und Fundstelle der Anbieterkennzeichnung]</li>
             <li>[Zuständige Aufsichtsbehörde, soweit erforderlich]</li>
             <li>[Berufsrechtliche Angaben, soweit erforderlich]</li>
@@ -134,7 +134,7 @@
     </section>
 
     <section>
-        <h2 class="text-xl font-semibold text-hvm-anthrazit">Rolle der Betreiberin</h2>
+        <h2 class="text-2xl font-semibold tracking-tight text-hvm-textschwarz">Rolle der Betreiberin</h2>
         <p class="mt-3">
             Die {{ $operator['legal_name'] }} stellt unter der Marke Smart Abrechnen ein Software-Werkzeug bereit. Absender und
             inhaltlich verantwortlich für die erstellte Betriebskostenabrechnung ist der jeweilige Vermieter
