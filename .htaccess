@@ -16,7 +16,9 @@
 # Reihenfolge ist verbindlich: erst sperren, dann umschreiben. Die Sperren
 # greifen auf den angefragten Pfad, bevor eine Umschreibung stattfindet.
 
-Options -Indexes -MultiViews
+# Kein "Options"-Befehl: IONOS Webhosting erlaubt ihn in Kundenverzeichnissen
+# nicht und antwortet sonst mit Fehler 500. Verzeichnislisten sind ohne
+# Wirkung, weil jede Anfrage nach current/public/ umgeschrieben wird.
 
 <IfModule mod_rewrite.c>
     RewriteEngine On

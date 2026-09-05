@@ -108,7 +108,8 @@ final class HtaccessTest extends TestCase
         $this->assertNotFalse($ersteSperre);
         $this->assertNotFalse($umschreibung);
         $this->assertLessThan($umschreibung, $ersteSperre, 'Sperren muessen vor der Umschreibung nach public/ stehen.');
-        $this->assertStringContainsString('Options -Indexes', $inhalt);
+        // Kein Options-Befehl: IONOS beantwortet ihn in Kundenverzeichnissen mit 500.
+        $this->assertStringNotContainsString('Options ', $inhalt);
         $this->assertStringContainsString('Require all denied', $inhalt);
     }
 
