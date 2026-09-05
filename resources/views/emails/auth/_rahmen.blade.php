@@ -111,9 +111,13 @@
                         <td style="padding:24px 32px 28px 32px; font-family:Arial, Helvetica, sans-serif;">
                             <p style="margin:0 0 4px 0; font-size:14px; color:#1a1a1a;">Mit freundlichen Grüßen</p>
                             <p style="margin:0; font-size:14px; color:#1a1a1a;">Ihr Team von Smart Abrechnen</p>
+                            <p style="margin:2px 0 0 0; font-size:13px; color:#87888a;">{{ $betreiber['legal_name'] }}</p>
 
                             <hr style="border:0; border-top:1px solid #d7d8da; margin:20px 0 12px 0;">
 
+                            <p style="margin:0 0 6px 0; font-size:12px; line-height:1.6; color:#87888a;">
+                                {{ config('smartabrechnen.brand.relation') }}
+                            </p>
                             <p style="margin:0; font-size:12px; line-height:1.6; color:#87888a;">
                                 {{ $betreiber['legal_name'] }}<br>
                                 {{ $betreiber['address_line'] }}, {{ $betreiber['postal_code'] }} {{ $betreiber['city'] }}<br>

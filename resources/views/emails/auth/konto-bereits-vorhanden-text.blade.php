@@ -25,8 +25,10 @@ unverändert. Es wurde durch diesen Versuch kein Zugang gewährt.
 
 Mit freundlichen Grüßen
 Ihr Team von Smart Abrechnen
+{{ $betreiber['legal_name'] }}
 
 --
+{{ config('smartabrechnen.brand.relation') }}
 {{ $betreiber['legal_name'] }}
 {{ $betreiber['address_line'] }}, {{ $betreiber['postal_code'] }} {{ $betreiber['city'] }}
 {{ $betreiber['register_court'] }}, {{ $betreiber['register_number'] }}

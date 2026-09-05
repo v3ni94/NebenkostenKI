@@ -22,6 +22,10 @@
 @section('legal_content')
     <section>
         <h2 class="text-xl font-semibold text-hvm-anthrazit">Anbieter</h2>
+        <p class="mt-3">
+            Smart Abrechnen (smart-abrechnen.de) ist eine Marke und ein Dienst der {{ $operator['legal_name'] }}.
+            Vertragspartnerin und Betreiberin ist:
+        </p>
         <address class="mt-3 not-italic">
             {{ $operator['legal_name'] }}<br>
             {{ $operator['address_line'] }}<br>
@@ -132,7 +136,7 @@
     <section>
         <h2 class="text-xl font-semibold text-hvm-anthrazit">Rolle der Betreiberin</h2>
         <p class="mt-3">
-            Die {{ $operator['legal_name'] }} stellt mit smart-abrechnen.de ein Software-Werkzeug bereit. Absender und
+            Die {{ $operator['legal_name'] }} stellt unter der Marke Smart Abrechnen ein Software-Werkzeug bereit. Absender und
             inhaltlich verantwortlich für die erstellte Betriebskostenabrechnung ist der jeweilige Vermieter
             beziehungsweise Eigentümer. Eine Rechtsberatung im Einzelfall erfolgt nicht.
         </p>

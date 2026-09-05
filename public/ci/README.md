@@ -12,5 +12,6 @@ Erwartete Dateien:
 | `Logo_HVM.svg` | optional, bevorzugt für den Webheader | falls vorhanden |
 | `favicon.ico` | Browser-Tab | optional |
 
-Solange die Dateien fehlen, zeigt die Oberfläche einen neutralen Textplatzhalter
+`Logo_HVM.jpg` liegt seit dem 05.09.2026 aus dem CI der Hausverwaltung Müller GmbH
+vor. Solange die übrigen Dateien fehlen, zeigt die Oberfläche einen neutralen Textplatzhalter
 und der Adminbereich führt einen Livegang-Blocker.

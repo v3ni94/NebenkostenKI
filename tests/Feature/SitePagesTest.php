@@ -177,6 +177,18 @@ final class SitePagesTest extends TestCase
         $antwort->assertDontSee('Hausverwaltung Mueller GmbH');
     }
 
+    public function test_startseite_ordnet_die_marke_der_betreiberin_zu_und_zeigt_ihr_logo(): void
+    {
+        $antwort = $this->get(route('site.home'));
+
+        $antwort->assertOk();
+        $antwort->assertSee('Smart Abrechnen ist ein Dienst der Hausverwaltung Müller GmbH.');
+        $antwort->assertSee('Ein Dienst der Hausverwaltung Müller GmbH');
+        $antwort->assertDontSee('Angebot der');
+        $antwort->assertSee('ci/Logo_HVM.jpg');
+        $antwort->assertSee('alt="Hausverwaltung Müller GmbH"', false);
+    }
+
     public function test_startseite_gibt_den_preis_aus_der_konfiguration_aus(): void
     {
         $antwort = $this->get(route('site.home'));

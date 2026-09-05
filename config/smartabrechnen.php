@@ -46,6 +46,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Marke
+    |--------------------------------------------------------------------------
+    |
+    | Smart Abrechnen ist keine eigene Gesellschaft, sondern eine Marke und ein
+    | Dienst der Hausverwaltung Mueller GmbH. Die Betreiberin bleibt in allen
+    | Aussenauftritten (Website, Portal, E-Mails, Rechnung) erkennbar. Der
+    | Zuordnungssatz wird zentral gepflegt und in den Layouts nicht abgewandelt.
+    |
+    */
+    'brand' => [
+        'name' => 'Smart Abrechnen',
+        'domain' => 'smart-abrechnen.de',
+        'relation' => 'Smart Abrechnen ist ein Dienst der Hausverwaltung Müller GmbH.',
+        'relation_short' => 'Ein Dienst der Hausverwaltung Müller GmbH',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Preislogik
     |--------------------------------------------------------------------------
     |

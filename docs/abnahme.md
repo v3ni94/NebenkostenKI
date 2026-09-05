@@ -68,7 +68,7 @@ Zielsystem aber aussteht und benannt wird.
 | 18 | Das SFTP-Deployment ist reproduzierbar und rollbackfähig | erfüllt mit Einschränkung | `.github/workflows/deploy.yml` baut ein reproduzierbares Releasepaket und führt die Testsuite vor der Paketierung aus. Das Rollbackverfahren über getrennte Releaseverzeichnisse und einen Releasezeiger ist dokumentiert. **Offen:** der Übertragungsschritt ist bewusst nicht aktiviert, der Job gibt derzeit nur die Schrittfolge aus (`deploy.yml:111` bis 120). Er wartet auf Zielpfad und Zugangsdaten. Verantwortlich: Betreiber stellt den Zugang, technische Betreuung aktiviert |
 | 19 | MariaDB 10.11 und 11.x sind unterstützt | erfüllt | Die CI fährt die Migrationen, einen Rollback und die Testsuite gegen `mariadb:10.11` und `mariadb:11.4` (`.github/workflows/ci.yml:59` bis 160). Zur Laufzeit prüft `SystemHealthCheck::isSupportedMariaDbVersion()` die Serverversion und meldet eine nicht freigegebene Version im Adminbereich |
 | 20 | Tests, Sicherheitschecks, Backup und Restore sind dokumentiert | erfüllt | Teststrategie in ARCHITECTURE.md Abschnitt 9, Threat Model in Abschnitt 7 mit Testnachweisen, Prüfbefehle in der README, Betriebsdokumente in [betrieb/backup-und-restore.md](betrieb/backup-und-restore.md) und [betrieb/loeschkonzept-betrieb.md](betrieb/loeschkonzept-betrieb.md) |
-| 21 | Alle Livegang-Blocker im Adminbereich sind gelöst | nicht erfüllt, planmäßig offen | `LaunchBlockerCheck` meldet aktuell sechs blockierende Punkte und eine offene kaufmännische Entscheidung. Alle sieben verlangen ausschließlich Angaben, Verträge, Schlüssel oder Assets des Betreibers. Die vollständige Liste steht in Abschnitt 7 dieses Protokolls |
+| 21 | Alle Livegang-Blocker im Adminbereich sind gelöst | nicht erfüllt, planmäßig offen | `LaunchBlockerCheck` meldet aktuell fünf blockierende Punkte. Alle verlangen ausschließlich Angaben, Verträge, Schlüssel oder Assets des Betreibers. Die vollständige Liste steht in Abschnitt 7 dieses Protokolls |
 
 ---
 
@@ -340,7 +340,7 @@ abgeschrieben, sondern ausgeführt.
 | B3 | blockierend | KI-Provider | Datenschutzfreigabe für OpenAI und Anthropic. `AI_DATA_RETENTION_APPROVED` bleibt `false`, solange kein Nachweis über Zero Data Retention je Providerorganisation, Modell und genutzter Funktion vorliegt | Betreiber, mit Auftragsverarbeitungsvertrag und Retention-Dokumentation |
 | B4 | blockierend | Uploads | `MALWARE_SCANNER_DRIVER=disabled`. Zu entscheiden ist `clamav`, `external` oder eine schriftliche Risikobewertung | Betreiber |
 | B5 | blockierend | Recht | Impressum, Datenschutzerklärung, AGB und Widerrufsbelehrung sind Platzhalterfassungen | Betreiber über die beauftragte Rechtsanwaltskanzlei |
-| B6 | blockierend | Gestaltung | in `public/ci` fehlt `Logo_HVM.svg` oder `Logo_HVM.jpg` | Betreiber; es wird kein Logo erzeugt oder nachgezeichnet |
+| B6 | erledigt | Gestaltung | `public/ci/Logo_HVM.jpg` liegt seit dem 05.09.2026 aus dem CI der Hausverwaltung Müller GmbH vor (1320 x 1143). Ein SVG ist optional | Betreiber, erledigt |
 | B7 | entfallen | Preis | Die Korrektur nach Zahlung ist zum Start nicht verfügbar (ADR-016), `PRICE_CORRECTION_FREE_DAYS` hat keine Wirkung und ist kein Blocker mehr | Geschäftsführung entscheidet über eine spätere Umsetzung |
 
 Nicht technisch erkennbar und deshalb nicht in der Blockerliste, aber vor dem

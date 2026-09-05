@@ -113,7 +113,7 @@ vendor/bin/phpstan analyse --no-progress --memory-limit=1G
 vendor/bin/pint --test
 ```
 
-Stand 04.09.2026: **2.407 Tests mit 15.075 Assertions grün**, PHPStan Level 6
+Stand 05.09.2026: **2.409 Tests mit 15.075 Assertions grün**, PHPStan Level 6
 projektweit fehlerfrei, Pint sauber. Einzelne Nachweise lassen sich gezielt
 laufen, zum Beispiel:
 
@@ -255,7 +255,6 @@ Checkliste, auch für das, was technisch nicht selbst erkennbar ist.
 | blockierend | KI-Provider | Datenschutzfreigabe fehlt für OpenAI und Anthropic; `AI_DATA_RETENTION_APPROVED` steht auf `false`, solange kein Nachweis über Zero Data Retention je Providerorganisation, Modell und Funktion vorliegt | Betreiber, mit Auftragsverarbeitungsvertrag und Retention-Dokumentation |
 | blockierend | Uploads | `MALWARE_SCANNER_DRIVER=disabled`; zu entscheiden ist `clamav`, `external` oder eine schriftliche Risikobewertung | Betreiber |
 | blockierend | Recht | Impressum, Datenschutzerklärung, AGB und Widerrufsbelehrung sind Platzhalterfassungen | Betreiber über die beauftragte Kanzlei |
-| blockierend | Gestaltung | in `public/ci` fehlt `Logo_HVM.svg` oder `Logo_HVM.jpg` | Betreiber; es wird kein Logo erzeugt oder nachgezeichnet |
 
 Nicht als Blocker erkennbar, weil erst am Zielsystem prüfbar, dafür im
 Admin-Healthcheck sichtbar: MariaDB-Serverversion, Schreibbarkeit der

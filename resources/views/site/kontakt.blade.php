@@ -15,7 +15,7 @@
                 So erreichen Sie uns
             </h1>
             <p class="mt-5 text-lg leading-relaxed text-hvm-textschwarz">
-                Smart Abrechnen ist ein Angebot der {{ $operator['legal_name'] }}. Anfragen zum Portal, zu einem
+                {{ config('smartabrechnen.brand.relation') }} Anfragen zum Portal, zu einem
                 laufenden Abrechnungslauf oder zum Datenschutz beantworten wir per E-Mail.
             </p>
         </div>

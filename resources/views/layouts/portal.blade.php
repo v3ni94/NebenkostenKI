@@ -27,6 +27,7 @@
     ];
 
     $operator = config('smartabrechnen.operator');
+    $brand = config('smartabrechnen.brand');
 @endphp
 <!DOCTYPE html>
 <html lang="de">
@@ -62,16 +63,11 @@
 
         <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
             <div class="flex items-center gap-3">
-                {{--
-                    Logo-Platzhalter. Das Logo der Hausverwaltung Mueller GmbH
-                    wird vom Auftraggeber bereitgestellt. Es wird kein Logo
-                    erzeugt oder nachgezeichnet.
-                --}}
-                <span class="flex h-10 w-10 items-center justify-center rounded border border-hvm-hellgrau bg-hvm-umrissgrau text-[10px] font-semibold text-hvm-anthrazit"
-                      aria-hidden="true">HVM</span>
+                {{-- Logo der Hausverwaltung Mueller GmbH aus /public/ci, sonst Textplatzhalter. --}}
+                <x-hvm.logo />
                 <span class="flex flex-col leading-tight">
-                    <span class="text-lg font-bold text-hvm-textschwarz">Smart Abrechnen</span>
-                    <span class="text-xs text-hvm-anthrazit">Ihre Betriebskostenabrechnung</span>
+                    <span class="text-lg font-bold text-hvm-textschwarz">{{ $brand['name'] }}</span>
+                    <span class="text-xs text-hvm-anthrazit">{{ $brand['relation_short'] }}</span>
                 </span>
             </div>
 
@@ -141,7 +137,7 @@
     <footer class="mt-12 border-t border-hvm-mittelgrau bg-white">
         <div class="mx-auto max-w-6xl px-4 py-8 text-sm text-hvm-anthrazit sm:px-6">
             <p>
-                Smart Abrechnen ist ein Angebot der {{ $operator['legal_name'] }}.
+                {{ $brand['relation'] }}
                 Absender und inhaltlich verantwortlich für die Betriebskostenabrechnung bleibt der Vermieter.
             </p>
             <p class="mt-2">

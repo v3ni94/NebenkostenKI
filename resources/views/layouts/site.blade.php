@@ -31,6 +31,7 @@
     ];
 
     $operator = config('smartabrechnen.operator');
+    $brand = config('smartabrechnen.brand');
     $appUrl = url('/app');
 @endphp
 <!DOCTYPE html>
@@ -77,20 +78,15 @@
 
         <div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
             {{--
-                Logo-Platzhalter. Das Logo der Hausverwaltung Mueller GmbH wird
-                vom Auftraggeber als /public/ci/Logo_HVM.jpg beziehungsweise
-                Logo_HVM.svg bereitgestellt und erst dann hier eingebunden
-                (siehe public/ci/README.md). Es wird kein Logo erzeugt,
-                generiert oder nachgezeichnet.
+                Logo der Hausverwaltung Mueller GmbH aus /public/ci (siehe
+                public/ci/README.md). Fehlt die Datei, erscheint ein neutraler
+                Textplatzhalter. Es wird kein Logo erzeugt oder nachgezeichnet.
             --}}
             <a href="{{ route('site.home') }}" class="flex items-center gap-3 rounded py-1">
-                <span class="flex h-10 w-10 items-center justify-center rounded border border-hvm-hellgrau bg-hvm-umrissgrau text-[10px] leading-tight font-semibold text-hvm-anthrazit"
-                      aria-hidden="true">
-                    HVM
-                </span>
+                <x-hvm.logo />
                 <span class="flex flex-col leading-tight">
-                    <span class="text-lg font-bold text-hvm-textschwarz">Smart Abrechnen</span>
-                    <span class="text-xs text-hvm-textschwarz">Ein Angebot der {{ $operator['legal_name'] }}</span>
+                    <span class="text-lg font-bold text-hvm-textschwarz">{{ $brand['name'] }}</span>
+                    <span class="text-xs text-hvm-textschwarz">{{ $brand['relation_short'] }}</span>
                 </span>
             </a>
 
@@ -168,7 +164,7 @@
                 <div>
                     <p class="text-xl font-bold text-hvm-anthrazit">Die digitalste Hausverwaltung</p>
                     <p class="mt-3 text-sm text-hvm-textschwarz">
-                        Smart Abrechnen ist ein Angebot der {{ $operator['legal_name'] }}.
+                        {{ $brand['relation'] }}
                     </p>
                     {{-- Betreiberangaben in Kurzform. Nicht ergaenzen und nicht abwandeln. --}}
                     <address class="mt-3 text-sm not-italic text-hvm-textschwarz">

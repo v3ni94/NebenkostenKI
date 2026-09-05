@@ -6,6 +6,7 @@ namespace Tests\Feature\Admin;
 
 use App\Application\Admin\LaunchBlockerCheck;
 use App\Application\Admin\LaunchBlockerReport;
+use App\Application\Payment\OperatorInvoiceBlocker;
 
 /**
  * Livegang-Blocker (Masterprompt 2.1, 6.3, 13.5, 26).
@@ -153,9 +154,24 @@ final class LivegangBlockerTest extends AdminTestCase
         self::assertTrue($this->bericht()->has(LaunchBlockerCheck::RECHTSTEXTE));
     }
 
+    public function test_vorhandenes_hvm_logo_ist_kein_blocker(): void
+    {
+        self::assertFileExists(public_path('ci/Logo_HVM.jpg'));
+        self::assertFalse($this->bericht()->has(LaunchBlockerCheck::CI_ASSETS));
+    }
+
     public function test_fehlende_ci_assets_werden_erkannt(): void
     {
-        self::assertTrue($this->bericht()->has(LaunchBlockerCheck::CI_ASSETS));
+        $leer = sys_get_temp_dir().'/sa-ci-'.uniqid();
+        mkdir($leer);
+
+        try {
+            $check = new LaunchBlockerCheck(app(OperatorInvoiceBlocker::class), null, $leer);
+
+            self::assertTrue($check->report()->has(LaunchBlockerCheck::CI_ASSETS));
+        } finally {
+            rmdir($leer);
+        }
     }
 
     public function test_fehlende_aufbewahrungsfristen_werden_erkannt_und_verschwinden_nach_festlegung(): void
