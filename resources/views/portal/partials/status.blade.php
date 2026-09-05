@@ -1,5 +1,5 @@
 {{--
-    Statusanzeige in der Sprache der Oberflaeche (Konzept A).
+    Statusanzeige in der Sprache der Oberflaeche .
 
     Es erscheint ausschliesslich eine der vier Kategorien Erledigt, Bitte
     prüfen, Fehlt noch und Blockiert die Abrechnung, dazu ein Satz in
@@ -7,8 +7,9 @@
     niemals ausgegeben (Masterprompt 9).
 
     Der Status wird nie allein ueber Farbe kommuniziert, die Kategorie steht
-    immer als Text im Etikett, das Etikett traegt zusaetzlich einen
-    Statuspunkt.
+    immer als Text im Etikett, das Etikett traegt zusaetzlich das Symbol der
+    Kategorie (Erledigt check-circle, Bitte pruefen eye, Fehlt noch inbox,
+    Blockiert alert).
 
     Erwartet:
       $status  App\Application\BillingRun\PortalStatus
@@ -23,7 +24,7 @@
             <ul class="mt-2 space-y-1">
                 @foreach ($status->details as $detail)
                     <li class="flex gap-2">
-                        <span class="mt-2 h-1 w-1 shrink-0 rounded-full bg-hvm-mittelgrau" aria-hidden="true"></span>
+                        <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-hvm-text-sekundaer" aria-hidden="true"></span>
                         <span>{{ $detail }}</span>
                     </li>
                 @endforeach

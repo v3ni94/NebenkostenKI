@@ -25,7 +25,7 @@ final class SitePagesTest extends TestCase
         return [
             'Startseite' => ['site.home', 'entsteht aus den Unterlagen, die Sie bereits haben'],
             'Ablauf' => ['site.ablauf', 'So entsteht Ihre Betriebskostenabrechnung'],
-            'Preise' => ['site.preise', 'Ein Festpreis je erzeugter Mieterabrechnung'],
+            'Preise' => ['site.preise', 'Ein Festpreis je erzeugter Mieter'],
             'Datenschutz und Loeschung' => ['site.datenschutz-konzept', 'Ihre Originaldateien werden nach der Auswertung gelöscht'],
             'Haeufige Fragen' => ['site.faq', 'Warum werden meine Dateien gelöscht?'],
             'Kontakt' => ['site.kontakt', 'kontakt@smart-abrechnen.de'],

@@ -11,11 +11,16 @@
 @endphp
 
 @section('content')
-    {{-- Hero: links Text, rechts stilisierte Abrechnung als CSS/HTML-Mockup --}}
+    {{--
+        Hero: links Text und Handlungen, rechts stilisierte Abrechnung als
+        CSS/HTML-Mockup. Reihenfolge mobil: Text, Buttons, Mockup, Vorteile,
+        damit das Produktmotiv im ersten Scroll sichtbar ist. Auf lg steht das
+        Mockup auf Hoehe der H1 und reicht ueber beide Zeilen der linken Spalte.
+    --}}
     <section class="bg-hvm-canvas">
-        <div class="mx-auto grid max-w-7xl items-center gap-14 px-4 pt-16 pb-20 sm:px-6 lg:grid-cols-12 lg:gap-10 lg:px-8 lg:pt-24 lg:pb-28">
-            <div class="lg:col-span-7">
-                <x-hvm.badge variant="akzent">Die digitalste Hausverwaltung</x-hvm.badge>
+        <div class="mx-auto grid max-w-7xl grid-cols-1 gap-12 px-4 pt-16 pb-20 sm:px-6 lg:grid-cols-12 lg:grid-rows-[auto_auto] lg:gap-x-10 lg:gap-y-12 lg:px-8 lg:pt-24 lg:pb-28">
+            <div class="min-w-0 lg:col-span-7 lg:row-start-1">
+                <x-hvm.badge variant="akzent" :icon="false">Die digitalste Hausverwaltung</x-hvm.badge>
 
                 <h1 class="mt-6 text-4xl leading-[1.05] font-semibold tracking-tight text-hvm-textschwarz sm:text-5xl lg:text-6xl">
                     Ihre Betriebskosten&shy;abrechnung entsteht aus den Unterlagen, die Sie bereits haben
@@ -36,56 +41,33 @@
                     </x-hvm.button>
                     <x-hvm.button href="{{ route('site.ablauf') }}" variant="secondary" size="lg">So funktioniert es</x-hvm.button>
                 </div>
-
-                <ul class="mt-12 grid gap-x-8 gap-y-6 border-t border-hvm-linie pt-8 sm:grid-cols-3">
-                    <li class="flex gap-3">
-                        <span class="mt-0.5 text-hvm-orange-dark" aria-hidden="true"><x-hvm.icon name="check-circle" /></span>
-                        <span class="text-sm leading-relaxed text-hvm-text-sekundaer">
-                            <span class="block font-semibold text-hvm-textschwarz">Konto kostenlos</span>
-                            Registrierung und Entwürfe kosten nichts.
-                        </span>
-                    </li>
-                    <li class="flex gap-3">
-                        <span class="mt-0.5 text-hvm-orange-dark" aria-hidden="true"><x-hvm.icon name="euro" /></span>
-                        <span class="text-sm leading-relaxed text-hvm-text-sekundaer">
-                            <span class="block font-semibold text-hvm-textschwarz">Zahlung nach Vorschau</span>
-                            Sie sehen das Ergebnis, bevor Sie zahlen.
-                        </span>
-                    </li>
-                    <li class="flex gap-3">
-                        <span class="mt-0.5 text-hvm-orange-dark" aria-hidden="true"><x-hvm.icon name="shield" /></span>
-                        <span class="text-sm leading-relaxed text-hvm-text-sekundaer">
-                            <span class="block font-semibold text-hvm-textschwarz">Dateien werden gelöscht</span>
-                            Originale bleiben nicht im Portal.
-                        </span>
-                    </li>
-                </ul>
             </div>
 
             {{--
                 Stilisierte Abrechnung als reines CSS/HTML-Mockup (keine Bilder,
-                CSP). Die Zahlen sind Platzhalter einer Vorschau und werden
-                durch aria-hidden von der Sprachausgabe ausgenommen.
+                CSP). Alle Zahlen sind erkennbar runde Beispielwerte und als
+                "Beispiel" beschriftet; sie sind keine echte Abrechnung und
+                werden durch aria-hidden von der Sprachausgabe ausgenommen.
             --}}
-            <div class="lg:col-span-5" aria-hidden="true">
+            <div class="min-w-0 lg:col-span-5 lg:col-start-8 lg:row-span-2 lg:row-start-1 lg:self-start lg:pt-[3.25rem]" aria-hidden="true">
                 <div class="relative mx-auto max-w-md lg:max-w-none">
                     <div class="absolute -top-3 right-3 z-10 rotate-6 rounded-full border-2 border-hvm-orange-dark bg-hvm-canvas px-4 py-1.5 text-xs font-bold tracking-[0.2em] text-hvm-orange-dark uppercase sm:px-5 sm:text-sm">
-                        Vorschau
+                        Beispiel
                     </div>
 
                     <div class="overflow-hidden rounded-3xl border border-hvm-linie bg-white shadow-hairline">
                         <div class="hvm-kennlinie"></div>
 
                         <div class="p-6 sm:p-8">
-                            <div class="flex items-start justify-between gap-4">
-                                <div>
+                            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                                <div class="min-w-0">
                                     <p class="text-xs font-semibold tracking-[0.12em] text-hvm-text-sekundaer uppercase">Betriebskostenabrechnung</p>
-                                    <p class="mt-1 text-lg font-semibold tracking-tight text-hvm-textschwarz">Abrechnungsjahr 2025</p>
-                                    <p class="mt-1 text-xs text-hvm-text-sekundaer">01.01.2025 bis 31.12.2025</p>
+                                    <p class="mt-1 text-lg font-semibold tracking-tight text-hvm-textschwarz">Abrechnungsjahr</p>
+                                    <p class="mt-1 text-xs text-hvm-text-sekundaer">01.01. bis 31.12.</p>
                                 </div>
-                                <div class="text-right">
-                                    <p class="text-xs text-hvm-text-sekundaer">Wohnung 3, 2. OG</p>
-                                    <p class="text-xs text-hvm-text-sekundaer">Fläche 68,40 m²</p>
+                                <div class="shrink-0 sm:text-right">
+                                    <p class="text-xs text-hvm-text-sekundaer">Beispielwohnung</p>
+                                    <p class="text-xs text-hvm-text-sekundaer">Fläche 70 m²</p>
                                 </div>
                             </div>
 
@@ -93,25 +75,25 @@
                                 <div>
                                     <div class="flex items-baseline justify-between gap-4 text-sm">
                                         <span class="font-medium text-hvm-textschwarz">Grundsteuer</span>
-                                        <span class="tabular text-hvm-textschwarz">312,40 EUR</span>
+                                        <span class="tabular whitespace-nowrap text-hvm-textschwarz">300,00 EUR</span>
                                     </div>
                                     <div class="mt-2 h-2 w-full rounded-full bg-hvm-canvas-deep">
-                                        <div class="h-2 w-[38%] rounded-full bg-hvm-anthrazit"></div>
+                                        <div class="h-2 w-[40%] rounded-full bg-hvm-anthrazit"></div>
                                     </div>
                                 </div>
                                 <div>
                                     <div class="flex items-baseline justify-between gap-4 text-sm">
                                         <span class="font-medium text-hvm-textschwarz">Heizung und Warmwasser</span>
-                                        <span class="tabular text-hvm-textschwarz">704,15 EUR</span>
+                                        <span class="tabular whitespace-nowrap text-hvm-textschwarz">700,00 EUR</span>
                                     </div>
                                     <div class="mt-2 h-2 w-full rounded-full bg-hvm-canvas-deep">
-                                        <div class="h-2 w-[86%] rounded-full bg-hvm-orange"></div>
+                                        <div class="h-2 w-[85%] rounded-full bg-hvm-orange"></div>
                                     </div>
                                 </div>
                                 <div>
                                     <div class="flex items-baseline justify-between gap-4 text-sm">
                                         <span class="font-medium text-hvm-textschwarz">Hausgeld, umlagefähig</span>
-                                        <span class="tabular text-hvm-textschwarz">489,60 EUR</span>
+                                        <span class="tabular whitespace-nowrap text-hvm-textschwarz">500,00 EUR</span>
                                     </div>
                                     <div class="mt-2 h-2 w-full rounded-full bg-hvm-canvas-deep">
                                         <div class="h-2 w-[60%] rounded-full bg-hvm-mittelgrau"></div>
@@ -122,26 +104,50 @@
                             <div class="mt-8 rounded-2xl bg-hvm-canvas p-5">
                                 <div class="flex items-baseline justify-between gap-4 text-sm text-hvm-text-sekundaer">
                                     <span>Gesamtkosten</span>
-                                    <span class="tabular">1.506,15 EUR</span>
+                                    <span class="tabular whitespace-nowrap">1.500,00 EUR</span>
                                 </div>
                                 <div class="mt-2 flex items-baseline justify-between gap-4 text-sm text-hvm-text-sekundaer">
                                     <span>Vorauszahlungen (Ist)</span>
-                                    <span class="tabular">1.380,00 EUR</span>
+                                    <span class="tabular whitespace-nowrap">1.400,00 EUR</span>
                                 </div>
                                 <div class="mt-4 flex items-baseline justify-between gap-4 border-t border-hvm-linie pt-4">
                                     <span class="text-sm font-semibold text-hvm-textschwarz">Nachzahlung</span>
-                                    <span class="text-2xl font-semibold tracking-tight text-hvm-textschwarz tabular">126,15 EUR</span>
+                                    <span class="text-2xl font-semibold tracking-tight whitespace-nowrap text-hvm-textschwarz tabular">100,00 EUR</span>
                                 </div>
                             </div>
 
-                            <div class="mt-6 flex flex-wrap items-center gap-2">
+                            <div class="mt-6 flex flex-wrap items-center justify-between gap-2">
                                 <x-hvm.badge variant="success">Erledigt</x-hvm.badge>
-                                <span class="text-xs text-hvm-text-sekundaer">Quelle: Hausgeldabrechnung, Seite 2</span>
+                                <span class="text-xs text-hvm-text-sekundaer">Beispielwerte, keine echte Abrechnung</span>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <ul class="min-w-0 grid gap-x-8 gap-y-6 border-t border-hvm-linie pt-8 sm:grid-cols-3 lg:col-span-7 lg:row-start-2">
+                <li class="flex gap-3">
+                    <span class="mt-0.5 text-hvm-orange-dark" aria-hidden="true"><x-hvm.icon name="check-circle" /></span>
+                    <span class="text-sm leading-relaxed text-hvm-text-sekundaer">
+                        <span class="block font-semibold text-hvm-textschwarz">Konto kostenlos</span>
+                        Registrierung und Entwürfe kosten nichts.
+                    </span>
+                </li>
+                <li class="flex gap-3">
+                    <span class="mt-0.5 text-hvm-orange-dark" aria-hidden="true"><x-hvm.icon name="euro" /></span>
+                    <span class="text-sm leading-relaxed text-hvm-text-sekundaer">
+                        <span class="block font-semibold text-hvm-textschwarz">Zahlung nach Vorschau</span>
+                        Sie sehen das Ergebnis, bevor Sie zahlen.
+                    </span>
+                </li>
+                <li class="flex gap-3">
+                    <span class="mt-0.5 text-hvm-orange-dark" aria-hidden="true"><x-hvm.icon name="shield" /></span>
+                    <span class="text-sm leading-relaxed text-hvm-text-sekundaer">
+                        <span class="block font-semibold text-hvm-textschwarz">Dateien werden gelöscht</span>
+                        Originale bleiben nicht im Portal.
+                    </span>
+                </li>
+            </ul>
         </div>
     </section>
 
@@ -159,21 +165,21 @@
                     </p>
                 </div>
                 <ul class="grid gap-4 sm:grid-cols-2 lg:col-span-7">
-                    <li class="flex gap-4 rounded-2xl border border-hvm-linie bg-hvm-canvas p-5">
-                        <span class="text-hvm-orange-dark" aria-hidden="true"><x-hvm.icon name="key" class="h-6 w-6" /></span>
-                        <span class="text-base leading-relaxed text-hvm-textschwarz">Private Vermieter einer einzelnen Eigentumswohnung</span>
+                    <li class="flex items-center gap-4 rounded-2xl border border-hvm-linie bg-hvm-canvas p-5">
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-hvm-orange-soft text-hvm-orange-dark" aria-hidden="true"><x-hvm.icon name="key" class="h-5 w-5" /></span>
+                        <span class="text-base leading-snug font-medium text-hvm-textschwarz">Private Vermieter einer einzelnen Eigentumswohnung</span>
                     </li>
-                    <li class="flex gap-4 rounded-2xl border border-hvm-linie bg-hvm-canvas p-5">
-                        <span class="text-hvm-orange-dark" aria-hidden="true"><x-hvm.icon name="house" class="h-6 w-6" /></span>
-                        <span class="text-base leading-relaxed text-hvm-textschwarz">Vermieter kleiner und mittlerer Mehrfamilienhäuser</span>
+                    <li class="flex items-center gap-4 rounded-2xl border border-hvm-linie bg-hvm-canvas p-5">
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-hvm-orange-soft text-hvm-orange-dark" aria-hidden="true"><x-hvm.icon name="house" class="h-5 w-5" /></span>
+                        <span class="text-base leading-snug font-medium text-hvm-textschwarz">Vermieter kleiner und mittlerer Mehrfamilienhäuser</span>
                     </li>
-                    <li class="flex gap-4 rounded-2xl border border-hvm-linie bg-hvm-canvas p-5">
-                        <span class="text-hvm-orange-dark" aria-hidden="true"><x-hvm.icon name="layers" class="h-6 w-6" /></span>
-                        <span class="text-base leading-relaxed text-hvm-textschwarz">Bestandshalter mit mehreren Objekten</span>
+                    <li class="flex items-center gap-4 rounded-2xl border border-hvm-linie bg-hvm-canvas p-5">
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-hvm-orange-soft text-hvm-orange-dark" aria-hidden="true"><x-hvm.icon name="layers" class="h-5 w-5" /></span>
+                        <span class="text-base leading-snug font-medium text-hvm-textschwarz">Bestandshalter mit mehreren Objekten</span>
                     </li>
-                    <li class="flex gap-4 rounded-2xl border border-hvm-linie bg-hvm-canvas p-5">
-                        <span class="text-hvm-orange-dark" aria-hidden="true"><x-hvm.icon name="user" class="h-6 w-6" /></span>
-                        <span class="text-base leading-relaxed text-hvm-textschwarz">Hausverwaltungen, die im Namen eines Eigentümers abrechnen</span>
+                    <li class="flex items-center gap-4 rounded-2xl border border-hvm-linie bg-hvm-canvas p-5">
+                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-hvm-orange-soft text-hvm-orange-dark" aria-hidden="true"><x-hvm.icon name="user" class="h-5 w-5" /></span>
+                        <span class="text-base leading-snug font-medium text-hvm-textschwarz">Hausverwaltungen, die im Namen eines Eigentümers abrechnen</span>
                     </li>
                 </ul>
             </div>
@@ -359,21 +365,20 @@
         </div>
     </section>
 
-    {{-- Datenschutz-Kernversprechen als dunkle Flaeche --}}
-    <section class="bg-hvm-graphit text-hvm-hellgrau">
+    {{--
+        Datenschutz-Kernversprechen als dunkle Flaeche. Die Klasse hvm-dark
+        stellt alle Komponenten (Ueberschrift, Karte, Buttons) automatisch um;
+        die Kennlinie schliesst die dunkle Sektion oben ab.
+    --}}
+    <section class="hvm-dark">
+        <div class="hvm-kennlinie" aria-hidden="true"></div>
         <div class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
             <div class="grid gap-12 lg:grid-cols-12">
                 <div class="lg:col-span-5">
-                    <p class="flex items-center gap-3 text-xs font-semibold tracking-[0.12em] text-hvm-hellgrau uppercase">
-                        <span class="inline-block h-px w-8 bg-hvm-orange" aria-hidden="true"></span>
-                        Datenschutz
-                    </p>
-                    <h2 class="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                        Ihre Originaldateien bleiben nicht im Portal
-                    </h2>
-                    <p class="mt-5 max-w-prose text-base leading-relaxed text-hvm-hellgrau sm:text-lg">
-                        Zur Abrechnung sind nur die ausgelesenen Inhaltsdaten nötig. Alles andere wird nach der Auswertung nicht weiter aufbewahrt.
-                    </p>
+                    <x-hvm.section-heading
+                        eyebrow="Datenschutz"
+                        title="Ihre Originaldateien bleiben nicht im Portal"
+                        lead="Zur Abrechnung sind nur die ausgelesenen Inhaltsdaten nötig. Alles andere wird nach der Auswertung nicht weiter aufbewahrt." />
 
                     <div class="mt-8">
                         <x-hvm.button href="{{ route('site.datenschutz-konzept') }}" variant="inverse">
@@ -383,39 +388,41 @@
                 </div>
 
                 <div class="lg:col-span-7">
-                    <ol class="divide-y divide-hvm-graphit-soft rounded-3xl border border-hvm-graphit-soft bg-hvm-graphit-soft/40">
-                        <li class="flex gap-5 p-6 sm:p-7">
-                            <span class="mt-1 text-hvm-orange" aria-hidden="true"><x-hvm.icon name="clock" class="h-6 w-6" /></span>
-                            <div>
-                                <h3 class="text-lg font-semibold tracking-tight text-white">Kurzfristige Verarbeitung</h3>
-                                <p class="mt-2 text-base leading-relaxed text-hvm-hellgrau">
-                                    Originaldateien werden nur für die technisch notwendige Dauer von Upload, Prüfung und
-                                    Auswertung in einem verschlüsselten temporären Bereich verarbeitet.
-                                </p>
-                            </div>
-                        </li>
-                        <li class="flex gap-5 p-6 sm:p-7">
-                            <span class="mt-1 text-hvm-orange" aria-hidden="true"><x-hvm.icon name="trash" class="h-6 w-6" /></span>
-                            <div>
-                                <h3 class="text-lg font-semibold tracking-tight text-white">Automatische Löschung</h3>
-                                <p class="mt-2 text-base leading-relaxed text-hvm-hellgrau">
-                                    Unmittelbar nach der Auswertung oder nach einem endgültigen Verarbeitungsfehler werden
-                                    die Originaldateien automatisch gelöscht, spätestens nach Ablauf der kurzen
-                                    Aufbewahrungsfrist.
-                                </p>
-                            </div>
-                        </li>
-                        <li class="flex gap-5 p-6 sm:p-7">
-                            <span class="mt-1 text-hvm-orange" aria-hidden="true"><x-hvm.icon name="list" class="h-6 w-6" /></span>
-                            <div>
-                                <h3 class="text-lg font-semibold tracking-tight text-white">Dauerhaft nur Inhaltsdaten</h3>
-                                <p class="mt-2 text-base leading-relaxed text-hvm-hellgrau">
-                                    Dauerhaft bleiben ausschließlich die ausgelesenen Inhaltsdaten, also die für die
-                                    Abrechnung erforderlichen Werte mit Angabe der Quelle und der Seite.
-                                </p>
-                            </div>
-                        </li>
-                    </ol>
+                    <x-hvm.card padding="none" class="divide-y divide-hvm-graphit-soft rounded-3xl">
+                        <ol class="divide-y divide-hvm-graphit-soft">
+                            <li class="flex gap-5 p-6 sm:p-7">
+                                <span class="mt-1 text-hvm-orange" aria-hidden="true"><x-hvm.icon name="clock" class="h-6 w-6" /></span>
+                                <div>
+                                    <h3 class="text-lg font-semibold tracking-tight text-white">Kurzfristige Verarbeitung</h3>
+                                    <p class="mt-2 text-base leading-relaxed text-hvm-hellgrau">
+                                        Originaldateien werden nur für die technisch notwendige Dauer von Upload, Prüfung und
+                                        Auswertung in einem verschlüsselten temporären Bereich verarbeitet.
+                                    </p>
+                                </div>
+                            </li>
+                            <li class="flex gap-5 p-6 sm:p-7">
+                                <span class="mt-1 text-hvm-orange" aria-hidden="true"><x-hvm.icon name="trash" class="h-6 w-6" /></span>
+                                <div>
+                                    <h3 class="text-lg font-semibold tracking-tight text-white">Automatische Löschung</h3>
+                                    <p class="mt-2 text-base leading-relaxed text-hvm-hellgrau">
+                                        Unmittelbar nach der Auswertung oder nach einem endgültigen Verarbeitungsfehler werden
+                                        die Originaldateien automatisch gelöscht, spätestens nach Ablauf der kurzen
+                                        Aufbewahrungsfrist.
+                                    </p>
+                                </div>
+                            </li>
+                            <li class="flex gap-5 p-6 sm:p-7">
+                                <span class="mt-1 text-hvm-orange" aria-hidden="true"><x-hvm.icon name="list" class="h-6 w-6" /></span>
+                                <div>
+                                    <h3 class="text-lg font-semibold tracking-tight text-white">Dauerhaft nur Inhaltsdaten</h3>
+                                    <p class="mt-2 text-base leading-relaxed text-hvm-hellgrau">
+                                        Dauerhaft bleiben ausschließlich die ausgelesenen Inhaltsdaten, also die für die
+                                        Abrechnung erforderlichen Werte mit Angabe der Quelle und der Seite.
+                                    </p>
+                                </div>
+                            </li>
+                        </ol>
+                    </x-hvm.card>
 
                     <div class="mt-6">
                         <x-hvm.alert variant="info" title="Ihre Aufbewahrung">
@@ -453,9 +460,9 @@
                             <li class="flex gap-3"><span class="mt-0.5 text-hvm-orange-dark" aria-hidden="true"><x-hvm.icon name="check" /></span><span>Zahlung erst nach Prüfung der Vorschau</span></li>
                             <li class="flex gap-3"><span class="mt-0.5 text-hvm-orange-dark" aria-hidden="true"><x-hvm.icon name="check" /></span><span>Kein Abonnement und keine Grundgebühr</span></li>
                             @if ($grundpreisCent === 0)
-                                <li class="flex gap-3"><span class="mt-0.5 text-hvm-orange-dark" aria-hidden="true"><x-hvm.icon name="check" /></span><span>Grundpreis je Abrechnungslauf: {{ $grundpreis }}</span></li>
+                                <li class="flex gap-3"><span class="mt-0.5 text-hvm-orange-dark" aria-hidden="true"><x-hvm.icon name="check" /></span><span>Grundpreis je Abrechnungslauf: <span class="whitespace-nowrap">{{ $grundpreis }}</span></span></li>
                             @else
-                                <li class="flex gap-3"><span class="mt-0.5 text-hvm-orange-dark" aria-hidden="true"><x-hvm.icon name="check" /></span><span>Grundpreis je Abrechnungslauf: {{ $grundpreis }} brutto</span></li>
+                                <li class="flex gap-3"><span class="mt-0.5 text-hvm-orange-dark" aria-hidden="true"><x-hvm.icon name="check" /></span><span>Grundpreis je Abrechnungslauf: <span class="whitespace-nowrap">{{ $grundpreis }}</span> brutto</span></li>
                             @endif
                             <li class="flex gap-3"><span class="mt-0.5 text-hvm-orange-dark" aria-hidden="true"><x-hvm.icon name="check" /></span><span>Erinnerungen für Folgejahre kostenlos</span></li>
                         </ul>

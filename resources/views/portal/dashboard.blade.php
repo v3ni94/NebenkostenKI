@@ -54,8 +54,12 @@
                         <x-slot:actions>
                             <x-hvm.button href="{{ route('portal.einheiten.index', ['property' => $objekt->getKey()]) }}"
                                           variant="secondary" size="sm">Einheiten</x-hvm.button>
+                            {{-- Genau ein Primaerbutton je Ansicht (Seitenkopf), Zeilenhandlungen sind secondary. --}}
                             <x-hvm.button href="{{ route('portal.abrechnungen.create', ['property' => $objekt->getKey()]) }}"
-                                          variant="primary" size="sm">Abrechnung starten</x-hvm.button>
+                                          variant="secondary" size="sm">
+                                Abrechnung starten
+                                <x-hvm.icon name="arrow-right" class="h-4 w-4" />
+                            </x-hvm.button>
                         </x-slot:actions>
                     </x-hvm.list-row>
                 @endforeach

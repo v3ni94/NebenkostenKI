@@ -6,7 +6,8 @@
 @source '../**/*.js';
 
 /*
-  Designsystem der Hausverwaltung Mueller GmbH, Konzept A "Editorial Klarheit".
+  Designsystem der Hausverwaltung Mueller GmbH, "Editorial Klarheit" (Synthese
+  aus Konzept A mit den uebernommenen Bausteinen der Konzepte B und C).
   Claim: Die digitalste Hausverwaltung.
 
   Grundidee: Ruhige, hochwertige Editorial-Aesthetik. Die Leinwand ist ein sehr
@@ -132,8 +133,19 @@
 
     /* Sichtbarer Fokus fuer Tastaturbedienung: deutlicher Ring in Orange. */
     :focus-visible {
-        outline: 3px solid var(--color-hvm-orange);
+        outline: 3px solid var(--color-hvm-orange-dark);
         outline-offset: 2px;
+    }
+
+    /*
+      Auf dunklen Flaechen (.hvm-dark) leuchtet der Ring in Orange und traegt
+      zusaetzlich eine weisse Innenkante, damit er sich vom Graphit und von
+      orangen Buttons gleichermassen abhebt (Uebernahme aus Konzept C).
+    */
+    .hvm-dark :focus-visible {
+        outline: 3px solid var(--color-hvm-orange);
+        outline-offset: 3px;
+        box-shadow: 0 0 0 2px #ffffff;
     }
 
     /* Zahlen in Tabellen und Kennzahlen stehen buendig. */
@@ -178,6 +190,56 @@
     /* Kennlinie als dekoratives Element (z. B. im Abrechnungs-Mockup). */
     .hvm-kennlinie-fein {
         height: 2px;
+    }
+
+    /*
+      Dunkle Flaeche als Kontext (Uebernahme aus Konzept C). Ein Container mit
+      .hvm-dark liegt auf Graphit; alle Komponenten des Systems (button, badge,
+      card, section-heading, step, stat, field, list-row, empty-state) passen
+      sich ueber [.hvm-dark_&]:-Varianten automatisch an. Eigene Sondervarianten
+      je Komponente sind dadurch nicht noetig. Text auf Graphit ist Weiss oder
+      Hellgrau, nie Anthrazit oder Mittelgrau.
+    */
+    .hvm-dark {
+        background-color: var(--color-hvm-graphit);
+        color: var(--color-hvm-hellgrau);
+    }
+
+    /*
+      Navigationseintrag der Anwendungs-Shell (Uebernahme aus Konzept B).
+      Zustand ueber aria-current statt Blade-Bedingung: der aktive Eintrag
+      traegt Orange soft als Flaeche und eine 3 px Orange-Kante links.
+    */
+    .hvm-nav-item {
+        display: flex;
+        min-height: 2.75rem;
+        align-items: center;
+        gap: 0.75rem;
+        border-radius: 0.75rem;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--color-hvm-textschwarz);
+        text-decoration: none;
+        transition: background-color 150ms ease, color 150ms ease;
+    }
+
+    .hvm-nav-item:hover {
+        background-color: var(--color-hvm-canvas-deep);
+    }
+
+    .hvm-nav-item[aria-current='page'] {
+        background-color: var(--color-hvm-orange-soft);
+        font-weight: 600;
+        box-shadow: inset 3px 0 0 var(--color-hvm-orange);
+    }
+
+    .hvm-nav-item svg {
+        color: var(--color-hvm-text-sekundaer);
+    }
+
+    .hvm-nav-item[aria-current='page'] svg {
+        color: var(--color-hvm-orange-dark);
     }
 
     /*
@@ -237,13 +299,38 @@
         padding-right: 2.5rem;
     }
 
-    /* Kontrollkaestchen und Optionsfelder in Orange. */
+    /* Kontrollkaestchen und Optionsfelder in Orange. Die Trefferflaeche von
+       44 px entsteht ueber das umschliessende Label (.hvm-choice). */
     .hvm-check {
         height: 1.25rem;
         width: 1.25rem;
+        flex-shrink: 0;
         border-radius: 0.375rem;
         border: 1px solid var(--color-hvm-mittelgrau);
         accent-color: var(--color-hvm-orange-dark);
+    }
+
+    .hvm-check[type='radio'] {
+        border-radius: 9999px;
+    }
+
+    /* Auswahloption: Label umschliesst das Feld, mindestens 44 px hoch. */
+    .hvm-choice {
+        display: flex;
+        min-height: 2.75rem;
+        align-items: center;
+        gap: 0.75rem;
+        border-radius: 0.75rem;
+        padding: 0.5rem 0.75rem;
+        margin-left: -0.75rem;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        color: var(--color-hvm-textschwarz);
+        cursor: pointer;
+    }
+
+    .hvm-choice:hover {
+        background-color: var(--color-hvm-canvas);
     }
 
     /* Tabelle des Systems: ruhiger Kopf mit Orange-Linie, Zebra in Canvas. */
@@ -278,6 +365,71 @@
     /* Bestehende Klasse, bleibt fuer die uebrigen Seiten kompatibel. */
     .hvm-table-zebra tbody tr:nth-child(even) {
         background-color: var(--color-hvm-canvas-deep);
+    }
+
+    /* Betraege und Kennzahlen in Tabellen brechen nie innerhalb der Zahl. */
+    .hvm-table .betrag {
+        white-space: nowrap;
+        text-align: right;
+    }
+
+    /*
+      Gestapelte Tabelle unter 640 px: jede Zeile wird zu einem Block, der
+      Zeilenkopf (th scope="row") zur Ueberschrift, jede Zelle zeigt ihre
+      Spaltenbeschriftung aus data-label. Kein horizontales Scrollen noetig.
+      Ab sm verhaelt sich die Tabelle wie .hvm-table.
+    */
+    @media (width < 40rem) {
+        .hvm-table-stack thead {
+            display: none;
+        }
+
+        .hvm-table-stack,
+        .hvm-table-stack tbody,
+        .hvm-table-stack tr,
+        .hvm-table-stack th,
+        .hvm-table-stack td {
+            display: block;
+        }
+
+        .hvm-table-stack tbody tr {
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--color-hvm-linie);
+        }
+
+        .hvm-table-stack tbody tr:last-child {
+            border-bottom: 0;
+        }
+
+        .hvm-table-stack tbody th,
+        .hvm-table-stack tbody td {
+            padding: 0;
+            border-bottom: 0;
+        }
+
+        .hvm-table-stack tbody th {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--color-hvm-textschwarz);
+        }
+
+        .hvm-table-stack tbody td {
+            margin-top: 0.5rem;
+        }
+
+        .hvm-table-stack tbody td[data-label]::before {
+            content: attr(data-label);
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--color-hvm-text-sekundaer);
+        }
+
+        .hvm-table-stack .betrag {
+            text-align: left;
+        }
     }
 
     /* Prose-Bereich: begrenzte Zeilenlaenge fuer lange Texte. */

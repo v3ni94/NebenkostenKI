@@ -3,10 +3,11 @@
 
     Designsystem der Hausverwaltung Mueller GmbH. Die Farb- und
     Komponententokens liegen ausschliesslich in resources/css/app.css.
-    HVM Orange wird nur fuer Akzente, primaere Buttons, Fortschritt und
-    Tabellenkoepfe verwendet, niemals fuer Fliesstext. Anthrazit tragen
-    Ueberschriften und die Fusszeile. Status wird nie allein ueber Farbe
-    kommuniziert.
+    HVM Orange wird nur fuer Akzente, primaere Buttons und Fortschritt
+    verwendet, niemals fuer Fliesstext. Fliesstext ist Textschwarz,
+    Sekundaertext traegt den Token text-sekundaer, Anthrazit ist kein
+    Fliesstext. Status wird nie allein ueber Farbe kommuniziert. Der Footer
+    ist eine dunkle Flaeche (.hvm-dark).
 
     Je Seite zu setzen:
       @section('meta_title')        Seitentitel ohne Markenzusatz
@@ -76,7 +77,13 @@
         {{-- HVM-Kennlinie als feine Linie ueber dem Header. --}}
         <div class="hvm-kennlinie" aria-hidden="true"></div>
 
-        <div class="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        {{--
+            Kopfleiste am Seitenraster (max-w-7xl, px-4/6/8). Volltextnavigation ab
+            xl, darunter Menue-Knopf. Der Markenzusatz wird nie gekuerzt: er
+            bricht bei Bedarf zweizeilig um (kleine Schrift, feste Hoechstbreite),
+            bleibt aber vollstaendig sichtbar.
+        --}}
+        <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
             {{--
                 Logo der Hausverwaltung Mueller GmbH aus /public/ci (siehe
                 public/ci/README.md). Fehlt die Datei, erscheint ein neutraler
@@ -85,8 +92,8 @@
             <a href="{{ route('site.home') }}" class="flex min-w-0 items-center gap-3 rounded-xl py-1 no-underline">
                 <x-hvm.logo height="h-9" />
                 <span class="flex min-w-0 flex-col leading-tight">
-                    <span class="text-base font-semibold tracking-tight whitespace-nowrap text-hvm-textschwarz sm:text-lg">{{ $brand['name'] }}</span>
-                    <span class="truncate text-[11px] text-hvm-text-sekundaer sm:text-xs xl:text-[11px]">{{ $brand['relation_short'] }}</span>
+                    <span class="text-base font-semibold tracking-tight whitespace-nowrap text-hvm-textschwarz">{{ $brand['name'] }}</span>
+                    <span class="max-w-[13rem] text-[11px] leading-[1.25] text-hvm-text-sekundaer sm:max-w-none sm:text-xs xl:max-w-[11rem] xl:text-[11px]">{{ $brand['relation_short'] }}</span>
                 </span>
             </a>
 
@@ -96,7 +103,7 @@
                         <li>
                             <a href="{{ route($item['route']) }}"
                                @if (request()->routeIs($item['route'])) aria-current="page" @endif
-                               class="block rounded-full px-2.5 py-2.5 text-xs font-medium whitespace-nowrap no-underline transition-colors {{ request()->routeIs($item['route']) ? 'bg-hvm-textschwarz text-white' : 'text-hvm-textschwarz hover:bg-hvm-canvas-deep' }}">
+                               class="block rounded-full px-3 py-2.5 text-[13px] font-medium whitespace-nowrap no-underline transition-colors {{ request()->routeIs($item['route']) ? 'bg-hvm-textschwarz text-white' : 'text-hvm-textschwarz hover:bg-hvm-canvas-deep' }}">
                                 {{ $item['label'] }}
                             </a>
                         </li>
@@ -104,9 +111,9 @@
                 </ul>
             </nav>
 
-            <div class="hidden items-center gap-2 xl:flex">
-                <x-hvm.button href="{{ $appUrl }}" variant="ghost" size="sm" class="px-3!">Anmelden</x-hvm.button>
-                <x-hvm.button href="{{ $appUrl }}" variant="primary" size="sm">Kostenlos starten</x-hvm.button>
+            <div class="hidden shrink-0 items-center gap-2 xl:flex">
+                <x-hvm.button href="{{ $appUrl }}" variant="ghost" size="sm" class="px-3! whitespace-nowrap">Anmelden</x-hvm.button>
+                <x-hvm.button href="{{ $appUrl }}" variant="primary" size="sm" class="whitespace-nowrap">Kostenlos starten</x-hvm.button>
             </div>
 
             <button type="button"
@@ -115,9 +122,7 @@
                     x-bind:aria-expanded="menuOffen ? 'true' : 'false'"
                     aria-expanded="false"
                     aria-controls="hauptnavigation-mobil">
-                <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path d="M2 5h16v2H2V5Zm0 4h16v2H2V9Zm0 4h16v2H2v-2Z" />
-                </svg>
+                <x-hvm.icon name="menu" class="h-5 w-5" />
                 Menü
             </button>
         </div>
@@ -126,7 +131,7 @@
              class="border-t border-hvm-linie bg-hvm-canvas xl:hidden"
              x-show="menuOffen"
              x-cloak>
-            <nav class="mx-auto max-w-7xl px-4 py-4 sm:px-6" aria-label="Hauptnavigation mobil">
+            <nav class="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8" aria-label="Hauptnavigation mobil">
                 <ul class="flex flex-col gap-1">
                     @foreach ($navigation as $item)
                         <li>
@@ -138,7 +143,7 @@
                         </li>
                     @endforeach
                 </ul>
-                <div class="mt-4 flex flex-col gap-2 border-t border-hvm-linie pt-4 pb-2">
+                <div class="mt-4 flex flex-col gap-2 border-t border-hvm-linie pt-4 pb-2 sm:flex-row">
                     <x-hvm.button href="{{ $appUrl }}" variant="primary">Kostenlos starten</x-hvm.button>
                     <x-hvm.button href="{{ $appUrl }}" variant="secondary">Anmelden</x-hvm.button>
                 </div>
@@ -162,7 +167,7 @@
         Fusszeile als dunkle Graphitflaeche. Text darauf ist Weiss oder
         Hellgrau, die Kennlinie schliesst die Seite als Fussakzent ab.
     --}}
-    <footer class="bg-hvm-graphit text-hvm-hellgrau">
+    <footer class="hvm-dark">
         <div class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
             <div class="grid gap-12 lg:grid-cols-12">
                 <div class="lg:col-span-5">
@@ -179,12 +184,12 @@
                         Geschäftsführer: {{ $operator['managing_director'] }}
                     </address>
                     <p class="mt-4 text-sm">
-                        <a class="font-medium text-white underline decoration-hvm-anthrazit underline-offset-4 hover:decoration-white" href="mailto:kontakt@smart-abrechnen.de">kontakt@smart-abrechnen.de</a>
+                        <a class="font-medium text-white underline decoration-hvm-mittelgrau underline-offset-4 hover:decoration-white" href="mailto:kontakt@smart-abrechnen.de">kontakt@smart-abrechnen.de</a>
                     </p>
                 </div>
 
                 <div class="lg:col-span-3 lg:col-start-7">
-                    <p class="text-xs font-semibold tracking-[0.12em] text-hvm-anthrazit uppercase">Portal</p>
+                    <p class="text-xs font-semibold tracking-[0.12em] text-hvm-hellgrau uppercase">Portal</p>
                     <ul class="mt-4 space-y-3 text-sm">
                         @foreach ($navigation as $item)
                             <li>
@@ -197,7 +202,7 @@
                 </div>
 
                 <div class="lg:col-span-3">
-                    <p class="text-xs font-semibold tracking-[0.12em] text-hvm-anthrazit uppercase">Rechtliches</p>
+                    <p class="text-xs font-semibold tracking-[0.12em] text-hvm-hellgrau uppercase">Rechtliches</p>
                     <ul class="mt-4 space-y-3 text-sm">
                         @foreach ($legalNavigation as $item)
                             <li>
@@ -208,7 +213,7 @@
                         @endforeach
                     </ul>
                     <p class="mt-6 text-sm">
-                        <a href="{{ $operator['website'] }}" class="text-white underline decoration-hvm-anthrazit underline-offset-4 hover:decoration-white">Website der Hausverwaltung</a>
+                        <a href="{{ $operator['website'] }}" class="text-white underline decoration-hvm-mittelgrau underline-offset-4 hover:decoration-white">Website der Hausverwaltung</a>
                     </p>
                 </div>
             </div>

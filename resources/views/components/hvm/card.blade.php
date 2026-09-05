@@ -1,9 +1,12 @@
 {{--
-    Inhaltskarte des HVM-Designsystems (Konzept A).
+    Inhaltskarte des HVM-Designsystems.
 
     Grosse Radien, hauchduenne Linie, kein Schatten. Tiefe entsteht durch den
     Wechsel der Flaeche gegen den Hintergrund (Weiss auf Canvas, Canvas auf
-    Weiss).
+    Weiss). Innerhalb einer .hvm-dark-Flaeche wird die helle Karte automatisch
+    zu einer Graphit-soft-Karte mit hellem Text; tone="dark" macht die Karte
+    selbst zur dunklen Flaeche (setzt .hvm-dark), sodass alle Komponenten in
+    ihr sich anpassen.
 
     Optional:
       title      Ueberschrift der Karte
@@ -12,6 +15,7 @@
       accent     true setzt eine kurze orange Akzentlinie ueber den Inhalt
       tone       white (Standard), canvas, dark
       padding    md (Standard), sm, none (fuer Listen mit eigenen Zeilen)
+      kennlinie  true setzt die HVM-Kennlinie als obere Kartenkante
 --}}
 @props([
     'title' => null,
@@ -20,13 +24,16 @@
     'accent' => false,
     'tone' => 'white',
     'padding' => 'md',
+    'kennlinie' => false,
 ])
 
 @php
+    $dunkelAuto = '[.hvm-dark_&]:border-hvm-graphit-soft [.hvm-dark_&]:bg-hvm-graphit-soft/40 [.hvm-dark_&]:text-hvm-hellgrau';
+
     $flaeche = match ($tone) {
-        'canvas' => 'border-hvm-linie bg-hvm-canvas',
-        'dark' => 'border-hvm-graphit-soft bg-hvm-graphit text-white',
-        default => 'border-hvm-linie bg-white',
+        'canvas' => 'border-hvm-linie bg-hvm-canvas '.$dunkelAuto,
+        'dark' => 'hvm-dark border-hvm-graphit-soft',
+        default => 'border-hvm-linie bg-white '.$dunkelAuto,
     };
 
     $innen = match ($padding) {
@@ -35,12 +42,17 @@
         default => 'p-6 sm:p-7',
     };
 
-    $titelfarbe = $tone === 'dark' ? 'text-white' : 'text-hvm-textschwarz';
-    $textfarbe = $tone === 'dark' ? 'text-hvm-hellgrau' : 'text-hvm-textschwarz';
-    $eyebrowfarbe = $tone === 'dark' ? 'text-hvm-hellgrau' : 'text-hvm-text-sekundaer';
+    $titelfarbe = 'text-hvm-textschwarz [.hvm-dark_&]:text-white';
+    $textfarbe = 'text-hvm-textschwarz [.hvm-dark_&]:text-hvm-hellgrau';
+    $eyebrowfarbe = 'text-hvm-text-sekundaer [.hvm-dark_&]:text-hvm-hellgrau';
 @endphp
 
-<div {{ $attributes->class(['rounded-2xl border', $flaeche, $innen]) }}>
+<div {{ $attributes->class(['rounded-2xl border', 'overflow-hidden' => $kennlinie, $flaeche, $innen => ! $kennlinie]) }}>
+    @if ($kennlinie)
+        <div class="hvm-kennlinie" aria-hidden="true"></div>
+        <div class="{{ $innen }}">
+    @endif
+
     @if ($accent)
         <span class="mb-5 block h-1 w-10 rounded-full bg-hvm-orange" aria-hidden="true"></span>
     @endif
@@ -53,7 +65,15 @@
         <{{ $level }} class="{{ $eyebrow !== null ? 'mt-2 ' : '' }}text-lg font-semibold tracking-tight {{ $titelfarbe }} sm:text-xl">{{ $title }}</{{ $level }}>
     @endif
 
-    <div class="{{ $title !== null || $eyebrow !== null ? 'mt-3 ' : '' }}text-base leading-relaxed {{ $textfarbe }}">
+    @if ($padding === 'none' && $title === null && $eyebrow === null && ! $accent)
         {{ $slot }}
-    </div>
+    @else
+        <div class="{{ $title !== null || $eyebrow !== null ? 'mt-3 ' : '' }}text-base leading-relaxed {{ $textfarbe }}">
+            {{ $slot }}
+        </div>
+    @endif
+
+    @if ($kennlinie)
+        </div>
+    @endif
 </div>

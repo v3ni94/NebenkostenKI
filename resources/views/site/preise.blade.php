@@ -37,9 +37,10 @@
         <div class="mx-auto max-w-7xl px-4 pt-16 pb-20 sm:px-6 lg:px-8 lg:pt-24 lg:pb-28">
             <div class="grid gap-12 lg:grid-cols-12 lg:items-start">
                 <div class="lg:col-span-6">
-                    <x-hvm.badge variant="akzent">Preise</x-hvm.badge>
+                    <x-hvm.badge variant="akzent" :icon="false">Preise</x-hvm.badge>
+                    {{-- Weiche Trennstelle im Kompositum, damit die H1 mobil und in der schmalen Spalte sauber bricht. --}}
                     <h1 class="mt-6 text-4xl leading-[1.05] font-semibold tracking-tight text-hvm-textschwarz sm:text-5xl lg:text-6xl">
-                        Ein Festpreis je erzeugter Mieterabrechnung
+                        Ein Festpreis je erzeugter Mieter&shy;abrechnung
                     </h1>
                     <p class="mt-7 max-w-prose text-lg leading-relaxed text-hvm-text-sekundaer sm:text-xl">
                         Das Konto und alle Entwürfe sind kostenlos. Bezahlt wird erst, wenn Sie die Vorschau geprüft haben und
@@ -70,21 +71,21 @@
                             <dl class="mt-8 space-y-3 border-t border-hvm-linie pt-6 text-base text-hvm-textschwarz tabular">
                                 <div class="flex justify-between gap-4">
                                     <dt class="text-hvm-text-sekundaer">Netto</dt>
-                                    <dd class="font-medium">{{ $euro($nettoJeAbrechnungCent) }}</dd>
+                                    <dd class="font-medium whitespace-nowrap">{{ $euro($nettoJeAbrechnungCent) }}</dd>
                                 </div>
                                 <div class="flex justify-between gap-4">
                                     <dt class="text-hvm-text-sekundaer">Umsatzsteuer {{ $steuersatz }} Prozent</dt>
-                                    <dd class="font-medium">{{ $euro($steuerJeAbrechnungCent) }}</dd>
+                                    <dd class="font-medium whitespace-nowrap">{{ $euro($steuerJeAbrechnungCent) }}</dd>
                                 </div>
                                 <div class="flex justify-between gap-4 border-t border-hvm-linie pt-3">
                                     <dt class="font-semibold">Brutto</dt>
-                                    <dd class="font-semibold">{{ $euro($bruttoJeAbrechnungCent) }}</dd>
+                                    <dd class="font-semibold whitespace-nowrap">{{ $euro($bruttoJeAbrechnungCent) }}</dd>
                                 </div>
                             </dl>
 
                             <p class="mt-8 rounded-2xl bg-hvm-canvas p-4 text-base text-hvm-textschwarz">
                                 Grundpreis je Abrechnungslauf:
-                                <span class="font-semibold tabular">{{ $euro($grundpreisCent) }}</span>
+                                <span class="font-semibold whitespace-nowrap tabular">{{ $euro($grundpreisCent) }}</span>
                                 @if ($grundpreisCent === 0)
                                     <span class="mt-1 block text-sm text-hvm-text-sekundaer">Es fällt derzeit kein Grundpreis an.</span>
                                 @endif
@@ -152,61 +153,64 @@
                 Mieter im Abrechnungsjahr. Daraus ergeben sich {{ $beispielAbrechnungen }} Mieterabrechnungen.
             </p>
 
+            {{--
+                Rechenbeispiel: ab sm eine klassische Tabelle, unter sm gestapelt
+                (.hvm-table-stack): jede Zeile ein Block, Spaltenbeschriftung aus
+                data-label, kein horizontales Scrollen, Betraege ohne Umbruch.
+            --}}
             <div class="mt-12 overflow-hidden rounded-3xl border border-hvm-linie bg-white">
-                <div class="overflow-x-auto">
-                    <table class="hvm-table hvm-table-zebra min-w-[40rem] text-base">
-                        <caption class="sr-only">
-                            Rechenbeispiel für {{ $beispielAbrechnungen }} Mieterabrechnungen
-                        </caption>
-                        <thead>
-                            <tr>
-                                <th scope="col">Position</th>
-                                <th scope="col">Rechenweg</th>
-                                <th scope="col" class="text-right">Betrag</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <th scope="row" class="font-medium">Mieterabrechnungen</th>
-                                <td class="text-hvm-text-sekundaer">
-                                    {{ $beispielEinheiten }} Einheiten plus {{ $beispielWechsel }} Mieterwechsel
-                                </td>
-                                <td class="text-right">{{ $beispielAbrechnungen }} Stück</td>
-                            </tr>
-                            <tr>
-                                <th scope="row" class="font-medium">Preis je Abrechnung</th>
-                                <td class="text-hvm-text-sekundaer">Festpreis brutto</td>
-                                <td class="text-right">{{ $euro($bruttoJeAbrechnungCent) }}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row" class="font-medium">Grundpreis</th>
-                                <td class="text-hvm-text-sekundaer">je Abrechnungslauf</td>
-                                <td class="text-right">{{ $euro($grundpreisCent) }}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row" class="font-semibold">Summe brutto</th>
-                                <td class="text-hvm-text-sekundaer">
-                                    {{ $beispielAbrechnungen }} mal {{ $euro($bruttoJeAbrechnungCent) }} plus {{ $euro($grundpreisCent) }}
-                                </td>
-                                <td class="text-right text-lg font-semibold">{{ $euro($beispielBruttoCent) }}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row" class="font-medium">davon netto</th>
-                                <td class="text-hvm-text-sekundaer">
-                                    {{ $euro($beispielBruttoCent) }} geteilt durch 1,{{ $steuersatz }}, kaufmännisch gerundet
-                                </td>
-                                <td class="text-right">{{ $euro($beispielNettoCent) }}</td>
-                            </tr>
-                            <tr>
-                                <th scope="row" class="font-medium">davon Umsatzsteuer</th>
-                                <td class="text-hvm-text-sekundaer">
-                                    {{ $steuersatz }} Prozent, ermittelt als Differenz von Brutto und Netto
-                                </td>
-                                <td class="text-right">{{ $euro($beispielSteuerCent) }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+                <table class="hvm-table hvm-table-zebra hvm-table-stack text-base">
+                    <caption class="sr-only">
+                        Rechenbeispiel für {{ $beispielAbrechnungen }} Mieterabrechnungen
+                    </caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Position</th>
+                            <th scope="col">Rechenweg</th>
+                            <th scope="col" class="betrag">Betrag</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <th scope="row" class="font-medium">Mieterabrechnungen</th>
+                            <td class="text-hvm-text-sekundaer" data-label="Rechenweg">
+                                {{ $beispielEinheiten }} Einheiten plus {{ $beispielWechsel }} Mieterwechsel
+                            </td>
+                            <td class="betrag" data-label="Betrag">{{ $beispielAbrechnungen }} Stück</td>
+                        </tr>
+                        <tr>
+                            <th scope="row" class="font-medium">Preis je Abrechnung</th>
+                            <td class="text-hvm-text-sekundaer" data-label="Rechenweg">Festpreis brutto</td>
+                            <td class="betrag" data-label="Betrag">{{ $euro($bruttoJeAbrechnungCent) }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row" class="font-medium">Grundpreis</th>
+                            <td class="text-hvm-text-sekundaer" data-label="Rechenweg">je Abrechnungslauf</td>
+                            <td class="betrag" data-label="Betrag">{{ $euro($grundpreisCent) }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row" class="font-semibold">Summe brutto</th>
+                            <td class="text-hvm-text-sekundaer" data-label="Rechenweg">
+                                {{ $beispielAbrechnungen }} mal {{ $euro($bruttoJeAbrechnungCent) }} plus {{ $euro($grundpreisCent) }}
+                            </td>
+                            <td class="betrag text-lg font-semibold" data-label="Betrag">{{ $euro($beispielBruttoCent) }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row" class="font-medium">davon netto</th>
+                            <td class="text-hvm-text-sekundaer" data-label="Rechenweg">
+                                {{ $euro($beispielBruttoCent) }} geteilt durch 1,{{ $steuersatz }}, kaufmännisch gerundet
+                            </td>
+                            <td class="betrag" data-label="Betrag">{{ $euro($beispielNettoCent) }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row" class="font-medium">davon Umsatzsteuer</th>
+                            <td class="text-hvm-text-sekundaer" data-label="Rechenweg">
+                                {{ $steuersatz }} Prozent, ermittelt als Differenz von Brutto und Netto
+                            </td>
+                            <td class="betrag" data-label="Betrag">{{ $euro($beispielSteuerCent) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
 
             <p class="mt-5 max-w-prose text-sm leading-relaxed text-hvm-text-sekundaer">

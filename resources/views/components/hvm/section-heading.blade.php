@@ -1,5 +1,8 @@
 {{--
-    Abschnittsueberschrift des HVM-Designsystems (Konzept A).
+    Abschnittsueberschrift des HVM-Designsystems.
+
+    Innerhalb einer .hvm-dark-Flaeche wechseln Titel auf Weiss und Eyebrow
+    sowie Lead auf Hellgrau, ohne dass eine Variante gesetzt werden muss.
 
     Props:
       eyebrow  kurze Einordnung ueber der Ueberschrift (mit orangem Strich)
@@ -37,20 +40,20 @@
     'mx-auto text-center' => $align === 'center',
 ]) }}>
     @if ($eyebrow !== null)
-        <p class="flex items-center gap-3 text-xs font-semibold tracking-[0.12em] text-hvm-text-sekundaer uppercase {{ $align === 'center' ? 'justify-center' : '' }}">
+        <p class="flex items-center gap-3 text-xs font-semibold tracking-[0.12em] text-hvm-text-sekundaer uppercase [.hvm-dark_&]:text-hvm-hellgrau {{ $align === 'center' ? 'justify-center' : '' }}">
             <span class="inline-block h-px w-8 bg-hvm-orange" aria-hidden="true"></span>
             {{ $eyebrow }}
         </p>
     @endif
 
-    <{{ $level }} class="{{ $eyebrow !== null ? 'mt-4 ' : '' }}{{ $titelgroesse }} font-semibold tracking-tight text-hvm-textschwarz">{{ $title }}</{{ $level }}>
+    <{{ $level }} class="{{ $eyebrow !== null ? 'mt-4 ' : '' }}{{ $titelgroesse }} font-semibold tracking-tight text-hvm-textschwarz [.hvm-dark_&]:text-white">{{ $title }}</{{ $level }}>
 
     @if ($lead !== null)
-        <p class="{{ $leadgroesse }} max-w-prose leading-relaxed text-hvm-text-sekundaer {{ $align === 'center' ? 'mx-auto' : '' }}">{{ $lead }}</p>
+        <p class="{{ $leadgroesse }} max-w-prose leading-relaxed text-hvm-text-sekundaer [.hvm-dark_&]:text-hvm-hellgrau {{ $align === 'center' ? 'mx-auto' : '' }}">{{ $lead }}</p>
     @endif
 
     @if ($slot->isNotEmpty())
-        <div class="mt-4 max-w-prose text-base leading-relaxed text-hvm-textschwarz {{ $align === 'center' ? 'mx-auto' : '' }}">
+        <div class="mt-4 max-w-prose text-base leading-relaxed text-hvm-textschwarz [.hvm-dark_&]:text-hvm-hellgrau {{ $align === 'center' ? 'mx-auto' : '' }}">
             {{ $slot }}
         </div>
     @endif

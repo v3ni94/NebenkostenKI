@@ -30,10 +30,7 @@
                     autocomplete="current-password"
                     :required="true" />
 
-                <div class="flex items-center gap-3">
-                    <input id="remember" name="remember" type="checkbox" value="1" class="hvm-check">
-                    <label for="remember" class="text-sm text-hvm-textschwarz">Angemeldet bleiben</label>
-                </div>
+                <x-hvm.field name="remember" label="Angemeldet bleiben" type="checkbox" value="1" />
 
                 <x-hvm.button type="submit" variant="primary" size="lg" class="w-full">Anmelden</x-hvm.button>
             </form>
