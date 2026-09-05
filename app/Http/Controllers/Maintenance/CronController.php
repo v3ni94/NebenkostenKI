@@ -80,6 +80,10 @@ final class CronController extends Controller
 
         $parameter = ['--no-interaction' => true];
 
+        if ($aufgabe === 'install' && $request->boolean('no-cache')) {
+            $parameter['--no-cache'] = true;
+        }
+
         if ($aufgabe === 'admin') {
             // Ohne Session: Validierungsfehler werden als Text beantwortet,
             // nicht als Redirect mit Fehlerbeutel.
