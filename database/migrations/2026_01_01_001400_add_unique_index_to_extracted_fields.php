@@ -28,22 +28,35 @@ use Illuminate\Support\Facades\Schema;
 | ergaenzt. Ein Unique-Index bedient dieselben Abfragen; zwei Indizes auf
 | identischer Spaltenfolge waeren nur zusaetzlicher Schreibaufwand.
 |
+| Reihenfolge: erst den Unique-Index anlegen, dann den alten Index loeschen.
+| InnoDB (MariaDB, MySQL) braucht fuer den Fremdschluessel auf document_id
+| durchgehend einen Index mit dieser Spalte an erster Stelle und verweigert
+| sonst das Loeschen ("needed in a foreign key constraint"). Zwei getrennte
+| Schema-Aufrufe, weil Laravel die Befehle eines Blueprints sonst in der
+| Reihenfolge drop vor add ausgibt.
+|
 */
 return new class extends Migration
 {
     public function up(): void
     {
         Schema::table('extracted_fields', function (Blueprint $table): void {
-            $table->dropIndex('extracted_fields_document_id_schema_key_index');
             $table->unique(['document_id', 'schema_key'], 'extracted_fields_document_schema_key_unique');
+        });
+
+        Schema::table('extracted_fields', function (Blueprint $table): void {
+            $table->dropIndex('extracted_fields_document_id_schema_key_index');
         });
     }
 
     public function down(): void
     {
         Schema::table('extracted_fields', function (Blueprint $table): void {
-            $table->dropUnique('extracted_fields_document_schema_key_unique');
             $table->index(['document_id', 'schema_key'], 'extracted_fields_document_id_schema_key_index');
+        });
+
+        Schema::table('extracted_fields', function (Blueprint $table): void {
+            $table->dropUnique('extracted_fields_document_schema_key_unique');
         });
     }
 };
