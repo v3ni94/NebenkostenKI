@@ -1,17 +1,18 @@
 {{--
-    Zaehlwerte als schlichte Definitionsliste.
+    Zaehlwerte je Status als kompakte Kacheln in einer Karte.
 
     Erwartet:
       $titel   Ueberschrift
       $werte   array<string, int>
 --}}
 <x-hvm.card :title="$titel">
-    <dl class="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        @foreach ($werte as $schluessel => $anzahl)
-            <div class="rounded border border-hvm-hellgrau bg-hvm-umrissgrau px-3 py-2">
-                <dt class="text-xs text-hvm-anthrazit">{{ $schluessel }}</dt>
-                <dd class="text-lg font-semibold">{{ $anzahl }}</dd>
-            </div>
-        @endforeach
-    </dl>
+    @if ($werte === [])
+        <p class="text-sm text-hvm-text-sekundaer">Kein Eintrag.</p>
+    @else
+        <dl class="grid grid-cols-2 gap-3">
+            @foreach ($werte as $schluessel => $anzahl)
+                <x-hvm.rollout-admin-kennzahl :label="$schluessel">{{ $anzahl }}</x-hvm.rollout-admin-kennzahl>
+            @endforeach
+        </dl>
+    @endif
 </x-hvm.card>

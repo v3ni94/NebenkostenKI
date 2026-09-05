@@ -10,182 +10,144 @@
 @section('titel', 'KI')
 
 @section('content')
-    <x-hvm.section-heading
-        level="h1"
+    <x-hvm.page-header
+        eyebrow="KI"
         title="KI-Provider, Modelle und Kosten"
         lead="Der Healthcheck sendet keinen Dokumentinhalt. Schlüssel werden nicht angezeigt." />
 
     @if ($warnung !== null)
-        <div class="mt-6">
+        <div class="mt-8">
             <x-hvm.alert variant="warning" label="Achtung" title="Ungewöhnlicher Kostenanstieg">
                 {{ $warnung }}
             </x-hvm.alert>
         </div>
     @endif
 
-    <div class="mt-6">
-        <x-hvm.card title="Healthcheck je Provider">
-            <p class="text-sm text-hvm-anthrazit">
-                Primärprovider: {{ $primaer }}@if ($fallback !== null), Fallback: {{ $fallback }}@endif
-            </p>
+    <x-hvm.rollout-admin-abschnitt
+        class="mt-10"
+        eyebrow="Provider"
+        title="Healthcheck je Provider"
+        :lead="'Primärprovider: '.$primaer.($fallback !== null ? ', Fallback: '.$fallback : '')"
+        :leer="$provider === []"
+        leertext="Es ist kein Provider konfiguriert oder die Konfiguration ist unvollständig."
+        leer-icon="sparkle">
+        <table class="hvm-table hvm-table-zebra hvm-table-stack text-sm">
+            <caption class="sr-only">Healthcheck je Provider</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Provider</th>
+                    <th scope="col">Konfiguriertes Modell</th>
+                    <th scope="col">Schlüssel gesetzt</th>
+                    <th scope="col">Erreichbar</th>
+                    <th scope="col">Modell verfügbar</th>
+                    <th scope="col">Datenschutzfreigabe</th>
+                    <th scope="col">Meldung</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach ($provider as $zeile)
+                    <tr>
+                        <th scope="row" class="font-medium">{{ $zeile['provider'] }}</th>
+                        <td data-label="Konfiguriertes Modell" class="font-mono text-xs">{{ $zeile['modell'] }}</td>
+                        <td data-label="Schlüssel gesetzt">
+                            <x-hvm.badge :variant="$zeile['api_key_gesetzt'] ? 'success' : 'error'" :icon="$zeile['api_key_gesetzt'] ? 'check-circle' : 'x-circle'">{{ $zeile['api_key_gesetzt'] ? 'ja' : 'nein' }}</x-hvm.badge>
+                        </td>
+                        <td data-label="Erreichbar">
+                            <x-hvm.badge :variant="$zeile['erreichbar'] ? 'success' : 'error'" :icon="$zeile['erreichbar'] ? 'check-circle' : 'x-circle'">{{ $zeile['erreichbar'] ? 'ja' : 'nein' }}</x-hvm.badge>
+                        </td>
+                        <td data-label="Modell verfügbar">
+                            <x-hvm.badge :variant="$zeile['modell_verfuegbar'] ? 'success' : 'error'" :icon="$zeile['modell_verfuegbar'] ? 'check-circle' : 'x-circle'">{{ $zeile['modell_verfuegbar'] ? 'ja' : 'nein' }}</x-hvm.badge>
+                        </td>
+                        <td data-label="Datenschutzfreigabe">
+                            <x-hvm.badge :variant="$zeile['freigegeben'] ? 'success' : 'warning'" :icon="$zeile['freigegeben'] ? 'check-circle' : 'warning'">{{ $zeile['freigegeben'] ? 'liegt vor' : 'fehlt' }}</x-hvm.badge>
+                        </td>
+                        <td data-label="Meldung" class="text-hvm-text-sekundaer">{{ $zeile['meldung'] }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </x-hvm.rollout-admin-abschnitt>
 
-            @if ($provider === [])
-                <p class="mt-3">Es ist kein Provider konfiguriert oder die Konfiguration ist unvollständig.</p>
-            @else
-                <div class="mt-3 overflow-x-auto">
-                    <table class="w-full text-left text-sm">
-                        <thead class="bg-hvm-orange-soft">
-                            <tr>
-                                <th class="px-3 py-2">Provider</th>
-                                <th class="px-3 py-2">Konfiguriertes Modell</th>
-                                <th class="px-3 py-2">Schlüssel gesetzt</th>
-                                <th class="px-3 py-2">Erreichbar</th>
-                                <th class="px-3 py-2">Modell verfügbar</th>
-                                <th class="px-3 py-2">Datenschutzfreigabe</th>
-                                <th class="px-3 py-2">Meldung</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($provider as $zeile)
-                                <tr class="border-t border-hvm-hellgrau">
-                                    <td class="px-3 py-2">{{ $zeile['provider'] }}</td>
-                                    <td class="px-3 py-2">{{ $zeile['modell'] }}</td>
-                                    <td class="px-3 py-2">{{ $zeile['api_key_gesetzt'] ? 'ja' : 'nein' }}</td>
-                                    <td class="px-3 py-2">{{ $zeile['erreichbar'] ? 'ja' : 'nein' }}</td>
-                                    <td class="px-3 py-2">{{ $zeile['modell_verfuegbar'] ? 'ja' : 'nein' }}</td>
-                                    <td class="px-3 py-2">{{ $zeile['freigegeben'] ? 'liegt vor' : 'fehlt' }}</td>
-                                    <td class="px-3 py-2">{{ $zeile['meldung'] }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            @endif
-        </x-hvm.card>
-    </div>
-
-    <div class="mt-6 grid gap-6 lg:grid-cols-2">
-        <x-hvm.card title="Kosten">
-            <dl class="space-y-1 text-sm">
-                <div class="flex justify-between">
-                    <dt>Laufender Monat</dt>
-                    <dd>{{ \App\Application\Admin\AiOverview::formatCent($monat['kosten_cent']) }}</dd>
-                </div>
-                <div class="flex justify-between">
-                    <dt>Aufrufe im Monat</dt>
-                    <dd>{{ $monat['aufrufe'] }}</dd>
-                </div>
-                <div class="flex justify-between">
-                    <dt>Fehlerhafte Aufrufe im Monat</dt>
-                    <dd>{{ $monat['fehler'] }}</dd>
-                </div>
-                <div class="flex justify-between">
-                    <dt>Gesamt</dt>
-                    <dd>{{ \App\Application\Admin\AiOverview::formatCent($gesamt['kosten_cent']) }}</dd>
-                </div>
+    <div class="mt-16 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <x-hvm.card title="Kosten" eyebrow="Laufender Monat" class="min-w-0">
+            <dl class="divide-y divide-hvm-linie">
+                <x-hvm.rollout-admin-kv label="Laufender Monat">{{ \App\Application\Admin\AiOverview::formatCent($monat['kosten_cent']) }}</x-hvm.rollout-admin-kv>
+                <x-hvm.rollout-admin-kv label="Aufrufe im Monat">{{ $monat['aufrufe'] }}</x-hvm.rollout-admin-kv>
+                <x-hvm.rollout-admin-kv label="Fehlerhafte Aufrufe im Monat">{{ $monat['fehler'] }}</x-hvm.rollout-admin-kv>
+                <x-hvm.rollout-admin-kv label="Gesamt">{{ \App\Application\Admin\AiOverview::formatCent($gesamt['kosten_cent']) }}</x-hvm.rollout-admin-kv>
             </dl>
         </x-hvm.card>
 
-        <x-hvm.card title="Limits">
-            <dl class="space-y-1 text-sm">
-                <div class="flex justify-between">
-                    <dt>Tageslimit je Nutzer</dt>
-                    <dd>{{ $limits['tageslimit_cent_je_nutzer'] === null ? 'kein Limit gesetzt' : \App\Application\Admin\AiOverview::formatCent($limits['tageslimit_cent_je_nutzer']) }}</dd>
-                </div>
-                <div class="flex justify-between">
-                    <dt>Konfidenzschwelle</dt>
-                    <dd>{{ number_format($limits['konfidenzschwelle'], 2, ',', '.') }}</dd>
-                </div>
-                <div class="flex justify-between">
-                    <dt>Maximale Wiederholungen</dt>
-                    <dd>{{ $limits['maximale_wiederholungen'] }}</dd>
-                </div>
-                <div class="flex justify-between">
-                    <dt>Doppelprüfung</dt>
-                    <dd>{{ $limits['doppelpruefung_aktiv'] ? 'aktiv' : 'aus' }}</dd>
-                </div>
-                <div class="flex justify-between">
-                    <dt>Fallback</dt>
-                    <dd>{{ $limits['fallback_aktiv'] ? 'aktiv' : 'aus' }}</dd>
-                </div>
+        <x-hvm.card title="Limits" eyebrow="Konfiguration" class="min-w-0">
+            <dl class="divide-y divide-hvm-linie">
+                <x-hvm.rollout-admin-kv label="Tageslimit je Nutzer">{{ $limits['tageslimit_cent_je_nutzer'] === null ? 'kein Limit gesetzt' : \App\Application\Admin\AiOverview::formatCent($limits['tageslimit_cent_je_nutzer']) }}</x-hvm.rollout-admin-kv>
+                <x-hvm.rollout-admin-kv label="Konfidenzschwelle">{{ number_format($limits['konfidenzschwelle'], 2, ',', '.') }}</x-hvm.rollout-admin-kv>
+                <x-hvm.rollout-admin-kv label="Maximale Wiederholungen">{{ $limits['maximale_wiederholungen'] }}</x-hvm.rollout-admin-kv>
+                <x-hvm.rollout-admin-kv label="Doppelprüfung">{{ $limits['doppelpruefung_aktiv'] ? 'aktiv' : 'aus' }}</x-hvm.rollout-admin-kv>
+                <x-hvm.rollout-admin-kv label="Fallback">{{ $limits['fallback_aktiv'] ? 'aktiv' : 'aus' }}</x-hvm.rollout-admin-kv>
             </dl>
         </x-hvm.card>
     </div>
 
-    <div class="mt-6">
-        <x-hvm.card title="Kosten je Nutzer im laufenden Monat">
-            @if ($je_nutzer === [])
-                <p>Kein Eintrag.</p>
-            @else
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm">
-                        <thead class="bg-hvm-orange-soft">
-                            <tr>
-                                <th class="px-3 py-2">Nutzer</th>
-                                <th class="px-3 py-2">E-Mail</th>
-                                <th class="px-3 py-2">Aufrufe</th>
-                                <th class="px-3 py-2">Kosten</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($je_nutzer as $zeile)
-                                <tr class="border-t border-hvm-hellgrau">
-                                    <td class="px-3 py-2">{{ $zeile['name'] }}</td>
-                                    <td class="px-3 py-2">{{ $zeile['email'] }}</td>
-                                    <td class="px-3 py-2">{{ $zeile['aufrufe'] }}</td>
-                                    <td class="px-3 py-2">{{ \App\Application\Admin\AiOverview::formatCent($zeile['kosten_cent']) }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            @endif
-        </x-hvm.card>
-    </div>
+    <x-hvm.rollout-admin-abschnitt class="mt-16" eyebrow="Nutzer" title="Kosten je Nutzer im laufenden Monat" :leer="$je_nutzer === []" leer-icon="user">
+        <table class="hvm-table hvm-table-zebra hvm-table-stack text-sm">
+            <caption class="sr-only">Kosten je Nutzer im laufenden Monat</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Nutzer</th>
+                    <th scope="col">E-Mail</th>
+                    <th scope="col" class="betrag">Aufrufe</th>
+                    <th scope="col" class="betrag">Kosten</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach ($je_nutzer as $zeile)
+                    <tr>
+                        <th scope="row" class="font-medium">{{ $zeile['name'] }}</th>
+                        <td data-label="E-Mail" class="text-hvm-text-sekundaer">{{ $zeile['email'] }}</td>
+                        <td data-label="Aufrufe" class="betrag">{{ $zeile['aufrufe'] }}</td>
+                        <td data-label="Kosten" class="betrag">{{ \App\Application\Admin\AiOverview::formatCent($zeile['kosten_cent']) }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </x-hvm.rollout-admin-abschnitt>
 
-    <div class="mt-6">
-        <x-hvm.card title="Tageskosten">
-            <dl class="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+    <div class="mt-16">
+        <x-hvm.card title="Tageskosten" eyebrow="Letzte Tage">
+            <dl class="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
                 @foreach ($tageskosten as $tag => $cent)
-                    <div class="rounded border border-hvm-hellgrau px-3 py-2">
-                        <dt class="text-xs text-hvm-anthrazit">{{ $tag }}</dt>
-                        <dd>{{ \App\Application\Admin\AiOverview::formatCent($cent) }}</dd>
-                    </div>
+                    <x-hvm.rollout-admin-kennzahl :label="$tag">{{ \App\Application\Admin\AiOverview::formatCent($cent) }}</x-hvm.rollout-admin-kennzahl>
                 @endforeach
             </dl>
         </x-hvm.card>
     </div>
 
-    <div class="mt-6">
-        <x-hvm.card title="Promptversionen">
-            @if ($prompts === [])
-                <p>Es ist keine Promptversion hinterlegt.</p>
-            @else
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm">
-                        <thead class="bg-hvm-orange-soft">
-                            <tr>
-                                <th class="px-3 py-2">Zweck</th>
-                                <th class="px-3 py-2">Version</th>
-                                <th class="px-3 py-2">Status</th>
-                                <th class="px-3 py-2">Aktiviert am</th>
-                                <th class="px-3 py-2">Hash (gekürzt)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($prompts as $zeile)
-                                <tr class="border-t border-hvm-hellgrau">
-                                    <td class="px-3 py-2">{{ $zeile['zweck'] }}</td>
-                                    <td class="px-3 py-2">{{ $zeile['version'] }}</td>
-                                    <td class="px-3 py-2">{{ $zeile['aktiv'] ? 'aktiv' : 'abgelöst' }}</td>
-                                    <td class="px-3 py-2">{{ $zeile['aktiviert_am'] ?? 'ohne Angabe' }}</td>
-                                    <td class="px-3 py-2 font-mono text-xs">{{ $zeile['hash_kurz'] }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            @endif
-        </x-hvm.card>
-    </div>
+    <x-hvm.rollout-admin-abschnitt class="mt-16" eyebrow="Prompts" title="Promptversionen" :leer="$prompts === []" leertext="Es ist keine Promptversion hinterlegt." leer-icon="document">
+        <table class="hvm-table hvm-table-zebra hvm-table-stack text-sm">
+            <caption class="sr-only">Promptversionen</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Zweck</th>
+                    <th scope="col">Version</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Aktiviert am</th>
+                    <th scope="col">Hash (gekürzt)</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach ($prompts as $zeile)
+                    <tr>
+                        <th scope="row" class="font-medium">{{ $zeile['zweck'] }}</th>
+                        <td data-label="Version" class="tabular">{{ $zeile['version'] }}</td>
+                        <td data-label="Status">
+                            <x-hvm.badge :variant="$zeile['aktiv'] ? 'success' : 'neutral'" :icon="$zeile['aktiv'] ? 'check-circle' : 'clock'">{{ $zeile['aktiv'] ? 'aktiv' : 'abgelöst' }}</x-hvm.badge>
+                        </td>
+                        <td data-label="Aktiviert am" class="text-hvm-text-sekundaer">{{ $zeile['aktiviert_am'] ?? 'ohne Angabe' }}</td>
+                        <td data-label="Hash (gekürzt)" class="font-mono text-xs">{{ $zeile['hash_kurz'] }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </x-hvm.rollout-admin-abschnitt>
 @endsection
