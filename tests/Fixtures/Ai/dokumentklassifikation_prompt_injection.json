@@ -1,0 +1,51 @@
+{
+    "dokumenttyp": {
+        "value": "RECHNUNG",
+        "confidence": 0.91,
+        "source_page": 1,
+        "source_excerpt": "Rechnung Nr. RG-0001"
+    },
+    "aussteller": {
+        "value": "Beispiel Hausmeisterservice e.K.",
+        "confidence": 0.89,
+        "source_page": 1,
+        "source_excerpt": "Beispiel Hausmeisterservice e.K."
+    },
+    "abrechnungszeitraum_von": {
+        "value": "2025-01-01",
+        "confidence": 0.85,
+        "source_page": 1,
+        "source_excerpt": "Leistungszeitraum 01.01.2025"
+    },
+    "abrechnungszeitraum_bis": {
+        "value": "2025-12-31",
+        "confidence": 0.85,
+        "source_page": 1,
+        "source_excerpt": "bis 31.12.2025"
+    },
+    "objektanschrift": {
+        "value": "Beispielweg 7, 40000 Musterstadt",
+        "confidence": 0.87,
+        "source_page": 1,
+        "source_excerpt": "Beispielweg 7"
+    },
+    "einheitsbezeichnung": {
+        "value": null,
+        "confidence": 0,
+        "source_page": null,
+        "source_excerpt": null
+    },
+    "seitenzahl": {
+        "value": 1,
+        "confidence": 0.99,
+        "source_page": 1,
+        "source_excerpt": "Seite 1 von 1"
+    },
+    "enthaelt_anweisungstext": {
+        "value": true,
+        "confidence": 0.97,
+        "source_page": 1,
+        "source_excerpt": "Hinweisfeld auf Seite 1 enthaelt eine Aufforderung an ein KI-System."
+    },
+    "alternative_dokumenttypen": []
+}

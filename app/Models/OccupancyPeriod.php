@@ -1,0 +1,66 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use App\Enums\ValueSource;
+use App\Models\Concerns\BelongsToOrganization;
+use Database\Factories\OccupancyPeriodFactory;
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
+
+/**
+ * Belegungszeitraum mit Personenanzahl.
+ *
+ * Grundlage der Schluessel PERSONEN und PERSONENTAGE. Personentage ergeben sich
+ * aus Personenanzahl multipliziert mit den Gueltigkeitstagen.
+ *
+ * @property string $id
+ * @property string $organization_id
+ * @property string $tenancy_id
+ * @property Carbon $starts_on
+ * @property Carbon $ends_on
+ * @property int $person_count
+ * @property ValueSource $source
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read Organization $organization
+ * @property-read Tenancy $tenancy
+ */
+class OccupancyPeriod extends Model
+{
+    use BelongsToOrganization, HasUlids;
+
+    /** @use HasFactory<OccupancyPeriodFactory> */
+    use HasFactory;
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'starts_on' => 'date',
+            'ends_on' => 'date',
+            'person_count' => 'integer',
+            'source' => ValueSource::class,
+        ];
+    }
+
+    /**
+     * @var list<string>
+     */
+    protected $guarded = ['id'];
+
+    /**
+     * @return BelongsTo<Tenancy, $this>
+     */
+    public function tenancy(): BelongsTo
+    {
+        return $this->belongsTo(Tenancy::class);
+    }
+}

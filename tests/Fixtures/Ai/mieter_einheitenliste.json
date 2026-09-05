@@ -1,0 +1,163 @@
+{
+    "objektanschrift": {
+        "value": "Beispielweg 7, 40000 Musterstadt",
+        "confidence": 0.94,
+        "source_page": 1,
+        "source_excerpt": "Beispielweg 7"
+    },
+    "stichtag": {
+        "value": "2025-12-31",
+        "confidence": 0.9,
+        "source_page": 1,
+        "source_excerpt": "Stand 31.12.2025"
+    },
+    "zeitraum_von": {
+        "value": "2025-01-01",
+        "confidence": 0.9,
+        "source_page": 1,
+        "source_excerpt": "01.01.2025"
+    },
+    "zeitraum_bis": {
+        "value": "2025-12-31",
+        "confidence": 0.9,
+        "source_page": 1,
+        "source_excerpt": "31.12.2025"
+    },
+    "gesamtflaeche_qm": {
+        "value": "845.00",
+        "confidence": 0.92,
+        "source_page": 1,
+        "source_excerpt": "845,00 qm"
+    },
+    "anzahl_einheiten": {
+        "value": 2,
+        "confidence": 0.95,
+        "source_page": 1,
+        "source_excerpt": "2 Einheiten in der Liste"
+    },
+    "einheiten": [
+        {
+            "einheitsbezeichnung": {
+                "value": "Wohnung 4",
+                "confidence": 0.94,
+                "source_page": 1,
+                "source_excerpt": "Wohnung 4"
+            },
+            "lage": {
+                "value": "2. OG rechts",
+                "confidence": 0.9,
+                "source_page": 1,
+                "source_excerpt": "2. OG rechts"
+            },
+            "wohnflaeche_qm": {
+                "value": "72.40",
+                "confidence": 0.93,
+                "source_page": 1,
+                "source_excerpt": "72,40"
+            },
+            "beheizte_wohnflaeche_qm": {
+                "value": "72.40",
+                "confidence": 0.9,
+                "source_page": 1,
+                "source_excerpt": "72,40"
+            },
+            "miteigentumsanteil": {
+                "value": "84.50",
+                "confidence": 0.88,
+                "source_page": 1,
+                "source_excerpt": "84,50"
+            },
+            "leerstand": {
+                "value": false,
+                "confidence": 0.95,
+                "source_page": 1,
+                "source_excerpt": "vermietet"
+            },
+            "mietverhaeltnisse": [
+                {
+                    "mieter_name": {
+                        "value": "Erika Beispiel",
+                        "confidence": 0.92,
+                        "source_page": 1,
+                        "source_excerpt": "Erika Beispiel"
+                    },
+                    "zustellanschrift": {
+                        "value": null,
+                        "confidence": 0,
+                        "source_page": null,
+                        "source_excerpt": null
+                    },
+                    "mietbeginn": {
+                        "value": "2023-04-01",
+                        "confidence": 0.93,
+                        "source_page": 1,
+                        "source_excerpt": "01.04.2023"
+                    },
+                    "mietende": {
+                        "value": null,
+                        "confidence": 0,
+                        "source_page": null,
+                        "source_excerpt": null
+                    },
+                    "personenanzahl": {
+                        "value": 2,
+                        "confidence": 0.85,
+                        "source_page": 1,
+                        "source_excerpt": "2"
+                    },
+                    "betriebskostenvorauszahlung_monatlich_cent": {
+                        "value": 14000,
+                        "confidence": 0.9,
+                        "source_page": 1,
+                        "source_excerpt": "140,00"
+                    },
+                    "heizkostenvorauszahlung_monatlich_cent": {
+                        "value": 9000,
+                        "confidence": 0.9,
+                        "source_page": 1,
+                        "source_excerpt": "90,00"
+                    }
+                }
+            ]
+        },
+        {
+            "einheitsbezeichnung": {
+                "value": "Wohnung 5",
+                "confidence": 0.94,
+                "source_page": 1,
+                "source_excerpt": "Wohnung 5"
+            },
+            "lage": {
+                "value": "3. OG links",
+                "confidence": 0.9,
+                "source_page": 1,
+                "source_excerpt": "3. OG links"
+            },
+            "wohnflaeche_qm": {
+                "value": "61.20",
+                "confidence": 0.93,
+                "source_page": 1,
+                "source_excerpt": "61,20"
+            },
+            "beheizte_wohnflaeche_qm": {
+                "value": "61.20",
+                "confidence": 0.9,
+                "source_page": 1,
+                "source_excerpt": "61,20"
+            },
+            "miteigentumsanteil": {
+                "value": "71.40",
+                "confidence": 0.88,
+                "source_page": 1,
+                "source_excerpt": "71,40"
+            },
+            "leerstand": {
+                "value": true,
+                "confidence": 0.9,
+                "source_page": 1,
+                "source_excerpt": "Leerstand ab 01.07.2025"
+            },
+            "mietverhaeltnisse": []
+        }
+    ]
+}

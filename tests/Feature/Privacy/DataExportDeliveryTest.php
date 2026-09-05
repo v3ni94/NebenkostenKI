@@ -1,0 +1,369 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Feature\Privacy;
+
+use App\Application\Privacy\CreateDataExport;
+use App\Enums\GeneratedDocumentKind;
+use App\Enums\OrganizationRole;
+use App\Models\AuditLog;
+use App\Models\EmailMessage;
+use App\Models\GeneratedDocument;
+use App\Models\Organization;
+use App\Models\OrganizationUser;
+use App\Models\ReminderEvent;
+use App\Models\ReminderPreference;
+use App\Models\User;
+use App\Providers\AppServiceProvider;
+use App\Services\Storage\SignedDownloadUrlFactory;
+use Illuminate\Support\Facades\Storage;
+
+/**
+ * Auslieferung des Datenexports (Masterprompt 19, ARCHITECTURE.md T2).
+ *
+ * Der Export wird ausschliesslich ueber eine autorisierte Route oder einen
+ * kurzlebigen signierten Link ausgeliefert. Ein signierter Link ersetzt die
+ * Autorisierung nicht.
+ */
+final class DataExportDeliveryTest extends PrivacyTestCase
+{
+    public function test_export_wird_ueber_die_oberflaeche_angefordert(): void
+    {
+        $a = $this->mandant('A');
+
+        $antwort = $this->actingAs($a['user'])->post(route('portal.datenschutz.export'));
+
+        $antwort->assertRedirect(route('portal.datenschutz.show'));
+        $antwort->assertSessionHas('status');
+
+        self::assertSame(1, $this->exportAnzahl());
+    }
+
+    public function test_autorisierter_download_liefert_das_zip(): void
+    {
+        $a = $this->mandant('A');
+        $export = $this->export($a);
+
+        $antwort = $this->actingAs($a['user'])->get(route('portal.datenschutz.export.download', [
+            'export' => $export->getKey(),
+        ]));
+
+        $antwort->assertOk();
+        $antwort->assertHeader('content-type', 'application/zip');
+        $antwort->assertHeader('x-content-type-options', 'nosniff');
+    }
+
+    public function test_download_ohne_anmeldung_ist_gesperrt(): void
+    {
+        $a = $this->mandant('A');
+        $export = $this->export($a);
+
+        $antwort = $this->get(route('portal.datenschutz.export.download', [
+            'export' => $export->getKey(),
+        ]));
+
+        self::assertContains($antwort->getStatusCode(), [302, 401, 403]);
+    }
+
+    public function test_fremder_export_ist_nicht_abrufbar(): void
+    {
+        $a = $this->mandant('A');
+        $b = $this->mandant('B');
+        $fremd = $this->export($b);
+
+        $antwort = $this->actingAs($a['user'])->get(route('portal.datenschutz.export.download', [
+            'export' => $fremd->getKey(),
+        ]));
+
+        self::assertContains($antwort->getStatusCode(), [403, 404]);
+    }
+
+    public function test_signierter_link_ist_gueltig_und_laeuft_ab(): void
+    {
+        $a = $this->mandant('A');
+        $export = $this->export($a);
+
+        /** @var SignedDownloadUrlFactory $urls */
+        $urls = app(SignedDownloadUrlFactory::class);
+
+        $gueltig = $urls->forRoute('portal.datenschutz.export.signiert', [
+            'export' => (string) $export->getKey(),
+        ]);
+
+        $this->actingAs($a['user'])->get($gueltig)->assertOk();
+
+        $abgelaufen = $urls->expiredForRoute('portal.datenschutz.export.signiert', [
+            'export' => (string) $export->getKey(),
+        ]);
+
+        $this->actingAs($a['user'])->get($abgelaufen)->assertForbidden();
+    }
+
+    public function test_signierter_link_ersetzt_die_autorisierung_nicht(): void
+    {
+        $a = $this->mandant('A');
+        $b = $this->mandant('B');
+        $fremd = $this->export($b);
+
+        /** @var SignedDownloadUrlFactory $urls */
+        $urls = app(SignedDownloadUrlFactory::class);
+
+        $url = $urls->forRoute('portal.datenschutz.export.signiert', [
+            'export' => (string) $fremd->getKey(),
+        ]);
+
+        $antwort = $this->actingAs($a['user'])->get($url);
+
+        self::assertContains($antwort->getStatusCode(), [403, 404]);
+    }
+
+    public function test_signierter_link_wird_ueber_die_oberflaeche_erzeugt(): void
+    {
+        $a = $this->mandant('A');
+        $export = $this->export($a);
+
+        $antwort = $this->actingAs($a['user'])->post(route('portal.datenschutz.export.link', [
+            'export' => $export->getKey(),
+        ]));
+
+        $antwort->assertRedirect(route('portal.datenschutz.show'));
+
+        $status = session('status');
+        self::assertIsString($status);
+        self::assertStringContainsString('signature=', $status);
+    }
+
+    public function test_ein_mitglied_desselben_mandanten_sieht_und_laedt_den_export_nicht(): void
+    {
+        $a = $this->mandant('A');
+
+        /** @var User $mitglied */
+        $mitglied = User::factory()->create(['email' => 'mitglied@example.test']);
+
+        OrganizationUser::query()->create([
+            'organization_id' => $a['organization']->getKey(),
+            'user_id' => $mitglied->getKey(),
+            'role' => OrganizationRole::MEMBER,
+            'joined_at' => now(),
+        ]);
+
+        $export = $this->export($a);
+
+        // Der Export enthaelt Kontodaten von A und Daten aller Mandanten von A.
+        // Ein anderes Mitglied des geteilten Mandanten darf ihn nicht sehen.
+        $seite = $this->actingAs($mitglied)->get(route('portal.datenschutz.show'));
+        $seite->assertOk();
+        $seite->assertDontSee(route('portal.datenschutz.export.download', ['export' => $export->getKey()]), false);
+        $seite->assertSee('Es steht derzeit kein Datenexport bereit.');
+
+        $this->actingAs($mitglied)->get(route('portal.datenschutz.export.download', [
+            'export' => $export->getKey(),
+        ]))->assertNotFound();
+
+        $this->actingAs($mitglied)->post(route('portal.datenschutz.export.link', [
+            'export' => $export->getKey(),
+        ]))->assertNotFound();
+
+        /** @var SignedDownloadUrlFactory $urls */
+        $urls = app(SignedDownloadUrlFactory::class);
+
+        $this->actingAs($mitglied)->get($urls->forRoute('portal.datenschutz.export.signiert', [
+            'export' => (string) $export->getKey(),
+        ]))->assertNotFound();
+
+        // Der Antragsteller selbst behaelt den Zugriff.
+        $this->actingAs($a['user'])->get(route('portal.datenschutz.export.download', [
+            'export' => $export->getKey(),
+        ]))->assertOk();
+    }
+
+    public function test_ein_mitglied_desselben_mandanten_erhaelt_den_export_auch_nicht_ueber_die_allgemeine_downloadroute(): void
+    {
+        $a = $this->mandant('A');
+
+        /** @var User $mitglied */
+        $mitglied = User::factory()->create(['email' => 'mitglied@example.test']);
+
+        OrganizationUser::query()->create([
+            'organization_id' => $a['organization']->getKey(),
+            'user_id' => $mitglied->getKey(),
+            'role' => OrganizationRole::MEMBER,
+            'joined_at' => now(),
+        ]);
+
+        $export = $this->export($a);
+
+        // Die allgemeine Artefaktroute prueft die Zugehoerigkeit zum Mandanten.
+        // Fuer einen Datenexport reicht das nicht: Er gehoert allein dem
+        // Antragsteller.
+        $this->actingAs($mitglied)->get(route('portal.downloads.stream', [
+            'generatedDocument' => $export->getKey(),
+        ]))->assertNotFound();
+
+        /** @var SignedDownloadUrlFactory $urls */
+        $urls = app(SignedDownloadUrlFactory::class);
+
+        $this->actingAs($mitglied)->get($urls->forRoute('portal.downloads.signed', [
+            'generatedDocument' => (string) $export->getKey(),
+        ]))->assertNotFound();
+
+        // Der Antragsteller selbst behaelt den Zugriff auch ueber diese Route.
+        $this->actingAs($a['user'])->get(route('portal.downloads.stream', [
+            'generatedDocument' => $export->getKey(),
+        ]))->assertOk();
+    }
+
+    public function test_der_export_enthaelt_in_einem_geteilten_mandanten_keine_nachrichten_und_protokolle_anderer_mitglieder(): void
+    {
+        $a = $this->mandant('A');
+        $organisation = $a['organization'];
+
+        /** @var User $mitglied */
+        $mitglied = User::factory()->create(['email' => 'mitglied@example.test']);
+
+        OrganizationUser::query()->create([
+            'organization_id' => $organisation->getKey(),
+            'user_id' => $mitglied->getKey(),
+            'role' => OrganizationRole::MEMBER,
+            'joined_at' => now(),
+        ]);
+
+        // Personenbezogene Daten des anderen Mitglieds im selben Mandanten.
+        EmailMessage::factory()->create([
+            'organization_id' => $organisation->getKey(),
+            'user_id' => $mitglied->getKey(),
+            'recipient_email' => 'mitglied@example.test',
+            'subject' => 'Betreff nur fuer das Mitglied 8842',
+        ]);
+        $fremdeEinstellung = ReminderPreference::factory()->create([
+            'organization_id' => $organisation->getKey(),
+            'user_id' => $mitglied->getKey(),
+        ]);
+        $fremdesEreignis = ReminderEvent::factory()->create([
+            'organization_id' => $organisation->getKey(),
+            'user_id' => $mitglied->getKey(),
+            'recipient_email' => 'mitglied@example.test',
+        ]);
+        $fremderEintrag = AuditLog::factory()->create([
+            'organization_id' => $organisation->getKey(),
+            'actor_user_id' => $mitglied->getKey(),
+            'action' => 'mitglied.handlung.9917',
+        ]);
+
+        // Eigene Daten des Antragstellers im selben Mandanten.
+        EmailMessage::factory()->create([
+            'organization_id' => $organisation->getKey(),
+            'user_id' => $a['user']->getKey(),
+            'recipient_email' => (string) $a['user']->getAttribute('email'),
+            'subject' => 'Betreff fuer den Antragsteller 5531',
+        ]);
+        $eigeneEinstellung = ReminderPreference::factory()->create([
+            'organization_id' => $organisation->getKey(),
+            'user_id' => $a['user']->getKey(),
+        ]);
+        $eigenerEintrag = AuditLog::factory()->create([
+            'organization_id' => $organisation->getKey(),
+            'actor_user_id' => $a['user']->getKey(),
+            'action' => 'antragsteller.handlung.7734',
+        ]);
+
+        $this->actingAs($a['user'])->post(route('portal.datenschutz.export'))
+            ->assertRedirect(route('portal.datenschutz.show'));
+
+        /** @var GeneratedDocument $export */
+        $export = GeneratedDocument::query()
+            ->where('kind', GeneratedDocumentKind::DSGVO_EXPORT->value)
+            ->where('requested_by_user_id', $a['user']->getKey())
+            ->firstOrFail();
+
+        $this->actingAs($a['user'])->get(route('portal.datenschutz.export.download', [
+            'export' => $export->getKey(),
+        ]))->assertOk();
+
+        $eintraege = $this->zipEintraege((string) $export->getAttribute('storage_path'));
+
+        self::assertStringNotContainsString('mitglied@example.test', $eintraege['daten/nachrichten.json']);
+        self::assertStringNotContainsString('Betreff nur fuer das Mitglied 8842', $eintraege['daten/nachrichten.json']);
+        self::assertStringContainsString('Betreff fuer den Antragsteller 5531', $eintraege['daten/nachrichten.json']);
+
+        self::assertStringNotContainsString((string) $fremdeEinstellung->getKey(), $eintraege['daten/erinnerungseinstellungen.json']);
+        self::assertStringContainsString((string) $eigeneEinstellung->getKey(), $eintraege['daten/erinnerungseinstellungen.json']);
+
+        self::assertStringNotContainsString((string) $fremdesEreignis->getKey(), $eintraege['daten/erinnerungsereignisse.json']);
+        self::assertStringNotContainsString('mitglied@example.test', $eintraege['daten/erinnerungsereignisse.json']);
+
+        self::assertStringNotContainsString((string) $fremderEintrag->getKey(), $eintraege['daten/revisionsprotokoll.json']);
+        self::assertStringNotContainsString('mitglied.handlung.9917', $eintraege['daten/revisionsprotokoll.json']);
+        self::assertStringContainsString((string) $eigenerEintrag->getKey(), $eintraege['daten/revisionsprotokoll.json']);
+    }
+
+    public function test_die_anforderung_ist_je_nutzer_und_tag_begrenzt(): void
+    {
+        $a = $this->mandant('A');
+
+        for ($i = 0; $i < AppServiceProvider::DATENEXPORTE_JE_TAG; $i++) {
+            $this->actingAs($a['user'])
+                ->post(route('portal.datenschutz.export'))
+                ->assertRedirect(route('portal.datenschutz.show'));
+        }
+
+        $antwort = $this->actingAs($a['user'])->post(route('portal.datenschutz.export'));
+
+        // Kein 429 mit Fehlerseite, sondern ein Hinweis auf der Datenschutzseite.
+        $antwort->assertRedirect(route('portal.datenschutz.show'));
+        self::assertStringContainsString('bereits', (string) session('status'));
+        self::assertStringContainsString('Datenexporte angefordert', (string) session('status'));
+
+        self::assertSame(
+            AppServiceProvider::DATENEXPORTE_JE_TAG,
+            AuditLog::query()->where('action', 'privacy.export.created')->count()
+        );
+
+        // Ein anderer Nutzer ist von der Grenze nicht betroffen.
+        $b = $this->mandant('B');
+        $this->actingAs($b['user'])->post(route('portal.datenschutz.export'));
+
+        self::assertSame(
+            AppServiceProvider::DATENEXPORTE_JE_TAG + 1,
+            AuditLog::query()->where('action', 'privacy.export.created')->count()
+        );
+    }
+
+    public function test_fehlende_artefaktdatei_fuehrt_zu_404(): void
+    {
+        $a = $this->mandant('A');
+        $export = $this->export($a);
+
+        Storage::disk('local')
+            ->delete((string) $export->getAttribute('storage_path'));
+
+        $this->actingAs($a['user'])->get(route('portal.datenschutz.export.download', [
+            'export' => $export->getKey(),
+        ]))->assertNotFound();
+    }
+
+    /**
+     * @param  array<string, mixed>  $mandant
+     */
+    private function export(array $mandant): GeneratedDocument
+    {
+        /** @var CreateDataExport $use */
+        $use = app(CreateDataExport::class);
+
+        $nutzer = $mandant['user'];
+        $organisation = $mandant['organization'];
+
+        self::assertInstanceOf(User::class, $nutzer);
+        self::assertInstanceOf(Organization::class, $organisation);
+
+        return $use($nutzer, $organisation)->document;
+    }
+
+    private function exportAnzahl(): int
+    {
+        return GeneratedDocument::query()
+            ->where('kind', GeneratedDocumentKind::DSGVO_EXPORT->value)
+            ->count();
+    }
+}

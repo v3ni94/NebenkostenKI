@@ -1,0 +1,289 @@
+{
+    "abrechnungsdienst": {
+        "value": "Beispiel Waermedienst GmbH",
+        "confidence": 0.95,
+        "source_page": 1,
+        "source_excerpt": "Beispiel Waermedienst GmbH"
+    },
+    "abrechnungsnummer": {
+        "value": "HK-0000001",
+        "confidence": 0.92,
+        "source_page": 1,
+        "source_excerpt": "Abrechnung HK-0000001"
+    },
+    "objektanschrift": {
+        "value": "Beispielweg 7, 40000 Musterstadt",
+        "confidence": 0.94,
+        "source_page": 1,
+        "source_excerpt": "Beispielweg 7"
+    },
+    "abrechnungszeitraum_von": {
+        "value": "2025-01-01",
+        "confidence": 0.97,
+        "source_page": 1,
+        "source_excerpt": "01.01.2025"
+    },
+    "abrechnungszeitraum_bis": {
+        "value": "2025-12-31",
+        "confidence": 0.97,
+        "source_page": 1,
+        "source_excerpt": "31.12.2025"
+    },
+    "gesamtkosten_heizung_cent": {
+        "value": 1284000,
+        "confidence": 0.95,
+        "source_page": 1,
+        "source_excerpt": "Heizung 12.840,00",
+        "bounding_box": null
+    },
+    "gesamtkosten_warmwasser_cent": {
+        "value": 406000,
+        "confidence": 0.95,
+        "source_page": 1,
+        "source_excerpt": "Warmwasser 4.060,00",
+        "bounding_box": null
+    },
+    "gesamtkosten_summe_cent": {
+        "value": 1690000,
+        "confidence": 0.95,
+        "source_page": 1,
+        "source_excerpt": "Summe 16.900,00",
+        "bounding_box": null
+    },
+    "betriebsstrom_cent": {
+        "value": 48000,
+        "confidence": 0.88,
+        "source_page": 2,
+        "source_excerpt": "Betriebsstrom 480,00"
+    },
+    "brennstoffkosten_cent": {
+        "value": 1104000,
+        "confidence": 0.9,
+        "source_page": 2,
+        "source_excerpt": "Brennstoff 11.040,00"
+    },
+    "brennstoffbestand_anfang": {
+        "value": "1250.500",
+        "confidence": 0.8,
+        "source_page": 2,
+        "source_excerpt": "Anfangsbestand 1.250,500"
+    },
+    "brennstoffbestand_ende": {
+        "value": "980.250",
+        "confidence": 0.8,
+        "source_page": 2,
+        "source_excerpt": "Endbestand 980,250"
+    },
+    "grundkostenanteil_prozent": {
+        "value": "30.00",
+        "confidence": 0.9,
+        "source_page": 2,
+        "source_excerpt": "Grundkosten 30 %"
+    },
+    "co2_kostenaufteilung_status": {
+        "value": "UNBEKANNT",
+        "confidence": 0.35,
+        "source_page": 2,
+        "source_excerpt": "keine Angabe zur CO2-Aufteilung"
+    },
+    "co2_kosten_gesamt_cent": {
+        "value": null,
+        "confidence": 0,
+        "source_page": null,
+        "source_excerpt": null
+    },
+    "anzahl_einheiten": {
+        "value": 6,
+        "confidence": 0.96,
+        "source_page": 3,
+        "source_excerpt": "6 Nutzeinheiten"
+    },
+    "einheiten": [
+        {
+            "einheitsbezeichnung": {
+                "value": "Wohnung 4",
+                "confidence": 0.93,
+                "source_page": 3,
+                "source_excerpt": "Wohnung 4"
+            },
+            "nutzer_name": {
+                "value": "Erika Beispiel",
+                "confidence": 0.88,
+                "source_page": 3,
+                "source_excerpt": "Erika Beispiel"
+            },
+            "nutzungszeitraum_von": {
+                "value": "2025-01-01",
+                "confidence": 0.94,
+                "source_page": 3,
+                "source_excerpt": "01.01.2025"
+            },
+            "nutzungszeitraum_bis": {
+                "value": "2025-12-31",
+                "confidence": 0.94,
+                "source_page": 3,
+                "source_excerpt": "31.12.2025"
+            },
+            "heizung_grundkosten_cent": {
+                "value": 29580,
+                "confidence": 0.92,
+                "source_page": 3,
+                "source_excerpt": "Grundkosten 295,80"
+            },
+            "heizung_verbrauchskosten_cent": {
+                "value": 69170,
+                "confidence": 0.92,
+                "source_page": 3,
+                "source_excerpt": "Verbrauch 691,70"
+            },
+            "warmwasser_grundkosten_cent": {
+                "value": 9360,
+                "confidence": 0.92,
+                "source_page": 3,
+                "source_excerpt": "Grundkosten 93,60"
+            },
+            "warmwasser_verbrauchskosten_cent": {
+                "value": 21840,
+                "confidence": 0.92,
+                "source_page": 3,
+                "source_excerpt": "Verbrauch 218,40"
+            },
+            "co2_kosten_anteil_cent": {
+                "value": null,
+                "confidence": 0,
+                "source_page": null,
+                "source_excerpt": null
+            },
+            "summe_cent": {
+                "value": 129950,
+                "confidence": 0.94,
+                "source_page": 3,
+                "source_excerpt": "Summe 1.299,50",
+                "bounding_box": null
+            },
+            "verbrauch_heizung": {
+                "value": "4820.000",
+                "confidence": 0.9,
+                "source_page": 3,
+                "source_excerpt": "4.820 kWh"
+            },
+            "verbrauch_heizung_einheit": {
+                "value": "kWh",
+                "confidence": 0.95,
+                "source_page": 3,
+                "source_excerpt": "kWh"
+            },
+            "verbrauch_warmwasser": {
+                "value": "28.400",
+                "confidence": 0.9,
+                "source_page": 3,
+                "source_excerpt": "28,4 m3"
+            },
+            "verbrauch_warmwasser_einheit": {
+                "value": "m3",
+                "confidence": 0.95,
+                "source_page": 3,
+                "source_excerpt": "m3"
+            },
+            "vorauszahlungen_cent": {
+                "value": 108000,
+                "confidence": 0.9,
+                "source_page": 3,
+                "source_excerpt": "Vorauszahlungen 1.080,00"
+            }
+        },
+        {
+            "einheitsbezeichnung": {
+                "value": "Wohnung 5",
+                "confidence": 0.93,
+                "source_page": 3,
+                "source_excerpt": "Wohnung 5"
+            },
+            "nutzer_name": {
+                "value": null,
+                "confidence": 0,
+                "source_page": null,
+                "source_excerpt": null
+            },
+            "nutzungszeitraum_von": {
+                "value": "2025-01-01",
+                "confidence": 0.94,
+                "source_page": 3,
+                "source_excerpt": "01.01.2025"
+            },
+            "nutzungszeitraum_bis": {
+                "value": "2025-12-31",
+                "confidence": 0.94,
+                "source_page": 3,
+                "source_excerpt": "31.12.2025"
+            },
+            "heizung_grundkosten_cent": {
+                "value": 24310,
+                "confidence": 0.92,
+                "source_page": 3,
+                "source_excerpt": "Grundkosten 243,10"
+            },
+            "heizung_verbrauchskosten_cent": {
+                "value": 51220,
+                "confidence": 0.92,
+                "source_page": 3,
+                "source_excerpt": "Verbrauch 512,20"
+            },
+            "warmwasser_grundkosten_cent": {
+                "value": 7690,
+                "confidence": 0.92,
+                "source_page": 3,
+                "source_excerpt": "Grundkosten 76,90"
+            },
+            "warmwasser_verbrauchskosten_cent": {
+                "value": 16180,
+                "confidence": 0.92,
+                "source_page": 3,
+                "source_excerpt": "Verbrauch 161,80"
+            },
+            "co2_kosten_anteil_cent": {
+                "value": null,
+                "confidence": 0,
+                "source_page": null,
+                "source_excerpt": null
+            },
+            "summe_cent": {
+                "value": 99400,
+                "confidence": 0.94,
+                "source_page": 3,
+                "source_excerpt": "Summe 994,00",
+                "bounding_box": null
+            },
+            "verbrauch_heizung": {
+                "value": "3570.000",
+                "confidence": 0.9,
+                "source_page": 3,
+                "source_excerpt": "3.570 kWh"
+            },
+            "verbrauch_heizung_einheit": {
+                "value": "kWh",
+                "confidence": 0.95,
+                "source_page": 3,
+                "source_excerpt": "kWh"
+            },
+            "verbrauch_warmwasser": {
+                "value": "21.050",
+                "confidence": 0.9,
+                "source_page": 3,
+                "source_excerpt": "21,05 m3"
+            },
+            "verbrauch_warmwasser_einheit": {
+                "value": "m3",
+                "confidence": 0.95,
+                "source_page": 3,
+                "source_excerpt": "m3"
+            },
+            "vorauszahlungen_cent": {
+                "value": 96000,
+                "confidence": 0.9,
+                "source_page": 3,
+                "source_excerpt": "Vorauszahlungen 960,00"
+            }
+        }
+    ]
+}

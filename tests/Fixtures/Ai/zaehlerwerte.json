@@ -1,0 +1,146 @@
+{
+    "objektanschrift": {
+        "value": "Beispielweg 7, 40000 Musterstadt",
+        "confidence": 0.93,
+        "source_page": 1,
+        "source_excerpt": "Beispielweg 7"
+    },
+    "ableser": {
+        "value": "Beispiel Waermedienst GmbH",
+        "confidence": 0.9,
+        "source_page": 1,
+        "source_excerpt": "Beispiel Waermedienst GmbH"
+    },
+    "zeitraum_von": {
+        "value": "2025-01-01",
+        "confidence": 0.92,
+        "source_page": 1,
+        "source_excerpt": "01.01.2025"
+    },
+    "zeitraum_bis": {
+        "value": "2025-12-31",
+        "confidence": 0.92,
+        "source_page": 1,
+        "source_excerpt": "31.12.2025"
+    },
+    "anzahl_zaehler": {
+        "value": 2,
+        "confidence": 0.97,
+        "source_page": 1,
+        "source_excerpt": "2 Zaehler"
+    },
+    "zaehlerwerte": [
+        {
+            "zaehlernummer": {
+                "value": "ZW-000111",
+                "confidence": 0.94,
+                "source_page": 1,
+                "source_excerpt": "ZW-000111"
+            },
+            "zaehlertyp": {
+                "value": "KALTWASSER",
+                "confidence": 0.93,
+                "source_page": 1,
+                "source_excerpt": "Kaltwasser"
+            },
+            "einheitsbezeichnung": {
+                "value": "Wohnung 4",
+                "confidence": 0.9,
+                "source_page": 1,
+                "source_excerpt": "Wohnung 4"
+            },
+            "raum": {
+                "value": "Bad",
+                "confidence": 0.85,
+                "source_page": 1,
+                "source_excerpt": "Bad"
+            },
+            "ablesedatum": {
+                "value": "2025-12-30",
+                "confidence": 0.95,
+                "source_page": 1,
+                "source_excerpt": "30.12.2025"
+            },
+            "ablesewert": {
+                "value": "184.320",
+                "confidence": 0.92,
+                "source_page": 1,
+                "source_excerpt": "184,320"
+            },
+            "masseinheit": {
+                "value": "m3",
+                "confidence": 0.95,
+                "source_page": 1,
+                "source_excerpt": "m3"
+            },
+            "ablesegrund": {
+                "value": "JAHRESABLESUNG",
+                "confidence": 0.94,
+                "source_page": 1,
+                "source_excerpt": "Jahresablesung"
+            },
+            "geschaetzt": {
+                "value": false,
+                "confidence": 0.93,
+                "source_page": 1,
+                "source_excerpt": "abgelesen"
+            }
+        },
+        {
+            "zaehlernummer": {
+                "value": "ZW-000112",
+                "confidence": 0.94,
+                "source_page": 1,
+                "source_excerpt": "ZW-000112"
+            },
+            "zaehlertyp": {
+                "value": "WARMWASSER",
+                "confidence": 0.93,
+                "source_page": 1,
+                "source_excerpt": "Warmwasser"
+            },
+            "einheitsbezeichnung": {
+                "value": "Wohnung 5",
+                "confidence": 0.9,
+                "source_page": 1,
+                "source_excerpt": "Wohnung 5"
+            },
+            "raum": {
+                "value": null,
+                "confidence": 0,
+                "source_page": null,
+                "source_excerpt": null
+            },
+            "ablesedatum": {
+                "value": "2025-06-30",
+                "confidence": 0.9,
+                "source_page": 1,
+                "source_excerpt": "30.06.2025"
+            },
+            "ablesewert": {
+                "value": "21.050",
+                "confidence": 0.9,
+                "source_page": 1,
+                "source_excerpt": "21,050"
+            },
+            "masseinheit": {
+                "value": "m3",
+                "confidence": 0.95,
+                "source_page": 1,
+                "source_excerpt": "m3"
+            },
+            "ablesegrund": {
+                "value": "ZWISCHENABLESUNG_NUTZERWECHSEL",
+                "confidence": 0.88,
+                "source_page": 1,
+                "source_excerpt": "Zwischenablesung Nutzerwechsel"
+            },
+            "geschaetzt": {
+                "value": false,
+                "confidence": 0.9,
+                "source_page": 1,
+                "source_excerpt": "abgelesen"
+            }
+        }
+    ]
+}

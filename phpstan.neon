@@ -1,0 +1,25 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 6
+    paths:
+        - app
+        - config
+        - database
+        - routes
+        - tests
+    excludePaths:
+        - app/Http/Controllers/Controller.php
+    # Das eigenstaendige Deployskript wird nicht analysiert, seine Klasse
+    # SftpDeployer aber fuer den Verhaltenstest bekannt gemacht.
+    scanFiles:
+        - bin/deploy-sftp.php
+    treatPhpDocTypesAsCertain: false
+
+    # Larastan leitet Attributtypen aus den Migrationen ab und beruecksichtigt
+    # casts() nicht. Dezimalspalten erscheinen dadurch als float, obwohl sie zur
+    # Laufzeit Strings sind. Der Migrationsscan bleibt deshalb aus; verbindlich
+    # sind die casts() der Modelle. Dezimalwerte werden nie nach float gecastet,
+    # sondern mit brick/math verarbeitet (ARCHITECTURE.md, ADR-004).
+    disableMigrationScan: true

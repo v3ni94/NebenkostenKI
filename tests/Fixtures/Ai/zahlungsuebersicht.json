@@ -1,0 +1,148 @@
+{
+    "zeitraum_von": {
+        "value": "2025-01-01",
+        "confidence": 0.95,
+        "source_page": 1,
+        "source_excerpt": "01.01.2025"
+    },
+    "zeitraum_bis": {
+        "value": "2025-12-31",
+        "confidence": 0.95,
+        "source_page": 1,
+        "source_excerpt": "31.12.2025"
+    },
+    "objektanschrift": {
+        "value": "Beispielweg 7, 40000 Musterstadt",
+        "confidence": 0.82,
+        "source_page": 1,
+        "source_excerpt": "Beispielweg 7"
+    },
+    "summe_eingaenge_cent": {
+        "value": 276000,
+        "confidence": 0.93,
+        "source_page": 1,
+        "source_excerpt": "Summe 2.760,00"
+    },
+    "anzahl_buchungen": {
+        "value": 2,
+        "confidence": 0.98,
+        "source_page": 1,
+        "source_excerpt": "2 Buchungen"
+    },
+    "buchungen": [
+        {
+            "buchungsdatum": {
+                "value": "2025-01-03",
+                "confidence": 0.95,
+                "source_page": 1,
+                "source_excerpt": "03.01.2025"
+            },
+            "wertstellungsdatum": {
+                "value": "2025-01-03",
+                "confidence": 0.93,
+                "source_page": 1,
+                "source_excerpt": "03.01.2025"
+            },
+            "betrag_cent": {
+                "value": 23000,
+                "confidence": 0.96,
+                "source_page": 1,
+                "source_excerpt": "230,00",
+                "bounding_box": null
+            },
+            "zahlungsart": {
+                "value": "EINGANG",
+                "confidence": 0.95,
+                "source_page": 1,
+                "source_excerpt": "Gutschrift"
+            },
+            "einzahler_bezeichnung": {
+                "value": "E. Beispiel",
+                "confidence": 0.88,
+                "source_page": 1,
+                "source_excerpt": "E. Beispiel"
+            },
+            "verwendungszweck_kurz": {
+                "value": "Miete Januar 2025 Wohnung 4",
+                "confidence": 0.9,
+                "source_page": 1,
+                "source_excerpt": "Miete Januar 2025 Wohnung 4"
+            },
+            "zugeordnete_einheit": {
+                "value": "Wohnung 4",
+                "confidence": 0.86,
+                "source_page": 1,
+                "source_excerpt": "Wohnung 4"
+            },
+            "zugeordneter_mieter": {
+                "value": "Erika Beispiel",
+                "confidence": 0.72,
+                "source_page": 1,
+                "source_excerpt": "E. Beispiel"
+            },
+            "betrifft_betriebskosten": {
+                "value": true,
+                "confidence": 0.68,
+                "source_page": 1,
+                "source_excerpt": "Miete inkl. Vorauszahlung"
+            }
+        },
+        {
+            "buchungsdatum": {
+                "value": "2025-02-03",
+                "confidence": 0.95,
+                "source_page": 1,
+                "source_excerpt": "03.02.2025"
+            },
+            "wertstellungsdatum": {
+                "value": "2025-02-03",
+                "confidence": 0.93,
+                "source_page": 1,
+                "source_excerpt": "03.02.2025"
+            },
+            "betrag_cent": {
+                "value": 23000,
+                "confidence": 0.96,
+                "source_page": 1,
+                "source_excerpt": "230,00",
+                "bounding_box": null
+            },
+            "zahlungsart": {
+                "value": "EINGANG",
+                "confidence": 0.95,
+                "source_page": 1,
+                "source_excerpt": "Gutschrift"
+            },
+            "einzahler_bezeichnung": {
+                "value": "E. Beispiel",
+                "confidence": 0.88,
+                "source_page": 1,
+                "source_excerpt": "E. Beispiel"
+            },
+            "verwendungszweck_kurz": {
+                "value": "Miete Februar 2025",
+                "confidence": 0.9,
+                "source_page": 1,
+                "source_excerpt": "Miete Februar 2025"
+            },
+            "zugeordnete_einheit": {
+                "value": null,
+                "confidence": 0,
+                "source_page": null,
+                "source_excerpt": null
+            },
+            "zugeordneter_mieter": {
+                "value": "Erika Beispiel",
+                "confidence": 0.7,
+                "source_page": 1,
+                "source_excerpt": "E. Beispiel"
+            },
+            "betrifft_betriebskosten": {
+                "value": null,
+                "confidence": 0,
+                "source_page": null,
+                "source_excerpt": null
+            }
+        }
+    ]
+}
