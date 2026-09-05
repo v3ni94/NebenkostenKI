@@ -20,6 +20,13 @@ return [
     'default' => env('CACHE_STORE', 'database'),
 
     /*
+    | Speicher fuer die Aufrufbegrenzung (throttle). Bewusst dateibasiert, damit
+    | der Wartungsaufruf /wartung/install auch vor dem Anlegen der
+    | Datenbanktabellen funktioniert (Erstinstallation ohne Shell).
+    */
+    'limiter' => env('CACHE_LIMITER_STORE', 'file'),
+
+    /*
     |--------------------------------------------------------------------------
     | Cache Stores
     |--------------------------------------------------------------------------
