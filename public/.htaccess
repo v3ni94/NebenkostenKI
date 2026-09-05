@@ -1,7 +1,8 @@
 <IfModule mod_rewrite.c>
-    <IfModule mod_negotiation.c>
-        Options -MultiViews -Indexes
-    </IfModule>
+    # Kein "Options"-Befehl: IONOS Webhosting erlaubt ihn in Kundenverzeichnissen
+    # nicht (AllowOverride ohne Options) und antwortet sonst mit Fehler 500.
+    # Verzeichnislisten verhindert die Rewrite-Regel auf index.php, MultiViews
+    # ist auf IONOS nicht aktiv.
 
     RewriteEngine On
 
