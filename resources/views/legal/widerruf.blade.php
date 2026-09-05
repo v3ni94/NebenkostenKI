@@ -17,33 +17,33 @@
 
 @section('legal_content')
     <section>
-        <h2 class="text-xl font-semibold text-hvm-anthrazit">1. Anwendungsbereich</h2>
+        <h2 class="text-2xl font-semibold tracking-tight text-hvm-textschwarz">1. Anwendungsbereich</h2>
         <p class="mt-3">[Abgrenzung, für welche Nutzergruppen ein Widerrufsrecht besteht]</p>
         <p class="mt-2">[Hinweis, dass das kostenlose Konto und Entwürfe kein entgeltlicher Vertrag sind]</p>
     </section>
 
     <section>
-        <h2 class="text-xl font-semibold text-hvm-anthrazit">2. Widerrufsrecht</h2>
+        <h2 class="text-2xl font-semibold tracking-tight text-hvm-textschwarz">2. Widerrufsrecht</h2>
         <p class="mt-3">[Belehrung über das Widerrufsrecht, Frist und Beginn der Frist]</p>
     </section>
 
     <section>
-        <h2 class="text-xl font-semibold text-hvm-anthrazit">3. Ausübung des Widerrufs</h2>
+        <h2 class="text-2xl font-semibold tracking-tight text-hvm-textschwarz">3. Ausübung des Widerrufs</h2>
         <p class="mt-3">[Form der Erklärung und Empfängeranschrift einschließlich E-Mail-Adresse]</p>
     </section>
 
     <section>
-        <h2 class="text-xl font-semibold text-hvm-anthrazit">4. Folgen des Widerrufs</h2>
+        <h2 class="text-2xl font-semibold tracking-tight text-hvm-textschwarz">4. Folgen des Widerrufs</h2>
         <p class="mt-3">[Rückzahlungspflicht, Frist und Zahlungsweg]</p>
         <p class="mt-2">[Regelung zu einem Wertersatz für bereits erbrachte Leistungen]</p>
     </section>
 
     <section>
-        <h2 class="text-xl font-semibold text-hvm-anthrazit">5. Vorzeitiges Erlöschen des Widerrufsrechts</h2>
+        <h2 class="text-2xl font-semibold tracking-tight text-hvm-textschwarz">5. Vorzeitiges Erlöschen des Widerrufsrechts</h2>
         <p class="mt-3">[Belehrung zum vorzeitigen Erlöschen bei sofortiger Vertragsausführung digitaler Leistungen]</p>
         <p class="mt-2">[Wortlaut der gesonderten Bestätigung, die im Bezahlvorgang eingeholt wird]</p>
 
-        <div class="mt-4">
+        <div class="mt-5">
             <x-hvm.alert variant="warning" title="Umsetzung im Bezahlvorgang">
                 Die Bestätigung wird als gesonderte, nicht vorangekreuzte Auswahl eingeholt. Der Wortlaut ist ein
                 Platzhalter und wird vor dem Livegang anwaltlich freigegeben. Zeitpunkt, Textversion und Zustimmung
@@ -53,7 +53,7 @@
     </section>
 
     <section>
-        <h2 class="text-xl font-semibold text-hvm-anthrazit">6. Muster-Widerrufsformular</h2>
+        <h2 class="text-2xl font-semibold tracking-tight text-hvm-textschwarz">6. Muster-Widerrufsformular</h2>
         <p class="mt-3">[Muster-Widerrufsformular in der gesetzlich vorgegebenen Fassung]</p>
     </section>
 @endsection
