@@ -116,11 +116,15 @@ final class AuditReportPresenter
             return null;
         }
 
-        return sprintf(
-            'Es liegen %d Ergebnisse vor, die die Abrechnung blockieren. Bitte beheben Sie sie, bevor die Vorschau '
-            .'erzeugt wird.',
-            count($blocker)
-        );
+        $anzahl = count($blocker);
+
+        return $anzahl === 1
+            ? 'Es liegt 1 Ergebnis vor, das die Abrechnung blockiert. Bitte beheben Sie es, bevor die Vorschau erzeugt wird.'
+            : sprintf(
+                'Es liegen %d Ergebnisse vor, die die Abrechnung blockieren. Bitte beheben Sie sie, bevor die Vorschau '
+                .'erzeugt wird.',
+                $anzahl
+            );
     }
 
     /**

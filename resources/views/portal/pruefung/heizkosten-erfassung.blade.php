@@ -18,14 +18,13 @@
         :back="route('portal.pruefung.heizkosten', ['billingRun' => $billingRun->getKey()])"
         backLabel="Zum Heizkostenabgleich" />
 
-    <div class="mt-8 space-y-4">
-        @if (session('status'))
-            <x-hvm.alert variant="success">
-                <p>{{ session('status') }}</p>
-            </x-hvm.alert>
-        @endif
-
-        <x-hvm.alert variant="warning" title="Was die Plattform hier leistet und was nicht" data-heizkosten="hinweis-erfassung">
+    {{--
+        Erklaerender Text als ruhige Karte (4.14): Alerts bleiben den
+        zustandsabhaengigen Meldungen (Quellenkonflikt, Pruefsumme) vorbehalten.
+        Statusmeldung und Fehlerliste rendert der Seitenkopf.
+    --}}
+    <x-hvm.card tone="canvas" class="mt-8" eyebrow="Gut zu wissen" title="Was die Plattform hier leistet und was nicht" data-heizkosten="hinweis-erfassung">
+        <div class="max-w-prose text-sm leading-relaxed text-hvm-textschwarz">
             <p>
                 Die Plattform übernimmt die von Ihnen eingetragenen Beträge unverändert. Sie prüft und berechnet die
                 Verteilung nach Grund- und Verbrauchskosten sowie die CO2-Kostenaufteilung nicht.
@@ -39,7 +38,10 @@
             <p class="mt-2">
                 Verantwortlich für die Richtigkeit der eingetragenen Werte ist der Vermieter.
             </p>
-        </x-hvm.alert>
+        </div>
+    </x-hvm.card>
+
+    <div class="mt-6 space-y-4 empty:hidden">
 
         @if ($konflikte !== [])
             <x-hvm.alert variant="warning" title="Heizkosten aus mehreren Quellen" data-heizkosten="quellenkonflikt">
@@ -64,15 +66,6 @@
             </x-hvm.alert>
         @endif
 
-        @if ($errors->any())
-            <x-hvm.alert variant="warning">
-                <ul class="list-disc space-y-1 pl-5">
-                    @foreach ($errors->all() as $fehler)
-                        <li>{{ $fehler }}</li>
-                    @endforeach
-                </ul>
-            </x-hvm.alert>
-        @endif
     </div>
 
     <form method="POST" action="{{ route('portal.pruefung.heizkosten.speichern', ['billingRun' => $billingRun->getKey()]) }}"

@@ -56,7 +56,7 @@
                             :optional="true"
                             :value="$wert('address_extra', $objekt?->address_extra)" />
     
-                        <div class="grid gap-6 sm:grid-cols-3">
+                        <div class="grid gap-6 sm:grid-cols-3 sm:items-end">
                             <x-hvm.field
                                 name="postal_code"
                                 label="Postleitzahl"
@@ -98,7 +98,7 @@
                             verglichen und als Hinweis ausgegeben.
                         </p>
 
-                        <div class="mt-6 grid gap-6 sm:grid-cols-2">
+                        <div class="mt-6 grid gap-6 sm:grid-cols-2 sm:items-end">
                             <x-hvm.field
                                 name="total_living_area_sqm"
                                 label="Gesamtwohnfläche in Quadratmeter"
@@ -129,7 +129,7 @@
                             je Einheit tragen Sie bei der Einheit ein.
                         </p>
 
-                        <div class="mt-6 grid gap-6 sm:grid-cols-2">
+                        <div class="mt-6 grid gap-6 sm:grid-cols-2 sm:items-end">
                             @foreach (range(1, 5) as $nummer)
                                 <x-hvm.field
                                     :name="'individual_key_'.$nummer.'_label'"

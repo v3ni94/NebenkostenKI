@@ -4,7 +4,7 @@
 
 @section('content')
     <x-hvm.page-header
-        eyebrow="Schritt 3 von 10"
+        :eyebrow="\App\Application\Wizard\WizardStep::ANALYSE->eyebrow()"
         title="Automatische Analyse"
         lead="Ihre Unterlagen werden ausgelesen und den Kostenarten zugeordnet. Sie können die Seite verlassen und später fortfahren." />
 

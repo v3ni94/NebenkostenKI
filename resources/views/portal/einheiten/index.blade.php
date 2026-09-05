@@ -55,7 +55,7 @@
                         <th scope="col" class="betrag">Wohnfläche</th>
                         <th scope="col" class="betrag">Beheizt</th>
                         <th scope="col" class="betrag">Anteil</th>
-                        <th scope="col"><span class="sr-only">Aktionen</span></th>
+                        <th scope="col" class="text-right">Aktionen</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -72,18 +72,19 @@
                             <td class="betrag" data-label="Anteil">
                                 {{ $einheit->mea !== null ? number_format((float) $einheit->mea, 2, ',', '.') : 'Ohne Angabe' }}
                             </td>
-                            <td data-label="Aktionen">
-                                <div class="flex flex-wrap gap-2 sm:justify-end">
+                            <td data-label="Aktionen" class="sm:whitespace-nowrap">
+                                {{-- Eine Zeile je Einheit: Hauptweg secondary, Bearbeiten ghost, Entfernen kompakt mit Symbol und sr-only-Text. --}}
+                                <div class="flex flex-wrap items-center gap-2 sm:flex-nowrap sm:justify-end">
                                     <x-hvm.button href="{{ route('portal.mietverhaeltnisse.index', ['unit' => $einheit->getKey()]) }}"
                                                   variant="secondary" size="sm">Mietverhältnisse</x-hvm.button>
                                     <x-hvm.button href="{{ route('portal.einheiten.edit', ['unit' => $einheit->getKey()]) }}"
-                                                  variant="secondary" size="sm">Bearbeiten</x-hvm.button>
+                                                  variant="ghost" size="sm">Bearbeiten</x-hvm.button>
                                     <form method="POST" action="{{ route('portal.einheiten.destroy', ['unit' => $einheit->getKey()]) }}">
                                         @csrf
                                         @method('DELETE')
-                                        <x-hvm.button type="submit" variant="danger" size="sm">
+                                        <x-hvm.button type="submit" variant="danger" size="sm" class="px-3" title="Einheit entfernen">
                                             <x-hvm.icon name="trash" class="h-4 w-4" />
-                                            Entfernen
+                                            <span class="sr-only">Einheit {{ $einheit->label }} entfernen</span>
                                         </x-hvm.button>
                                     </form>
                                 </div>

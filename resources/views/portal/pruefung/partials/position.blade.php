@@ -81,17 +81,21 @@
             <x-hvm.button type="submit" variant="ghost" size="sm">Von der Umlage ausschließen</x-hvm.button>
         </form>
 
-        <form method="POST"
-              action="{{ route('portal.pruefung.kosten.verwerfen', ['billingRun' => $billingRun->getKey(), 'costItem' => $position->id]) }}">
-            @csrf
-            <x-hvm.button type="submit" variant="ghost" size="sm">Verwerfen</x-hvm.button>
-        </form>
-
-        <x-hvm.button type="button" variant="ghost" size="sm"
+        <x-hvm.button type="button" variant="secondary" size="sm"
                       x-on:click="bearbeiten = !bearbeiten"
                       x-bind:aria-expanded="bearbeiten ? 'true' : 'false'"
                       aria-expanded="false"
                       aria-controls="{{ $feldId('formular') }}">Bearbeiten</x-hvm.button>
+
+        {{-- Destruktive Handlung als danger mit Symbol, nie als Textlink (Designsystem 3, 4.12). --}}
+        <form method="POST"
+              action="{{ route('portal.pruefung.kosten.verwerfen', ['billingRun' => $billingRun->getKey(), 'costItem' => $position->id]) }}">
+            @csrf
+            <x-hvm.button type="submit" variant="danger" size="sm">
+                <x-hvm.icon name="trash" class="h-4 w-4" />
+                Verwerfen
+            </x-hvm.button>
+        </form>
     </div>
 
     <form method="POST" x-show="bearbeiten" x-cloak id="{{ $feldId('formular') }}"
@@ -100,7 +104,7 @@
         @csrf
         @method('PUT')
 
-        <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:items-end">
             <x-hvm.field name="description" :id="$feldId('description')" label="Bezeichnung" :required="true" maxlength="190" :value="$position->description" />
             <x-hvm.field name="supplier_name" :id="$feldId('supplier_name')" label="Lieferant" maxlength="190" :value="$position->supplierName" />
             <x-hvm.field name="betrag_euro" :id="$feldId('betrag_euro')" label="Betrag in EUR" :required="true" inputmode="decimal"

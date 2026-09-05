@@ -1,25 +1,3 @@
-@php
-    use App\Application\BillingRun\PortalStatusCategory;
-
-    // Schrittanzeige aus der Fortschrittsleiste des gefuehrten Ablaufs:
-    // aktuell = current, Kategorie Erledigt = done, sonst open. Erreichbare
-    // Schritte werden verlinkt, die Kategorie steht als Zusatz im Text.
-    $schritte = [];
-    foreach ($fortschritt as $station) {
-        $schritte[] = [
-            'label' => $station->label(),
-            'state' => $station->aktuell
-                ? 'current'
-                : ($station->kategorie === PortalStatusCategory::ERLEDIGT ? 'done' : 'open'),
-            'href' => $station->erreichbar
-                ? route($station->step->routeName(), ['billingRun' => $lauf->getKey()])
-                : null,
-            'note' => $station->kategorie,
-        ];
-    }
-    $schritte = array_map(static fn (array $s): array => array_filter($s, static fn ($v) => $v !== null), $schritte);
-@endphp
-
 @extends('layouts.portal')
 
 @section('titel', 'Abrechnung '.$lauf->billing_year)
@@ -31,6 +9,19 @@
         lead="Zeitraum {{ $lauf->period_start?->format('d.m.Y') }} bis {{ $lauf->period_end?->format('d.m.Y') }}, {{ $lauf->mode->label() }}."
         :back="route('portal.abrechnungen.index')"
         backLabel="Zurück zur Liste" />
+
+    {{--
+        Fortschritt ueber alle zwoelf Schritte, direkt unter dem Seitenkopf wie
+        auf jeder Wizard-Seite (4.3). Aktuell markiert ist der Schritt, den die
+        Karte "Naechster Schritt" nennt: eine Fortschrittsaussage je Seite.
+    --}}
+    <div class="mt-8">
+        @include('portal.wizard.partials.fortschritt', [
+            'fortschritt' => $fortschritt,
+            'billingRun' => $lauf,
+            'wiedereinstieg' => null,
+        ])
+    </div>
 
     {{-- Naechster Schritt des gefuehrten Ablaufs ------------------------------ --}}
 
@@ -76,12 +67,6 @@
             {{ $gewerbehinweis }}
         </x-hvm.alert>
     @endif
-
-    {{-- Fortschritt ueber alle Schritte --------------------------------------- --}}
-
-    <x-hvm.stepper class="mt-10" :steps="$schritte">
-        Jeder Schritt speichert sofort. Sie können jederzeit unterbrechen und später ohne Datenverlust fortfahren.
-    </x-hvm.stepper>
 
     {{-- Weitere Handlungen ---------------------------------------------------- --}}
 

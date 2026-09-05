@@ -4,9 +4,11 @@
     Icon-Kachel in der Statusfarbe (Uebernahme aus Konzept B), Beschriftung
     und grosse Ziffer in Textschwarz. Der Status wird nie allein ueber die
     Farbe kommuniziert: die Beschriftung nennt die Kategorie, das Symbol ist
-    je Variante fest zugeordnet (success check-circle, warning eye, info inbox,
-    error alert). Die Beschriftung hat eine feste Mindesthoehe von zwei Zeilen,
-    damit die Ziffern einer Reihe auf gleicher Hoehe stehen.
+    je Variante fest zugeordnet (App\Support\Statussymbol: success
+    check-circle, warning eye, info inbox, error alert). Die Beschriftung hat
+    eine feste Mindesthoehe von zwei Zeilen, damit die Ziffern einer Reihe auf
+    gleicher Hoehe stehen. Die Kennzahl bricht nie um (whitespace-nowrap);
+    Betraege in schmalen Rastern brauchen deshalb grid-cols-1 sm:grid-cols-2.
 
     Props:
       label    Beschriftung (Pflicht)
@@ -42,19 +44,13 @@
         default => 'bg-hvm-canvas-deep text-hvm-text-sekundaer [.hvm-dark_&]:bg-hvm-graphit [.hvm-dark_&]:text-hvm-hellgrau',
     };
 
-    $symbol = $icon ?? match ($variant) {
-        'success' => 'check-circle',
-        'warning' => 'eye',
-        'error' => 'alert',
-        'info' => 'inbox',
-        default => 'grid',
-    };
+    $symbol = $icon ?? \App\Support\Statussymbol::fuer($variant) ?? 'grid';
 
     $flaeche = $tone === 'canvas'
         ? 'bg-hvm-canvas [.hvm-dark_&]:bg-hvm-graphit'
         : 'border border-hvm-linie bg-white [.hvm-dark_&]:border-hvm-graphit-soft [.hvm-dark_&]:bg-hvm-graphit-soft/40';
     $innen = $size === 'sm' ? 'p-4 sm:p-5' : 'p-5 sm:p-6';
-    $klassen = 'block min-w-0 rounded-2xl '.$flaeche.' '.$innen;
+    $klassen = 'flex min-w-0 flex-col rounded-2xl '.$flaeche.' '.$innen;
     $ziffer = $size === 'sm' ? 'text-2xl sm:text-3xl' : 'text-3xl sm:text-5xl';
     $beschriftung = $size === 'sm' ? 'text-xs leading-5' : 'min-h-10 text-sm leading-5';
     $kachelGroesse = $size === 'sm' ? 'h-8 w-8' : 'h-10 w-10';
@@ -68,8 +64,8 @@
             <x-hvm.icon :name="$symbol" class="{{ $symbolGroesse }}" />
         </span>
     @endif
-    <p class="{{ $icon !== false ? ($size === 'sm' ? 'mt-3' : 'mt-4') : '' }} {{ $beschriftung }} font-semibold break-words text-hvm-text-sekundaer [.hvm-dark_&]:text-hvm-hellgrau">{{ $label }}</p>
-    <p class="mt-1 {{ $ziffer }} font-semibold tracking-tight text-hvm-textschwarz tabular break-normal [.hvm-dark_&]:text-white">{{ $value }}</p>
+    <p class="{{ $icon !== false ? ($size === 'sm' ? 'mt-3' : 'mt-4') : '' }} {{ $beschriftung }} font-semibold hyphens-auto text-hvm-text-sekundaer [.hvm-dark_&]:text-hvm-hellgrau" lang="de">{{ $label }}</p>
+    <p class="mt-1 {{ $ziffer }} font-semibold tracking-tight text-hvm-textschwarz tabular whitespace-nowrap [.hvm-dark_&]:text-white">{{ $value }}</p>
     @if ($note !== null)
         <p class="mt-2 text-sm text-hvm-text-sekundaer [.hvm-dark_&]:text-hvm-hellgrau">{{ $note }}</p>
     @endif

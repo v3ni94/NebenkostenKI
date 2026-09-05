@@ -9,7 +9,7 @@
         title="Übersicht"
         lead="Stand von Livegang, Datenschutz, Verarbeitung und Zahlungsnachlauf auf einen Blick." />
 
-    <div class="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-2">
+    <div class="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
         <x-hvm.card title="Livegang" eyebrow="Freigabe" class="min-w-0">
             @if ($bericht->isClear())
                 <p class="flex flex-wrap items-center gap-2">
@@ -106,10 +106,10 @@
         <p class="text-xs font-semibold tracking-[0.12em] text-hvm-text-sekundaer uppercase">Bestand</p>
         <h2 id="ueberschrift-statuszahlen" class="mt-1 text-2xl font-semibold tracking-tight text-hvm-textschwarz">Zähler je Status</h2>
 
-        <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-            @include('admin.partials.statuszahlen', ['titel' => 'Abrechnungsläufe je Status', 'werte' => $laeufe])
-            @include('admin.partials.statuszahlen', ['titel' => 'Dokumente je Status', 'werte' => $dokumente])
-            @include('admin.partials.statuszahlen', ['titel' => 'Teiljobs je Status', 'werte' => $jobs])
+        <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3 lg:items-start">
+            @include('admin.partials.statuszahlen', ['titel' => 'Abrechnungsläufe je Status', 'werte' => $laeufe, 'enum' => \App\Enums\BillingRunStatus::class, 'spalten' => 'grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2'])
+            @include('admin.partials.statuszahlen', ['titel' => 'Dokumente je Status', 'werte' => $dokumente, 'enum' => \App\Enums\DocumentProcessingStatus::class, 'spalten' => 'grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2'])
+            @include('admin.partials.statuszahlen', ['titel' => 'Teiljobs je Status', 'werte' => $jobs, 'enum' => \App\Enums\ProcessingJobStatus::class, 'spalten' => 'grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2'])
         </div>
     </section>
 @endsection

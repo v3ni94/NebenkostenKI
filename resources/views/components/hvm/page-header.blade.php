@@ -16,6 +16,10 @@
     Slots:
       default  Zusatzinhalt unter dem Lead
       actions  Schaltflaechen rechts (genau ein primary)
+
+    Meldungen (Statusmeldung, Fehlerliste) erscheinen direkt unter dem
+    Seitenkopf (x-hvm.meldungen, Designsystem 4.14); das Layout laesst seinen
+    Block dann aus. meldungen=false unterdrueckt das (Seite rendert selbst).
 --}}
 @props([
     'title',
@@ -24,6 +28,7 @@
     'size' => 'md',
     'back' => null,
     'backLabel' => 'Zurück',
+    'meldungen' => true,
 ])
 
 <div {{ $attributes->class('flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between') }}>
@@ -48,3 +53,7 @@
         </div>
     @endisset
 </div>
+
+@if ($meldungen)
+    <x-hvm.meldungen class="mt-8" />
+@endif

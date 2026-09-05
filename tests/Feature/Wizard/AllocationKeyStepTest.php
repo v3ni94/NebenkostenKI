@@ -189,7 +189,8 @@ final class AllocationKeyStepTest extends CalculationTestCase
         );
 
         $antwort->assertOk();
-        $antwort->assertSee('Schritt 8: Verteilerschlüssel und Verbrauch');
+        $antwort->assertSee('Schritt 8 von 12');
+        $antwort->assertSee('Verteilerschlüssel und Verbrauch');
         $antwort->assertSee('Summe der Anteile: 100,00 Prozent');
         $antwort->assertSee('Nenner: 150,00');
         $antwort->assertSee('Quelle: Mietvertrag');

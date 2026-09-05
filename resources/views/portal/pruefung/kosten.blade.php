@@ -4,7 +4,7 @@
 
 @section('content')
     <x-hvm.page-header
-        eyebrow="Schritt 6 von 10"
+        :eyebrow="\App\Application\Wizard\WizardStep::KOSTENPRUEFUNG->eyebrow()"
         title="Kostenprüfung"
         lead="Die Kosten sind nach Kostenart gruppiert. Jede Gruppe lässt sich auf die einzelnen Belege aufklappen. Bitte bestätigen oder verwerfen Sie jede Position." />
 
@@ -16,12 +16,6 @@
         ])
     </div>
 
-    @if (session('status'))
-        <x-hvm.alert variant="success" class="mt-8">
-            <p>{{ session('status') }}</p>
-        </x-hvm.alert>
-    @endif
-
     @error('weiter')
         <x-hvm.alert variant="warning" class="mt-8">
             <p>{{ $message }}</p>
@@ -32,24 +26,26 @@
         @include('portal.pruefung.partials.warnbanner', ['banner' => $banner])
     @endforeach
 
-    <x-hvm.alert variant="info" class="mt-6" label="Hinweis">
-        <p>
-            Eine Seitenansicht der Unterlagen ist hier nicht möglich. Ihre Originaldateien wurden nach der
-            Auswertung gelöscht. Zu jedem Wert sehen Sie die neutrale Quellenbezeichnung, die Seite und einen kurzen
-            Fundstellenausschnitt. Bitte vergleichen Sie zweifelhafte Werte mit Ihrer eigenen Kopie oder laden Sie
-            die Unterlage erneut zur Auswertung hoch.
-        </p>
-    </x-hvm.alert>
-
     {{-- Ueberblick als Kennzahlenreihe --------------------------------------- --}}
 
     <x-hvm.card class="mt-10" title="Überblick" eyebrow="Zwischenstand">
-        <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {{-- Betraege brechen nie um: mobil eine Spalte, ab sm zwei, ab lg vier. --}}
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <x-hvm.stat size="sm" tone="canvas" :icon="false" label="Positionen insgesamt" :value="$uebersicht->positionCount" />
             <x-hvm.stat size="sm" tone="canvas" :icon="false" label="Noch offen" :value="$uebersicht->openCount" />
             <x-hvm.stat size="sm" tone="canvas" :icon="false" label="Umlagefähig, bisher bestätigt oder vorgeschlagen" :value="$uebersicht->apportionableSumLabel" />
             <x-hvm.stat size="sm" tone="canvas" :icon="false" label="Getrennt ausgewiesen, nicht umgelegt" :value="$uebersicht->excludedSumLabel" />
         </div>
+    </x-hvm.card>
+
+    {{-- Erklaerender Text als ruhige Karte statt als weiterer Hinweis-Alert (4.14). --}}
+    <x-hvm.card tone="canvas" class="mt-6" eyebrow="Gut zu wissen">
+        <p class="max-w-prose text-sm leading-relaxed text-hvm-textschwarz">
+            Eine Seitenansicht der Unterlagen ist hier nicht möglich. Ihre Originaldateien wurden nach der
+            Auswertung gelöscht. Zu jedem Wert sehen Sie die neutrale Quellenbezeichnung, die Seite und einen kurzen
+            Fundstellenausschnitt. Bitte vergleichen Sie zweifelhafte Werte mit Ihrer eigenen Kopie oder laden Sie
+            die Unterlage erneut zur Auswertung hoch.
+        </p>
     </x-hvm.card>
 
     @if ($uebersicht->bulkConfirmableIds !== [])
@@ -63,7 +59,7 @@
                             <x-hvm.icon name="sparkle" class="h-5 w-5" />
                         </span>
                         <p class="max-w-prose text-sm leading-relaxed text-hvm-textschwarz">
-                            {{ count($uebersicht->bulkConfirmableIds) }} Positionen sind konfliktfrei und mit hoher
+                            {{ count($uebersicht->bulkConfirmableIds) }} {{ count($uebersicht->bulkConfirmableIds) === 1 ? 'Position ist' : 'Positionen sind' }} konfliktfrei und mit hoher
                             Sicherheit erkannt. Sie können diese gemeinsam bestätigen. Nicht umlagefähige und unklare
                             Positionen bleiben davon ausgenommen und sind einzeln zu behandeln.
                         </p>
@@ -124,7 +120,7 @@
                   class="space-y-6 p-6 sm:p-8">
                 @csrf
 
-                <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:items-end">
                     <x-hvm.field name="description" id="manuell-description" label="Bezeichnung" :required="true" maxlength="190" />
                     <x-hvm.field name="supplier_name" id="manuell-supplier_name" label="Lieferant" maxlength="190" />
                     <x-hvm.field name="betrag_euro" id="manuell-betrag_euro" label="Betrag in EUR" :required="true" inputmode="decimal" placeholder="1.234,56" />
@@ -150,9 +146,15 @@
         </x-hvm.card>
     </section>
 
-    {{-- Weiter ------------------------------------------------------------------ --}}
+    {{-- Weiter: die Meldung steht vor der Buttonreihe, die Buttonreihe ist das letzte Element (4.14, 4.12). --}}
 
-    <div class="mt-16 flex flex-wrap items-center gap-3">
+    @if (! $weiterMoeglich && $sperrgrund !== null)
+        <x-hvm.alert variant="warning" class="mt-16" label="Bitte prüfen">
+            <p>{{ $sperrgrund }}</p>
+        </x-hvm.alert>
+    @endif
+
+    <div class="{{ ! $weiterMoeglich && $sperrgrund !== null ? 'mt-6' : 'mt-16' }} flex flex-wrap items-center gap-3">
         <form method="POST" action="{{ route('portal.pruefung.weiter', ['billingRun' => $billingRun->getKey()]) }}">
             @csrf
             <x-hvm.button type="submit" variant="primary">
@@ -164,10 +166,4 @@
         <x-hvm.button href="{{ route('portal.pruefung.heizkosten', ['billingRun' => $billingRun->getKey()]) }}"
                       variant="ghost">Heizkosten im Abgleich ansehen</x-hvm.button>
     </div>
-
-    @if (! $weiterMoeglich && $sperrgrund !== null)
-        <x-hvm.alert variant="warning" class="mt-6">
-            <p>{{ $sperrgrund }}</p>
-        </x-hvm.alert>
-    @endif
 @endsection

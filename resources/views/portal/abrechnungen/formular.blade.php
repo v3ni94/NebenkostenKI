@@ -1,5 +1,12 @@
 @php
+    use App\Application\Wizard\WizardStep;
     use App\Enums\BillingMode;
+
+    // Schrittanzeige ohne Lauf: Schritt 1 aktuell, alle weiteren offen.
+    $schritte = array_map(
+        static fn (WizardStep $s): array => ['label' => $s->label(), 'state' => $s === WizardStep::KONTO_UND_ZEITRAUM ? 'current' : 'open'],
+        WizardStep::all()
+    );
 
     $wert = static fn (string $feld, mixed $vorgabe = null): mixed => old($feld, $vorgabe);
 
@@ -26,11 +33,13 @@
 @section('content')
     <div class="mx-auto max-w-2xl">
         <x-hvm.page-header
-            eyebrow="Schritt 1"
+            :eyebrow="WizardStep::KONTO_UND_ZEITRAUM->eyebrow()"
             title="Abrechnungs&shy;zeitraum und Weg"
             lead="Voreingestellt ist das vollständige Vorjahr. Ein unterjähriger Zeitraum ist möglich."
             :back="route('portal.abrechnungen.index')"
             backLabel="Zurück zu den Abrechnungen" />
+
+        <x-hvm.stepper class="mt-8" :steps="$schritte" :compact="true" />
 
         @if ($objekte === [])
             <x-hvm.empty-state class="mt-10" icon="house" title="Noch kein Objekt">
@@ -76,7 +85,7 @@
                                 Vorschlag: 01.01.{{ $zeitraum['jahr'] }} bis 31.12.{{ $zeitraum['jahr'] }}.
                             </p>
 
-                            <div class="mt-6 grid gap-6 sm:grid-cols-2">
+                            <div class="mt-6 grid gap-6 sm:grid-cols-2 sm:items-end">
                                 <x-hvm.field
                                     name="period_start"
                                     label="Beginn"

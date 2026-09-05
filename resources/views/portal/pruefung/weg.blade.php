@@ -10,12 +10,6 @@
         :back="route('portal.pruefung.analyse', ['billingRun' => $billingRun->getKey()])"
         backLabel="Zur Analyse" />
 
-    @if (session('status'))
-        <x-hvm.alert variant="success" class="mt-8">
-            <p>{{ session('status') }}</p>
-        </x-hvm.alert>
-    @endif
-
     <div class="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-12">
         <div class="min-w-0 space-y-6 lg:col-span-5">
             <x-hvm.card title="Vorschlag" eyebrow="Einordnung">

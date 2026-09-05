@@ -66,10 +66,10 @@
 
                         <form method="POST" action="{{ $formularUrl }}" class="mt-8 flex flex-wrap gap-3 border-t border-hvm-linie pt-6">
                             @csrf
-                            <x-hvm.button type="submit" variant="primary">
+                            <x-hvm.button type="submit" variant="primary" class="w-full sm:w-auto">
                                 {{ $abmeldung ? 'Abmeldung bestätigen' : 'Aktivierung bestätigen' }}
                             </x-hvm.button>
-                            <x-hvm.button href="{{ route('site.home') }}" variant="secondary">Abbrechen</x-hvm.button>
+                            <x-hvm.button href="{{ route('site.home') }}" variant="ghost" class="w-full sm:w-auto">Abbrechen</x-hvm.button>
                         </form>
                     </div>
                 </x-hvm.card>

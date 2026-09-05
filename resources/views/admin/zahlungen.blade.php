@@ -33,7 +33,7 @@
         </div>
     @endif
 
-    <div class="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-3">
+    <div class="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-3 lg:items-start">
         <x-hvm.stat
             label="Umsatz laufender Monat"
             :value="\App\Application\Admin\MetricsOverview::formatCent($umsatz_cent)"
@@ -60,7 +60,7 @@
             @endif
         </x-hvm.card>
 
-        @include('admin.partials.statuszahlen', ['titel' => 'Zahlungen je Status', 'werte' => $zahlungsstatus])
+        @include('admin.partials.statuszahlen', ['titel' => 'Zahlungen je Status', 'werte' => $zahlungsstatus, 'enum' => \App\Enums\PaymentStatus::class, 'spalten' => 'grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2'])
     </div>
 
     <x-hvm.abschnitt class="mt-16" eyebrow="Rechnungen" title="Rechnungen" :leer="$rechnungen === []" leer-icon="receipt">
@@ -151,6 +151,6 @@
     </x-hvm.abschnitt>
 
     <div class="mt-16">
-        @include('admin.partials.statuszahlen', ['titel' => 'Rechnungen je Status', 'werte' => $rechnungsstatus])
+        @include('admin.partials.statuszahlen', ['titel' => 'Rechnungen je Status', 'werte' => $rechnungsstatus, 'enum' => \App\Enums\InvoiceStatus::class])
     </div>
 @endsection

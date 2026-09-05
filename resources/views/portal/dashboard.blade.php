@@ -33,7 +33,10 @@
                 <p class="text-xs font-semibold tracking-[0.12em] text-hvm-text-sekundaer uppercase">Bestand</p>
                 <h2 id="ueberschrift-objekte" class="mt-1 text-2xl font-semibold tracking-tight text-hvm-textschwarz">Objekte</h2>
             </div>
-            <x-hvm.button href="{{ route('portal.objekte.index') }}" variant="ghost" size="sm">Alle Objekte</x-hvm.button>
+            <x-hvm.button href="{{ route('portal.objekte.index') }}" variant="secondary" size="sm">
+                Alle Objekte
+                <x-hvm.icon name="arrow-right" class="h-4 w-4" />
+            </x-hvm.button>
         </div>
 
         @if ($objekte === [])

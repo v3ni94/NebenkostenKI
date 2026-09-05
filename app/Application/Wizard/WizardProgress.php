@@ -58,7 +58,7 @@ final class WizardProgress
     }
 
     /**
-     * Fortschrittsleiste über alle zehn Schritte.
+     * Fortschrittsleiste über alle zwölf Schritte.
      *
      * @return list<WizardStepView>
      */
@@ -72,7 +72,7 @@ final class WizardProgress
             $views[] = new WizardStepView(
                 $step,
                 $this->category($billingRun, $step, $erreicht),
-                $step->value <= max($erreicht->value, $aktiv->value),
+                $step->value <= max($erreicht->value, $aktiv->value) || $this->reachableByStatus($billingRun, $step),
                 $step === $aktiv,
                 $step->hint(),
             );
@@ -81,9 +81,41 @@ final class WizardProgress
         return $views;
     }
 
+    /**
+     * Zahlung und Finalisierung sind über den Laufstatus erreichbar, nicht
+     * über die gespeicherte Schrittnummer.
+     */
+    private function reachableByStatus(BillingRun $billingRun, WizardStep $step): bool
+    {
+        $status = $billingRun->getAttribute('status');
+
+        if (! $status instanceof BillingRunStatus) {
+            return false;
+        }
+
+        return match ($step) {
+            WizardStep::ZAHLUNG => $status === BillingRunStatus::CHECKOUT_PENDING
+                || $status->isPaid()
+                || ($status === BillingRunStatus::PREVIEW_READY && $this->checkoutReady($billingRun)),
+            WizardStep::ABSCHLUSS => $status === BillingRunStatus::FINALIZED,
+            default => false,
+        };
+    }
+
     private function category(BillingRun $billingRun, WizardStep $step, WizardStep $erreicht): string
     {
+        $status = $billingRun->getAttribute('status');
+        $status = $status instanceof BillingRunStatus ? $status : BillingRunStatus::DRAFT;
+
         return match ($step) {
+            WizardStep::ZAHLUNG => $status->isPaid()
+                ? PortalStatusCategory::ERLEDIGT
+                : ($status === BillingRunStatus::CHECKOUT_PENDING
+                    ? PortalStatusCategory::BITTE_PRUEFEN
+                    : PortalStatusCategory::FEHLT_NOCH),
+            WizardStep::ABSCHLUSS => $status === BillingRunStatus::FINALIZED
+                ? PortalStatusCategory::ERLEDIGT
+                : PortalStatusCategory::FEHLT_NOCH,
             WizardStep::VORAUSZAHLUNGEN => $this->prepayments->isComplete($billingRun)
                 ? PortalStatusCategory::ERLEDIGT
                 : PortalStatusCategory::FEHLT_NOCH,
@@ -151,15 +183,24 @@ final class WizardProgress
 
     /**
      * Statusmeldung für den Wiedereinstieg nach einer Unterbrechung.
+     *
+     * Der Hinweis erscheint nur, wenn die aufgerufene Seite nicht der zuletzt
+     * gespeicherte Schritt ist. Auf der Seite des gespeicherten Schritts selbst
+     * gibt es nichts wiederaufzunehmen; ein Satz "Sie sind bei Schritt 10"
+     * neben der Zeile "Schritt 7 von 12" würde sich widersprechen.
      */
-    public function resumeHint(BillingRun $billingRun): string
+    public function resumeHint(BillingRun $billingRun, ?WizardStep $angezeigt = null): ?string
     {
         $step = $this->currentStep($billingRun);
 
+        if ($angezeigt === $step) {
+            return null;
+        }
+
         return sprintf(
-            'Sie sind bei Schritt %d von %d: %s. %s',
+            'Ihr zuletzt gespeicherter Stand ist Schritt %d von %d: %s. %s',
             $step->value,
-            count(WizardStep::all()),
+            WizardStep::count(),
             $step->label(),
             $step->hint()
         );

@@ -10,7 +10,7 @@
 @section('meta_title', 'Datenschutzerklärung')
 @section('meta_description', 'Datenschutzerklärung von smart-abrechnen.de. Die Seite ist eine strukturierte Platzhalterfassung und wird vor dem Livegang anwaltlich geprüft und freigegeben.')
 
-@section('legal_title', 'Datenschutzerklärung')
+@section('legal_title', 'Datenschutz&shy;erklärung')
 @section('legal_intro', 'Diese Seite enthält die Gliederung der Datenschutzerklärung. Die Textfassung wird vor dem Livegang anwaltlich erstellt und freigegeben.')
 
 @section('legal_content')

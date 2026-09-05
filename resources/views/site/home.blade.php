@@ -51,7 +51,8 @@
             --}}
             <div class="min-w-0 lg:col-span-5 lg:col-start-8 lg:row-span-2 lg:row-start-1 lg:self-start lg:pt-[3.25rem]" aria-hidden="true">
                 <div class="relative mx-auto max-w-md lg:max-w-none">
-                    <div class="absolute -top-3 right-3 z-10 rotate-6 rounded-full border-2 border-hvm-orange-dark bg-hvm-canvas px-4 py-1.5 text-xs font-bold tracking-[0.2em] text-hvm-orange-dark uppercase sm:px-5 sm:text-sm">
+                    {{-- Stempel "Beispiel": Orange nur als Rahmen und Flaeche, Text in Textschwarz; unter dem Kennlinienband, mobil ungedreht. --}}
+                    <div class="absolute top-4 right-4 z-10 rounded-full border-2 border-hvm-orange-dark bg-hvm-orange-soft px-4 py-1.5 text-xs font-bold tracking-[0.2em] text-hvm-textschwarz uppercase sm:top-3 sm:right-5 sm:rotate-6 sm:px-5 sm:text-sm">
                         Beispiel
                     </div>
 
@@ -65,7 +66,7 @@
                                     <p class="mt-1 text-lg font-semibold tracking-tight text-hvm-textschwarz">Abrechnungsjahr</p>
                                     <p class="mt-1 text-xs text-hvm-text-sekundaer">01.01. bis 31.12.</p>
                                 </div>
-                                <div class="shrink-0 sm:text-right">
+                                <div class="shrink-0 sm:pt-8 sm:text-right">
                                     <p class="text-xs text-hvm-text-sekundaer">Beispielwohnung</p>
                                     <p class="text-xs text-hvm-text-sekundaer">Fläche 70 m²</p>
                                 </div>
@@ -194,7 +195,7 @@
                 title="Schnellabrechnung oder vollständige Objektabrechnung"
                 lead="Nach dem Upload schlägt Ihnen das Portal den passenden Weg vor. Sie können jederzeit wechseln, ohne bereits ausgelesene Inhaltsdaten zu verlieren." />
 
-            <div class="mt-14 grid gap-6 lg:grid-cols-2">
+            <div class="mt-14 grid gap-6 lg:grid-cols-2 lg:items-start">
                 <x-hvm.card :accent="true" eyebrow="Weg 1" title="Schnellabrechnung für die Eigentumswohnung" class="rounded-3xl p-7 sm:p-9">
                     <p class="text-hvm-text-sekundaer">
                         Für Vermieter einer einzelnen Einheit in einer Wohnungseigentümergemeinschaft. Grundlage sind Ihre
@@ -443,7 +444,7 @@
                 title="Bezahlt wird je erzeugter Mieterabrechnung"
                 lead="Abrechnungseinheit für den Preis ist die erzeugte Mieterabrechnung, nicht die Wohnung. Bei einem Mieterwechsel entstehen für eine Einheit mehrere Mieterabrechnungen." />
 
-            <div class="mt-14 grid gap-6 lg:grid-cols-12">
+            <div class="mt-14 grid gap-6 lg:grid-cols-12 lg:items-start">
                 <div class="lg:col-span-5">
                     <div class="rounded-3xl border border-hvm-linie bg-white p-7 sm:p-9">
                         <p class="text-xs font-semibold tracking-[0.12em] text-hvm-text-sekundaer uppercase">
@@ -467,15 +468,16 @@
                             <li class="flex gap-3"><span class="mt-0.5 text-hvm-orange-dark" aria-hidden="true"><x-hvm.icon name="check" /></span><span>Erinnerungen für Folgejahre kostenlos</span></li>
                         </ul>
 
+                        {{-- Zwischen-CTA als secondary: Orange bleibt Hero und Schluss-CTA (4.12). --}}
                         <div class="mt-8 flex flex-wrap gap-3">
-                            <x-hvm.button href="{{ url('/app') }}" variant="primary">Kostenlos starten</x-hvm.button>
+                            <x-hvm.button href="{{ url('/app') }}" variant="secondary">Kostenlos starten</x-hvm.button>
                             <x-hvm.button href="{{ route('site.preise') }}" variant="ghost">Rechenbeispiel ansehen</x-hvm.button>
                         </div>
                     </div>
                 </div>
 
                 <div class="lg:col-span-7">
-                    <x-hvm.card title="Was das in der Praxis bedeutet" class="h-full rounded-3xl p-7 sm:p-9">
+                    <x-hvm.card title="Was das in der Praxis bedeutet" class="rounded-3xl p-7 sm:p-9">
                         <p class="text-hvm-text-sekundaer">
                             Sie sehen die Anzahl der Mieterabrechnungen und den genauen Endpreis, bevor Sie zahlen. Vor
                             der Vorschau erhalten Sie eine unverbindliche Schätzung, vor dem Bezahlvorgang wird der
@@ -542,7 +544,7 @@
         <div class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
             <div class="mx-auto max-w-3xl text-center">
                 <span class="mx-auto block h-1 w-12 rounded-full bg-hvm-orange" aria-hidden="true"></span>
-                <h2 class="mt-8 text-3xl font-semibold tracking-tight text-hvm-textschwarz sm:text-4xl lg:text-5xl">
+                <h2 class="mt-8 text-2xl font-semibold tracking-tight text-hvm-textschwarz sm:text-4xl lg:text-5xl">
                     Legen Sie Ihre Abrechnung an, prüfen Sie die Vorschau, entscheiden Sie danach
                 </h2>
                 <p class="mx-auto mt-6 max-w-prose text-lg leading-relaxed text-hvm-text-sekundaer">
@@ -550,8 +552,8 @@
                     haben und die Final-PDFs möchten.
                 </p>
                 <div class="mt-10 flex flex-wrap justify-center gap-3">
-                    <x-hvm.button href="{{ url('/app') }}" variant="primary" size="lg">Kostenlos starten</x-hvm.button>
-                    <x-hvm.button href="{{ route('site.faq') }}" variant="secondary" size="lg">Häufige Fragen</x-hvm.button>
+                    <x-hvm.button href="{{ url('/app') }}" variant="primary" size="lg" class="w-full sm:w-auto">Kostenlos starten</x-hvm.button>
+                    <x-hvm.button href="{{ route('site.faq') }}" variant="secondary" size="lg" class="w-full sm:w-auto">Häufige Fragen</x-hvm.button>
                 </div>
             </div>
         </div>

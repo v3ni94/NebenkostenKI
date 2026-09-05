@@ -24,7 +24,7 @@
 
 @section('content')
     <x-hvm.page-header
-        eyebrow="Schritt 2 von 10"
+        :eyebrow="\App\Application\Wizard\WizardStep::UPLOAD->eyebrow()"
         title="Unterlagen hochladen"
         lead="Laden Sie alles hoch, was Sie haben. Die Reihenfolge ist gleichgültig, das System ordnet die Unterlagen selbst zu." />
 

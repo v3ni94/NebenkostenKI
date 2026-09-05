@@ -260,9 +260,9 @@
                 </x-hvm.alert>
             </div>
 
-            <div class="mt-14 flex flex-wrap gap-3">
-                <x-hvm.button href="{{ url('/app') }}" variant="primary" size="lg">Kostenlos starten</x-hvm.button>
-                <x-hvm.button href="{{ route('site.faq') }}" variant="secondary" size="lg">Häufige Fragen</x-hvm.button>
+            <div class="mt-14 flex flex-wrap justify-center gap-3">
+                <x-hvm.button href="{{ url('/app') }}" variant="primary" size="lg" class="w-full sm:w-auto">Kostenlos starten</x-hvm.button>
+                <x-hvm.button href="{{ route('site.faq') }}" variant="secondary" size="lg" class="w-full sm:w-auto">Häufige Fragen</x-hvm.button>
             </div>
         </div>
     </section>

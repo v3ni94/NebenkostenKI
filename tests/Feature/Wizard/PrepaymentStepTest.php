@@ -26,7 +26,8 @@ final class PrepaymentStepTest extends CalculationTestCase
         );
 
         $antwort->assertOk();
-        $antwort->assertSee('Schritt 7: Vorauszahlungen');
+        $antwort->assertSee('Schritt 7 von 12');
+        $antwort->assertSee('Vorauszahlungen');
         $antwort->assertSee('Sollsumme');
         $antwort->assertSee('Tatsächlich geleistet');
         $antwort->assertSee('Herkunft');

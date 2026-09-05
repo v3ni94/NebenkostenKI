@@ -13,8 +13,8 @@
 
 @section('content')
     <x-hvm.page-header
-        eyebrow="Geführter Ablauf"
-        title="Schritt 7: Vorauszahlungen"
+        :eyebrow="$schritt->eyebrow()"
+        title="Vorauszahlungen"
         lead="Abgezogen werden ausschließlich die tatsächlich geleisteten Vorauszahlungen. Die Sollsumme dient der Plausibilisierung." />
 
     <div class="mt-8">
@@ -26,7 +26,8 @@
     </div>
 
     @if ($offen !== [])
-        <x-hvm.alert variant="warning" class="mt-8" label="Fehlt noch"
+        {{-- Kategorie "Fehlt noch" = Variante info (Statuszuordnung 4.9). --}}
+        <x-hvm.alert variant="info" class="mt-8" label="Fehlt noch"
                      title="Dieser Schritt ist Pflicht">
             <ul class="list-disc space-y-1 pl-5">
                 @foreach ($offen as $grund)
@@ -113,7 +114,8 @@
                                                    name="zeilen[{{ $zeile->tenancyId }}][ist]"
                                                    value="{{ $zeile->actualTotal !== null ? $zeile->actualTotal->formatAmount() : '' }}"
                                                    class="hvm-input text-right tabular"
-                                                   @if ($zeile->isOpen()) aria-invalid="true" aria-describedby="{{ $feldId }}-fehler" @endif
+                                                   @if ($zeile->isOpen()) aria-describedby="{{ $feldId }}-hinweis" @endif
+                                                   @if ($errors->has('zeilen.'.$zeile->tenancyId.'.ist')) aria-invalid="true" @endif
                                                    placeholder="0,00">
                                         </div>
                                     </div>
@@ -153,9 +155,10 @@
                                     </p>
                                 @endif
 
+                                {{-- "Fehlt noch" ist die Info-Kategorie (inbox), kein Fehler: rot bleibt den Blockern vorbehalten. --}}
                                 @if ($zeile->isOpen())
-                                    <p id="{{ $feldId }}-fehler" class="flex items-start gap-1.5 text-sm font-medium text-status-error">
-                                        <x-hvm.icon name="alert" class="mt-0.5 h-4 w-4" />
+                                    <p id="{{ $feldId }}-hinweis" class="flex items-start gap-1.5 text-sm font-medium text-status-info">
+                                        <x-hvm.icon :name="\App\Support\Statussymbol::INFO" class="mt-0.5 h-4 w-4" />
                                         <span>Fehlt noch: Bitte tragen Sie den Betrag ein oder bestätigen Sie die Annahme.</span>
                                     </p>
                                 @endif
@@ -166,17 +169,18 @@
             @endforeach
         </div>
 
+        {{-- Buttonreihe (4.12): Speichern und Weiter nebeneinander, das zweite Formular ist Flex-Kind. --}}
         <div class="mt-8 flex flex-wrap gap-3">
             <x-hvm.button type="submit" variant="primary">Vorauszahlungen speichern</x-hvm.button>
+            <x-hvm.button type="submit" variant="secondary" form="vorauszahlungen-weiter">
+                Weiter zu den Verteilerschlüsseln
+                <x-hvm.icon name="arrow-right" class="h-4 w-4" />
+            </x-hvm.button>
         </div>
     </form>
 
-    <form method="POST" class="mt-3"
+    <form method="POST" id="vorauszahlungen-weiter"
           action="{{ route('portal.wizard.vorauszahlungen.weiter', ['billingRun' => $billingRun->getKey()]) }}">
         @csrf
-        <x-hvm.button type="submit" variant="secondary">
-            Weiter zu den Verteilerschlüsseln
-            <x-hvm.icon name="arrow-right" class="h-4 w-4" />
-        </x-hvm.button>
     </form>
 @endsection

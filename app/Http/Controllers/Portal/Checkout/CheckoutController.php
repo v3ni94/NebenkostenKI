@@ -12,6 +12,8 @@ use App\Application\Payment\Exceptions\CheckoutNotAllowedException;
 use App\Application\Payment\Exceptions\PriceNotPayableException;
 use App\Application\Payment\OperatorInvoiceBlocker;
 use App\Application\Payment\StartCheckout;
+use App\Application\Wizard\WizardProgress;
+use App\Application\Wizard\WizardStep;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Checkout\StartCheckoutRequest;
 use App\Models\BillingRun;
@@ -54,6 +56,7 @@ class CheckoutController extends Controller
         private readonly StartCheckout $startCheckout,
         private readonly CancelCheckout $cancelCheckout,
         private readonly OperatorInvoiceBlocker $blocker,
+        private readonly WizardProgress $progress,
     ) {}
 
     /**
@@ -76,6 +79,8 @@ class CheckoutController extends Controller
 
         return view('portal.checkout.index', [
             'lauf' => $lauf,
+            'schritt' => WizardStep::ZAHLUNG,
+            'fortschritt' => $this->progress->bar($lauf, WizardStep::ZAHLUNG),
             'objekt' => $lauf->getRelationValue('property'),
             'preis' => $preis,
             'preisfehler' => $preisfehler,

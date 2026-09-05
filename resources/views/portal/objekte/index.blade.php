@@ -33,6 +33,7 @@
                 <x-hvm.card padding="none">
                     <x-hvm.list-row
                         :stacked="true"
+                        level="h2"
                         :title="$objekt->label"
                         :subtitle="$objekt->address_line.', '.$objekt->postal_code.' '.$objekt->city">
                         <div class="grid gap-5 border-t border-hvm-linie pt-5 lg:grid-cols-12 lg:gap-8">
@@ -56,13 +57,23 @@
                             </div>
                         </div>
 
+                        {{--
+                            Reihenfolge nach 4.12: Haupthandlung der Zeile ("Abrechnung starten",
+                            secondary, weil der Seitenkopf den einen Primaerbutton traegt),
+                            Nebenhandlungen als ghost, destruktiv als danger mit Symbol.
+                        --}}
                         <x-slot:actions>
+                            <x-hvm.button href="{{ route('portal.abrechnungen.create', ['property' => $objekt->getKey()]) }}"
+                                          variant="secondary" size="sm">
+                                Abrechnung starten
+                                <x-hvm.icon name="arrow-right" class="h-4 w-4" />
+                            </x-hvm.button>
                             <x-hvm.button href="{{ route('portal.einheiten.index', ['property' => $objekt->getKey()]) }}"
-                                          variant="secondary" size="sm">Einheiten</x-hvm.button>
+                                          variant="ghost" size="sm">Einheiten</x-hvm.button>
                             <x-hvm.button href="{{ route('portal.objekte.vermieter.edit', ['property' => $objekt->getKey()]) }}"
-                                          variant="secondary" size="sm">Vermieter</x-hvm.button>
+                                          variant="ghost" size="sm">Vermieter</x-hvm.button>
                             <x-hvm.button href="{{ route('portal.objekte.edit', ['property' => $objekt->getKey()]) }}"
-                                          variant="secondary" size="sm">Bearbeiten</x-hvm.button>
+                                          variant="ghost" size="sm">Bearbeiten</x-hvm.button>
                             <form method="POST" action="{{ route('portal.objekte.destroy', ['property' => $objekt->getKey()]) }}">
                                 @csrf
                                 @method('DELETE')

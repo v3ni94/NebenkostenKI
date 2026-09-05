@@ -24,7 +24,8 @@ final class AuditReportStepTest extends CalculationTestCase
         );
 
         $antwort->assertOk();
-        $antwort->assertSee('Schritt 9: Prüfbericht');
+        $antwort->assertSee('Schritt 9 von 12');
+        $antwort->assertSee('Prüfbericht');
         $antwort->assertSee('Blockiert die Abrechnung');
         $antwort->assertSee('Warnung');
         $antwort->assertSee('Hinweis');

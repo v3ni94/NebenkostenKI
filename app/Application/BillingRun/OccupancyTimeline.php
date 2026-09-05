@@ -128,8 +128,11 @@ class OccupancyTimeline
             foreach ($this->gaps($unit, $frame) as $luecke) {
                 $befunde[] = [
                     'art' => PortalStatusCategory::FEHLT_NOCH,
+                    // Die Einheit steht im Satz, damit gleichlautende Befunde mehrerer
+                    // Einheiten auf Uebersicht und Objektliste unterscheidbar bleiben.
                     'text' => sprintf(
-                        'Für den Zeitraum vom %s bis %s ist weder ein Mietverhältnis noch ein Leerstand erfasst.',
+                        '%s: Für den Zeitraum vom %s bis %s ist weder ein Mietverhältnis noch ein Leerstand erfasst.',
+                        (string) $unit->getAttribute('label'),
                         $this->deutschesDatum($luecke->startIso()),
                         $this->deutschesDatum($luecke->endIso())
                     ),

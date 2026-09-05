@@ -5,7 +5,8 @@
 
     Die Bedeutung steht immer im Text. Die Statusvarianten tragen zusaetzlich
     ein Symbol (Uebernahme aus Konzept B), damit der Zustand auch ohne
-    Farbwahrnehmung erkennbar ist. Zuordnung (verbindlich):
+    Farbwahrnehmung erkennbar ist. Zuordnung (verbindlich, einzige Quelle
+    App\Support\Statussymbol):
       success  check-circle  (Erledigt)
       warning  eye           (Bitte pruefen)
       info     inbox         (Fehlt noch)
@@ -35,13 +36,7 @@
         default => 'border-hvm-linie bg-hvm-canvas-deep text-hvm-textschwarz [.hvm-dark_&]:border-white/30 [.hvm-dark_&]:bg-transparent [.hvm-dark_&]:text-white',
     };
 
-    $standardSymbol = match ($variant) {
-        'success' => 'check-circle',
-        'warning' => 'eye',
-        'info' => 'inbox',
-        'error' => 'alert',
-        default => null,
-    };
+    $standardSymbol = \App\Support\Statussymbol::fuer($variant);
 
     $symbol = $icon === false || $dot === false ? null : ($icon ?? $standardSymbol);
 @endphp

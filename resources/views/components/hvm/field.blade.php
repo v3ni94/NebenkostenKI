@@ -34,12 +34,16 @@
       hint          Hilfetext zum Feld
       hintPosition  above (Standard, unter dem Label) oder below (unter dem
                     Eingabefeld, fuer lange Hinweise). Bei checkbox steht der
-                    Hilfetext immer unter der Beschriftung.
+                    Hilfetext immer unter der Beschriftung. Datumsfelder ohne
+                    hint erhalten automatisch den Hinweis zur Eingabe ueber den
+                    Kalender des Browsers (unter dem Feld).
       align         Nur checkbox: center (Standard) oder start. Bei start
                     steht das Kaestchen an der ersten Textzeile. Beschriftungen
                     ab 80 Zeichen oder mit Hilfetext werden automatisch oben
                     ausgerichtet.
-      required      true setzt required und markiert das Label
+      required      true setzt required und markiert das Label sichtbar mit
+                    einem Stern (aria-hidden) plus " (Pflichtfeld)" fuer
+                    Screenreader
       autocomplete  Wert des autocomplete-Attributs
       optional      true zeigt "optional" statt Pflichtmarkierung
       errorKey      Schluessel im Fehlerbeutel, Standard name
@@ -57,9 +61,10 @@
     Alle uebrigen Attribute (placeholder, min, max, step, autofocus,
     inputmode, pattern, ...) werden an das Eingabefeld durchgereicht.
 
-    Fehlerstruktur: <p id="{id}-fehler"> mit aria-describedby und
-    aria-invalid="true" am Feld (bei Gruppen am fieldset), identisch zum
-    bisherigen Muster. Innerhalb von .hvm-dark wechseln Label und Hilfetext
+    Fehlerstruktur: <div id="{id}-fehler"> mit allen Meldungen des Feldes,
+    aria-describedby und aria-invalid="true" am Feld (bei Gruppen am
+    fieldset). Die Sammelmeldung des Layouts (x-hvm.meldungen) verlinkt per
+    Anker auf die Feld-ID. Innerhalb von .hvm-dark wechseln Label und Hilfetext
     automatisch auf Weiss bzw. Hellgrau.
 --}}
 @props([
@@ -94,11 +99,19 @@
     $fehlerbeutel = $errors instanceof \Illuminate\Support\ViewErrorBag ? $errors : view()->shared('errors');
     $fehlerAktiv = $errors !== false;
     $hatFehler = $fehlerAktiv && $fehlerbeutel instanceof \Illuminate\Support\ViewErrorBag && $fehlerbeutel->has($schluessel);
-    $fehlertext = $hatFehler ? $fehlerbeutel->first($schluessel) : '';
+    // Alle Meldungen des Feldes, nicht nur die erste (z. B. Laenge und Ziffer beim Passwort).
+    $fehlertexte = $hatFehler ? array_values(array_unique($fehlerbeutel->get($schluessel))) : [];
     $istGruppe = in_array($type, ['radio-group', 'checkbox-group'], true);
     $istCheckbox = $type === 'checkbox';
     $hatLabelHtml = isset($labelHtml) && $labelHtml->isNotEmpty();
     $labelText = $label ?? '';
+    // Datumsfelder: das native Feld folgt der Browsersprache; der Hinweis sagt,
+    // wie das Datum eingegeben wird, ohne ein Format zu behaupten, das der
+    // Browser nicht zeigt.
+    if ($type === 'date' && $hint === null) {
+        $hint = 'Datum über den Kalender des Browsers wählen.';
+        $hintPosition = 'below';
+    }
     $hinweisUnten = $hint !== null && $hintPosition === 'below';
 
     $beschreibung = trim(($hint !== null ? $hinweisId : '').' '.($hatFehler ? $fehlerId : ''));
@@ -163,7 +176,7 @@
               @if ($hatFehler) aria-invalid="true" @endif>
         <div class="{{ $labelZeile }}">
             <legend class="{{ $labelKlassen }}">
-                {{ $hatLabelHtml ? $labelHtml : $labelText }}@if ($required)<span class="sr-only"> (Pflichtfeld)</span>@endif
+                {{ $hatLabelHtml ? $labelHtml : $labelText }}@if ($required)<span class="ml-0.5 text-status-error" aria-hidden="true">*</span><span class="sr-only"> (Pflichtfeld)</span>@endif
             </legend>
             @if ($optional && ! $required)
                 <span class="text-xs text-hvm-text-sekundaer [.hvm-dark_&]:text-hvm-hellgrau">optional</span>
@@ -193,7 +206,7 @@
                     <span class="min-w-0">
                         <span class="block {{ $optionHinweis !== null ? 'font-semibold' : '' }}">{{ $optionText }}</span>
                         @if ($optionHinweis !== null)
-                            <span class="block text-xs leading-relaxed text-hvm-text-sekundaer [.hvm-dark_&]:text-hvm-hellgrau">{{ $optionHinweis }}</span>
+                            <span class="block text-sm leading-relaxed text-hvm-text-sekundaer [.hvm-dark_&]:text-hvm-hellgrau">{{ $optionHinweis }}</span>
                         @endif
                     </span>
                 </label>
@@ -206,10 +219,14 @@
         @endif
 
         @if ($hatFehler)
-            <p id="{{ $fehlerId }}" class="mt-2 flex items-start gap-1.5 text-sm font-medium text-status-error">
-                <x-hvm.icon name="warning" class="mt-0.5 h-4 w-4" />
-                <span>{{ $fehlertext }}</span>
-            </p>
+            <div id="{{ $fehlerId }}" class="mt-2 space-y-1 text-sm font-medium text-status-error">
+                @foreach ($fehlertexte as $fehlertext)
+                    <p class="flex items-start gap-1.5">
+                        <x-hvm.icon name="alert" class="mt-0.5 h-4 w-4 shrink-0" />
+                        <span>{{ $fehlertext }}</span>
+                    </p>
+                @endforeach
+            </div>
         @endif
     </fieldset>
 @elseif ($istCheckbox)
@@ -218,25 +235,29 @@
         <label for="{{ $feldId }}" class="hvm-choice [.hvm-dark_&]:text-white [.hvm-dark_&]:hover:bg-white/10 {{ $obenAusrichten ? 'items-start' : '' }}">
             <input type="checkbox" value="{{ $wert }}" {{ $feldAttribute->class(['mt-0.5' => $obenAusrichten]) }} @checked($angehakt)>
             <span class="min-w-0">
-                <span class="block font-medium">{{ $hatLabelHtml ? $labelHtml : $labelText }}@if ($required)<span class="sr-only"> (Pflichtfeld)</span>@endif</span>
+                <span class="block font-medium">{{ $hatLabelHtml ? $labelHtml : $labelText }}@if ($required)<span class="ml-0.5 text-status-error" aria-hidden="true">*</span><span class="sr-only"> (Pflichtfeld)</span>@endif</span>
                 @if ($hint !== null)
-                    <span id="{{ $hinweisId }}" class="block text-xs leading-relaxed text-hvm-text-sekundaer [.hvm-dark_&]:text-hvm-hellgrau">{{ $hint }}</span>
+                    <span id="{{ $hinweisId }}" class="block text-sm leading-relaxed text-hvm-text-sekundaer [.hvm-dark_&]:text-hvm-hellgrau">{{ $hint }}</span>
                 @endif
             </span>
         </label>
 
         @if ($hatFehler)
-            <p id="{{ $fehlerId }}" class="mt-1 flex items-start gap-1.5 text-sm font-medium text-status-error">
-                <x-hvm.icon name="warning" class="mt-0.5 h-4 w-4" />
-                <span>{{ $fehlertext }}</span>
-            </p>
+            <div id="{{ $fehlerId }}" class="mt-1 space-y-1 text-sm font-medium text-status-error">
+                @foreach ($fehlertexte as $fehlertext)
+                    <p class="flex items-start gap-1.5">
+                        <x-hvm.icon name="alert" class="mt-0.5 h-4 w-4 shrink-0" />
+                        <span>{{ $fehlertext }}</span>
+                    </p>
+                @endforeach
+            </div>
         @endif
     </div>
 @else
     <div class="min-w-0 {{ $wrapperClass }}">
         <div class="{{ $labelZeile }}">
             <label for="{{ $feldId }}" class="{{ $labelKlassen }}">
-                {{ $hatLabelHtml ? $labelHtml : $labelText }}@if ($required)<span class="sr-only"> (Pflichtfeld)</span>@endif
+                {{ $hatLabelHtml ? $labelHtml : $labelText }}@if ($required)<span class="ml-0.5 text-status-error" aria-hidden="true">*</span><span class="sr-only"> (Pflichtfeld)</span>@endif
             </label>
             @if ($optional && ! $required)
                 <span class="text-xs text-hvm-text-sekundaer [.hvm-dark_&]:text-hvm-hellgrau">optional</span>
@@ -262,10 +283,14 @@
         @endif
 
         @if ($hatFehler)
-            <p id="{{ $fehlerId }}" class="mt-2 flex items-start gap-1.5 text-sm font-medium text-status-error">
-                <x-hvm.icon name="warning" class="mt-0.5 h-4 w-4" />
-                <span>{{ $fehlertext }}</span>
-            </p>
+            <div id="{{ $fehlerId }}" class="mt-2 space-y-1 text-sm font-medium text-status-error">
+                @foreach ($fehlertexte as $fehlertext)
+                    <p class="flex items-start gap-1.5">
+                        <x-hvm.icon name="alert" class="mt-0.5 h-4 w-4 shrink-0" />
+                        <span>{{ $fehlertext }}</span>
+                    </p>
+                @endforeach
+            </div>
         @endif
     </div>
 @endif
