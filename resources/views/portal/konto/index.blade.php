@@ -1,3 +1,11 @@
+{{--
+    Konto: Stammdaten, Rechnungsanschrift, E-Mail-Adresse, Erinnerungen und
+    Sicherheit.
+
+    Gestaltung nach docs/designsystem.md: Seitenkopf (4.3), Formularkarten mit
+    x-hvm.field (4.6), Meldungen (4.14), ein Primaerbutton (4.12). Feld-IDs,
+    Namen, Typen und autocomplete sind unveraendert.
+--}}
 @php
     use App\Enums\OrganizationType;
 
@@ -9,12 +17,13 @@
 @section('titel', 'Konto')
 
 @section('content')
-    <x-hvm.section-heading
+    <x-hvm.page-header
+        eyebrow="Konto"
         title="Ihr Konto"
         lead="Hier verwalten Sie Ihre Angaben, Ihre Rechnungsanschrift und Ihre Erinnerungen." />
 
     @if ($zustellhinweis !== null)
-        <div class="mt-6">
+        <div class="mt-8">
             <x-hvm.alert variant="warning" label="Zustellung" title="Hinweis zu Ihrer E-Mail-Adresse">
                 {{ $zustellhinweis }}
                 Nach einer Adressänderung bestätigen Sie die neue Adresse über den zugesandten Link. Erinnerungen
@@ -24,10 +33,10 @@
     @endif
 
     @unless ($verifiziert)
-        <div class="mt-6">
+        <div class="mt-8">
             <x-hvm.alert variant="warning" label="Fehlt noch" title="E-Mail-Adresse noch nicht bestätigt">
                 Zahlung und Download der fertigen Abrechnungen sind erst nach der Bestätigung möglich.
-                <a class="font-medium underline underline-offset-2" href="{{ route('verification.notice') }}">
+                <a class="font-medium underline underline-offset-4" href="{{ route('verification.notice') }}">
                     Bestätigungslink erneut anfordern
                 </a>
             </x-hvm.alert>
@@ -36,220 +45,191 @@
 
     {{-- Stammdaten ------------------------------------------------------------- --}}
 
-    <form method="POST" action="{{ route('portal.konto.update') }}" class="mt-8 space-y-6">
-        @csrf
-        @method('PUT')
+    <section class="mt-10" aria-labelledby="ueberschrift-stammdaten">
+        <p class="text-xs font-semibold tracking-[0.12em] text-hvm-text-sekundaer uppercase">Stammdaten</p>
+        <h2 id="ueberschrift-stammdaten" class="mt-1 text-2xl font-semibold tracking-tight text-hvm-textschwarz">Angaben und Rechnungsanschrift</h2>
 
-        <x-hvm.card title="Name und Kontoart">
-            <div class="space-y-5">
-                <div>
-                    <label for="name" class="block text-sm font-semibold text-hvm-textschwarz">Name</label>
-                    <input id="name" name="name" type="text" required
-                           value="{{ $wert('name', $benutzer->name) }}"
-                           class="mt-1 block w-full min-h-11 rounded-md border border-hvm-mittelgrau px-3 py-2">
-                    @error('name')<p class="mt-1 text-sm text-status-error">{{ $message }}</p>@enderror
-                </div>
+        <form method="POST" action="{{ route('portal.konto.update') }}" class="mt-6 max-w-2xl space-y-6">
+            @csrf
+            @method('PUT')
 
-                <div class="grid gap-5 sm:grid-cols-2">
-                    <div>
-                        <label for="organization_name" class="block text-sm font-semibold text-hvm-textschwarz">
-                            Bezeichnung des Kontos
-                        </label>
-                        <input id="organization_name" name="organization_name" type="text" required
-                               value="{{ $wert('organization_name', $organisation->name) }}"
-                               class="mt-1 block w-full min-h-11 rounded-md border border-hvm-mittelgrau px-3 py-2">
-                        @error('organization_name')<p class="mt-1 text-sm text-status-error">{{ $message }}</p>@enderror
-                    </div>
-                    <div>
-                        <label for="organization_type" class="block text-sm font-semibold text-hvm-textschwarz">Art des Kontos</label>
-                        <select id="organization_type" name="organization_type" required
-                                class="mt-1 block w-full min-h-11 rounded-md border border-hvm-mittelgrau px-3 py-2">
+            <x-hvm.card title="Name und Kontoart">
+                <div class="space-y-6">
+                    <x-hvm.field name="name" label="Name" type="text" :required="true"
+                                 :value="$wert('name', $benutzer->name)" />
+
+                    <div class="grid gap-6 sm:grid-cols-2">
+                        <x-hvm.field name="organization_name" label="Bezeichnung des Kontos" type="text" :required="true"
+                                     :value="$wert('organization_name', $organisation->name)" />
+
+                        <x-hvm.field name="organization_type" label="Art des Kontos" type="select" :required="true">
                             @foreach (OrganizationType::cases() as $art)
                                 <option value="{{ $art->value }}"
                                         @selected($wert('organization_type', $organisation->type?->value) === $art->value)>
                                     {{ $art->label() }}
                                 </option>
                             @endforeach
-                        </select>
+                        </x-hvm.field>
                     </div>
                 </div>
+            </x-hvm.card>
+
+            <x-hvm.card title="Rechnungsanschrift">
+                <p class="max-w-prose text-sm leading-relaxed text-hvm-text-sekundaer">
+                    Diese Angaben erscheinen auf der Rechnung der Hausverwaltung Müller GmbH über die Nutzung des
+                    Portals. Sie erscheinen nicht auf den Abrechnungen Ihrer Mieter.
+                </p>
+
+                <div class="mt-6 space-y-6">
+                    <x-hvm.field name="billing_name" label="Rechnungsempfänger" type="text"
+                                 :value="$wert('billing_name', $organisation->billing_name)" />
+
+                    <x-hvm.field name="billing_address_line" label="Straße und Hausnummer" type="text"
+                                 :value="$wert('billing_address_line', $organisation->billing_address_line)" />
+
+                    <x-hvm.field name="billing_address_extra" label="Adresszusatz" type="text"
+                                 :value="$wert('billing_address_extra', $organisation->billing_address_extra)" />
+
+                    <div class="grid gap-6 sm:grid-cols-3">
+                        <x-hvm.field name="billing_postal_code" label="Postleitzahl" type="text" inputmode="numeric"
+                                     :value="$wert('billing_postal_code', $organisation->billing_postal_code)" />
+
+                        <div class="min-w-0 sm:col-span-2">
+                            <x-hvm.field name="billing_city" label="Ort" type="text"
+                                         :value="$wert('billing_city', $organisation->billing_city)" />
+                        </div>
+                    </div>
+
+                    <x-hvm.field name="vat_id" label="Umsatzsteuer-Identifikationsnummer" type="text"
+                                 hint="Freiwillig, nur für Unternehmen. Eine Steuernummer wird nicht erhoben."
+                                 :value="$wert('vat_id', $organisation->vat_id)" />
+                </div>
+            </x-hvm.card>
+
+            <div class="flex flex-wrap gap-3">
+                <x-hvm.button type="submit" variant="primary" size="lg">Angaben speichern</x-hvm.button>
             </div>
-        </x-hvm.card>
-
-        <x-hvm.card title="Rechnungsanschrift">
-            <p class="text-sm text-hvm-anthrazit">
-                Diese Angaben erscheinen auf der Rechnung der Hausverwaltung Müller GmbH über die Nutzung des
-                Portals. Sie erscheinen nicht auf den Abrechnungen Ihrer Mieter.
-            </p>
-
-            <div class="mt-5 space-y-5">
-                <div>
-                    <label for="billing_name" class="block text-sm font-semibold text-hvm-textschwarz">Rechnungsempfänger</label>
-                    <input id="billing_name" name="billing_name" type="text"
-                           value="{{ $wert('billing_name', $organisation->billing_name) }}"
-                           class="mt-1 block w-full min-h-11 rounded-md border border-hvm-mittelgrau px-3 py-2">
-                </div>
-
-                <div>
-                    <label for="billing_address_line" class="block text-sm font-semibold text-hvm-textschwarz">
-                        Straße und Hausnummer
-                    </label>
-                    <input id="billing_address_line" name="billing_address_line" type="text"
-                           value="{{ $wert('billing_address_line', $organisation->billing_address_line) }}"
-                           class="mt-1 block w-full min-h-11 rounded-md border border-hvm-mittelgrau px-3 py-2">
-                </div>
-
-                <div>
-                    <label for="billing_address_extra" class="block text-sm font-semibold text-hvm-textschwarz">Adresszusatz</label>
-                    <input id="billing_address_extra" name="billing_address_extra" type="text"
-                           value="{{ $wert('billing_address_extra', $organisation->billing_address_extra) }}"
-                           class="mt-1 block w-full min-h-11 rounded-md border border-hvm-mittelgrau px-3 py-2">
-                </div>
-
-                <div class="grid gap-5 sm:grid-cols-3">
-                    <div>
-                        <label for="billing_postal_code" class="block text-sm font-semibold text-hvm-textschwarz">Postleitzahl</label>
-                        <input id="billing_postal_code" name="billing_postal_code" type="text" inputmode="numeric"
-                               value="{{ $wert('billing_postal_code', $organisation->billing_postal_code) }}"
-                               class="mt-1 block w-full min-h-11 rounded-md border border-hvm-mittelgrau px-3 py-2">
-                    </div>
-                    <div class="sm:col-span-2">
-                        <label for="billing_city" class="block text-sm font-semibold text-hvm-textschwarz">Ort</label>
-                        <input id="billing_city" name="billing_city" type="text"
-                               value="{{ $wert('billing_city', $organisation->billing_city) }}"
-                               class="mt-1 block w-full min-h-11 rounded-md border border-hvm-mittelgrau px-3 py-2">
-                    </div>
-                </div>
-
-                <div>
-                    <label for="vat_id" class="block text-sm font-semibold text-hvm-textschwarz">
-                        Umsatzsteuer-Identifikationsnummer
-                    </label>
-                    <input id="vat_id" name="vat_id" type="text"
-                           value="{{ $wert('vat_id', $organisation->vat_id) }}"
-                           class="mt-1 block w-full min-h-11 rounded-md border border-hvm-mittelgrau px-3 py-2">
-                    <p class="mt-1 text-sm text-hvm-anthrazit">
-                        Freiwillig, nur für Unternehmen. Eine Steuernummer wird nicht erhoben.
-                    </p>
-                </div>
-            </div>
-        </x-hvm.card>
-
-        <x-hvm.button type="submit" variant="primary">Angaben speichern</x-hvm.button>
-    </form>
+        </form>
+    </section>
 
     {{-- E-Mail-Adresse --------------------------------------------------------- --}}
 
-    <x-hvm.card class="mt-8" title="E-Mail-Adresse ändern">
-        <p class="text-sm text-hvm-anthrazit">
-            Nach der Änderung senden wir einen neuen Bestätigungslink an die neue Adresse. Bis zur Bestätigung sind
-            Zahlung und Download gesperrt.
-        </p>
+    <section class="mt-16" aria-labelledby="ueberschrift-email">
+        <p class="text-xs font-semibold tracking-[0.12em] text-hvm-text-sekundaer uppercase">Zugang</p>
+        <h2 id="ueberschrift-email" class="mt-1 text-2xl font-semibold tracking-tight text-hvm-textschwarz">E-Mail-Adresse ändern</h2>
 
-        <form method="POST" action="{{ route('portal.konto.email') }}" class="mt-5 space-y-5">
-            @csrf
-            @method('PUT')
+        <x-hvm.card class="mt-6 max-w-2xl">
+            <p class="max-w-prose text-sm leading-relaxed text-hvm-text-sekundaer">
+                Nach der Änderung senden wir einen neuen Bestätigungslink an die neue Adresse. Bis zur Bestätigung sind
+                Zahlung und Download gesperrt.
+            </p>
 
-            <div>
-                <label for="konto-email" class="block text-sm font-semibold text-hvm-textschwarz">Neue E-Mail-Adresse</label>
-                <input id="konto-email" name="email" type="email" required autocomplete="email"
-                       value="{{ old('email', $benutzer->email) }}"
-                       class="mt-1 block w-full min-h-11 rounded-md border border-hvm-mittelgrau px-3 py-2">
-                @error('email')<p class="mt-1 text-sm text-status-error">{{ $message }}</p>@enderror
-            </div>
+            <form method="POST" action="{{ route('portal.konto.email') }}" class="mt-6 space-y-6">
+                @csrf
+                @method('PUT')
 
-            <div>
-                <label for="current_password" class="block text-sm font-semibold text-hvm-textschwarz">Aktuelles Passwort</label>
-                <input id="current_password" name="current_password" type="password" required
-                       autocomplete="current-password"
-                       class="mt-1 block w-full min-h-11 rounded-md border border-hvm-mittelgrau px-3 py-2">
-                @error('current_password')<p class="mt-1 text-sm text-status-error">{{ $message }}</p>@enderror
-            </div>
+                <x-hvm.field id="konto-email" name="email" label="Neue E-Mail-Adresse" type="email"
+                             autocomplete="email" :required="true"
+                             :value="old('email', $benutzer->email)" />
 
-            <x-hvm.button type="submit" variant="secondary">E-Mail-Adresse ändern</x-hvm.button>
-        </form>
-    </x-hvm.card>
+                <x-hvm.field name="current_password" label="Aktuelles Passwort" type="password"
+                             autocomplete="current-password" :required="true" />
+
+                <div class="flex flex-wrap gap-3">
+                    <x-hvm.button type="submit" variant="secondary">E-Mail-Adresse ändern</x-hvm.button>
+                </div>
+            </form>
+        </x-hvm.card>
+    </section>
 
     {{-- Erinnerungen ----------------------------------------------------------- --}}
 
-    <x-hvm.card class="mt-8" title="Erinnerungen">
-        <p class="text-sm text-hvm-anthrazit">
-            Wir erinnern Sie an die Fristen Ihrer Betriebskostenabrechnung. Sie können die Erinnerungen insgesamt
-            und je Objekt abschalten.
-        </p>
+    <section class="mt-16" aria-labelledby="ueberschrift-erinnerungen">
+        <p class="text-xs font-semibold tracking-[0.12em] text-hvm-text-sekundaer uppercase">Fristen</p>
+        <h2 id="ueberschrift-erinnerungen" class="mt-1 text-2xl font-semibold tracking-tight text-hvm-textschwarz">Erinnerungen</h2>
 
-        <form method="POST" action="{{ route('portal.konto.erinnerungen') }}" class="mt-5 space-y-5">
-            @csrf
-            @method('PUT')
+        <x-hvm.card class="mt-6 max-w-2xl">
+            <p class="max-w-prose text-sm leading-relaxed text-hvm-text-sekundaer">
+                Wir erinnern Sie an die Fristen Ihrer Betriebskostenabrechnung. Sie können die Erinnerungen insgesamt
+                und je Objekt abschalten.
+            </p>
 
-            <div class="flex items-start gap-3">
-                <input id="global_active" name="global_active" type="checkbox" value="1"
-                       @checked($global->is_active)
-                       class="mt-1 h-5 w-5 rounded border-hvm-mittelgrau">
-                <label for="global_active" class="text-sm font-semibold text-hvm-textschwarz">
-                    Erinnerungen insgesamt aktiv
-                </label>
-            </div>
+            <form method="POST" action="{{ route('portal.konto.erinnerungen') }}" class="mt-6 space-y-6">
+                @csrf
+                @method('PUT')
 
-            <fieldset class="space-y-3">
-                <legend class="text-sm font-semibold text-hvm-textschwarz">Zeitpunkte</legend>
+                <x-hvm.field name="global_active" label="Erinnerungen insgesamt aktiv" type="checkbox" value="1"
+                             :checked="(bool) $global->is_active" />
 
-                @foreach ([
-                    'q1_enabled' => 'Erstes Quartal',
-                    'q2_enabled' => 'Zweites Quartal',
-                    'q3_enabled' => 'Drittes Quartal',
-                    'december_enabled' => 'Dezember',
-                ] as $feld => $beschriftung)
-                    <div class="flex items-center gap-3">
-                        <input id="{{ $feld }}" name="{{ $feld }}" type="checkbox" value="1"
-                               @checked($global->getAttribute($feld))
-                               class="h-5 w-5 rounded border-hvm-mittelgrau">
-                        <label for="{{ $feld }}" class="text-sm text-hvm-textschwarz">{{ $beschriftung }}</label>
+                <fieldset class="space-y-1">
+                    <legend class="text-sm font-semibold text-hvm-textschwarz">Zeitpunkte</legend>
+
+                    <div class="mt-2 flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:gap-x-6">
+                        @foreach ([
+                            'q1_enabled' => 'Erstes Quartal',
+                            'q2_enabled' => 'Zweites Quartal',
+                            'q3_enabled' => 'Drittes Quartal',
+                            'december_enabled' => 'Dezember',
+                        ] as $feld => $beschriftung)
+                            <x-hvm.field :name="$feld" :label="$beschriftung" type="checkbox" value="1"
+                                         :checked="(bool) $global->getAttribute($feld)" />
+                        @endforeach
                     </div>
-                @endforeach
-            </fieldset>
-
-            @if ($objekte !== [])
-                <fieldset class="space-y-3">
-                    <legend class="text-sm font-semibold text-hvm-textschwarz">Erinnerungen je Objekt</legend>
-
-                    @foreach ($objekte as $objekt)
-                        <div class="flex items-center gap-3">
-                            <input id="objekt-{{ $objekt->getKey() }}" name="objekte[{{ $objekt->getKey() }}]"
-                                   type="checkbox" value="1"
-                                   @checked($objektErinnerungen[$objekt->getKey()] ?? true)
-                                   class="h-5 w-5 rounded border-hvm-mittelgrau">
-                            <label for="objekt-{{ $objekt->getKey() }}" class="text-sm text-hvm-textschwarz">
-                                {{ $objekt->label }}
-                            </label>
-                        </div>
-                    @endforeach
                 </fieldset>
-            @endif
 
-            <x-hvm.button type="submit" variant="secondary">Erinnerungen speichern</x-hvm.button>
-        </form>
-    </x-hvm.card>
+                @if ($objekte !== [])
+                    <fieldset class="space-y-1">
+                        <legend class="text-sm font-semibold text-hvm-textschwarz">Erinnerungen je Objekt</legend>
+
+                        <div class="mt-2 flex flex-col gap-1">
+                            @foreach ($objekte as $objekt)
+                                <x-hvm.field :id="'objekt-'.$objekt->getKey()"
+                                             :name="'objekte['.$objekt->getKey().']'"
+                                             :label="$objekt->label"
+                                             type="checkbox" value="1"
+                                             :checked="(bool) ($objektErinnerungen[$objekt->getKey()] ?? true)" />
+                            @endforeach
+                        </div>
+                    </fieldset>
+                @endif
+
+                <div class="flex flex-wrap gap-3">
+                    <x-hvm.button type="submit" variant="secondary">Erinnerungen speichern</x-hvm.button>
+                </div>
+            </form>
+        </x-hvm.card>
+    </section>
 
     {{-- Sicherheit ------------------------------------------------------------- --}}
 
-    <x-hvm.card class="mt-8" title="Sicherheit">
-        <dl class="space-y-3 text-sm">
-            <div class="flex flex-wrap justify-between gap-2">
-                <dt class="font-semibold text-hvm-textschwarz">Zwei-Faktor-Authentifizierung</dt>
-                <dd><x-hvm.badge>{{ $zweiFaktorStatus }}</x-hvm.badge></dd>
+    <section class="mt-16" aria-labelledby="ueberschrift-sicherheit">
+        <p class="text-xs font-semibold tracking-[0.12em] text-hvm-text-sekundaer uppercase">Schutz des Kontos</p>
+        <h2 id="ueberschrift-sicherheit" class="mt-1 text-2xl font-semibold tracking-tight text-hvm-textschwarz">Sicherheit</h2>
+
+        <x-hvm.card class="mt-6 max-w-2xl" tone="canvas">
+            <div class="flex gap-4">
+                <span class="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-hvm-orange-soft text-hvm-orange-dark" aria-hidden="true">
+                    <x-hvm.icon name="shield" class="h-5 w-5" />
+                </span>
+                <div class="min-w-0 flex-1">
+                    <dl class="flex flex-wrap items-center justify-between gap-2 text-sm">
+                        <dt class="font-semibold text-hvm-textschwarz">Zwei-Faktor-Authentifizierung</dt>
+                        <dd><x-hvm.badge variant="neutral" icon="lock">{{ $zweiFaktorStatus }}</x-hvm.badge></dd>
+                    </dl>
+
+                    <p class="mt-3 max-w-prose text-sm leading-relaxed text-hvm-text-sekundaer">
+                        Mit einem zweiten Faktor verlangen wir bei jeder Anmeldung zusätzlich einen sechsstelligen Code aus
+                        Ihrer Authenticator-App. Für Kundenkonten ist das freiwillig, für interne Kennungen verpflichtend.
+                    </p>
+
+                    <div class="mt-5">
+                        <x-hvm.button href="{{ route('two-factor.setup') }}" variant="secondary">
+                            Zwei-Faktor-Authentifizierung verwalten
+                            <x-hvm.icon name="arrow-right" class="h-4 w-4" />
+                        </x-hvm.button>
+                    </div>
+                </div>
             </div>
-        </dl>
-
-        <p class="mt-3 text-sm text-hvm-anthrazit">
-            Mit einem zweiten Faktor verlangen wir bei jeder Anmeldung zusätzlich einen sechsstelligen Code aus
-            Ihrer Authenticator-App. Für Kundenkonten ist das freiwillig, für interne Kennungen verpflichtend.
-        </p>
-
-        <div class="mt-4">
-            <x-hvm.button href="{{ route('two-factor.setup') }}" variant="secondary">
-                Zwei-Faktor-Authentifizierung verwalten
-            </x-hvm.button>
-        </div>
-    </x-hvm.card>
+        </x-hvm.card>
+    </section>
 @endsection
