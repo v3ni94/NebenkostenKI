@@ -110,7 +110,7 @@
             </div>
 
             <button type="button"
-                    class="inline-flex min-h-11 items-center gap-2 rounded border border-hvm-mittelgrau px-3 py-2 text-sm font-semibold text-hvm-textschwarz lg:hidden"
+                    class="inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded border border-hvm-mittelgrau px-3 py-2 text-sm font-semibold text-hvm-textschwarz lg:hidden"
                     x-on:click="menuOffen = !menuOffen"
                     x-bind:aria-expanded="menuOffen ? 'true' : 'false'"
                     aria-expanded="false"

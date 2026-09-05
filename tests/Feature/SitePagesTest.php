@@ -23,7 +23,7 @@ final class SitePagesTest extends TestCase
     public static function seiten(): array
     {
         return [
-            'Startseite' => ['site.home', 'Ihre Betriebskostenabrechnung entsteht aus den Unterlagen, die Sie bereits haben'],
+            'Startseite' => ['site.home', 'entsteht aus den Unterlagen, die Sie bereits haben'],
             'Ablauf' => ['site.ablauf', 'So entsteht Ihre Betriebskostenabrechnung'],
             'Preise' => ['site.preise', 'Ein Festpreis je erzeugter Mieterabrechnung'],
             'Datenschutz und Loeschung' => ['site.datenschutz-konzept', 'Ihre Originaldateien werden nach der Auswertung gelöscht'],

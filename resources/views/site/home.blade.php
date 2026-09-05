@@ -18,7 +18,7 @@
                 <x-hvm.badge variant="akzent">Die digitalste Hausverwaltung</x-hvm.badge>
 
                 <h1 class="mt-5 text-3xl leading-tight font-bold text-hvm-anthrazit sm:text-4xl lg:text-5xl">
-                    Ihre Betriebskostenabrechnung entsteht aus den Unterlagen, die Sie bereits haben
+                    Ihre Betriebskosten&shy;abrechnung entsteht aus den Unterlagen, die Sie bereits haben
                 </h1>
 
                 <p class="mt-5 max-w-2xl text-lg leading-relaxed text-hvm-textschwarz">
