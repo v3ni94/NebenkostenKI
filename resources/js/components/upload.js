@@ -38,7 +38,7 @@ function megabyte(bytes) {
  */
 function zeileAnlegen(liste, datei) {
     const zeile = document.createElement('li');
-    zeile.className = 'rounded-lg border border-hvm-hellgrau bg-white p-4';
+    zeile.className = 'rounded-2xl border border-hvm-linie bg-white p-4 sm:p-5';
 
     const kopf = document.createElement('div');
     kopf.className = 'flex flex-wrap items-baseline justify-between gap-2';
@@ -48,16 +48,16 @@ function zeileAnlegen(liste, datei) {
     name.textContent = datei.name;
 
     const groesse = document.createElement('span');
-    groesse.className = 'text-sm text-hvm-anthrazit';
+    groesse.className = 'text-sm text-hvm-text-sekundaer tabular';
     groesse.textContent = megabyte(datei.size) + ' MB';
 
     kopf.append(name, groesse);
 
     const balken = document.createElement('div');
-    balken.className = 'mt-3 h-2 w-full overflow-hidden rounded bg-hvm-umrissgrau';
+    balken.className = 'mt-3 h-1.5 w-full overflow-hidden rounded-full bg-hvm-canvas-deep';
 
     const fuellung = document.createElement('div');
-    fuellung.className = 'h-2 w-0 bg-hvm-orange';
+    fuellung.className = 'h-1.5 w-0 rounded-full bg-hvm-orange';
     balken.append(fuellung);
 
     const status = document.createElement('p');

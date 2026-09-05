@@ -1,13 +1,23 @@
+{{--
+    Schritt 7: Vorauszahlungen je Mietverhaeltnis.
+
+    Darstellung als Liste von Karten (Muster "Eintraege mit viel Inhalt"):
+    links die Vertragsdaten und die Sollsumme, rechts die Eingaben. Eine
+    Tabelle mit sieben Spalten und Eingabefeldern waere auf Desktop kaum und
+    auf Mobil gar nicht bedienbar. Alle Spaltenbegriffe bleiben als
+    Beschriftungen erhalten.
+--}}
 @extends('layouts.portal')
 
 @section('titel', 'Vorauszahlungen')
 
 @section('content')
-    <x-hvm.section-heading
+    <x-hvm.page-header
+        eyebrow="Geführter Ablauf"
         title="Schritt 7: Vorauszahlungen"
         lead="Abgezogen werden ausschließlich die tatsächlich geleisteten Vorauszahlungen. Die Sollsumme dient der Plausibilisierung." />
 
-    <div class="mt-6">
+    <div class="mt-8">
         @include('portal.wizard.partials.fortschritt', [
             'fortschritt' => $fortschritt,
             'billingRun' => $billingRun,
@@ -16,7 +26,7 @@
     </div>
 
     @if ($offen !== [])
-        <x-hvm.alert variant="warning" class="mt-6" label="Fehlt noch"
+        <x-hvm.alert variant="warning" class="mt-8" label="Fehlt noch"
                      title="Dieser Schritt ist Pflicht">
             <ul class="list-disc space-y-1 pl-5">
                 @foreach ($offen as $grund)
@@ -26,66 +36,112 @@
         </x-hvm.alert>
     @endif
 
-    <form method="POST" class="mt-6"
+    <form method="POST" class="mt-10"
           action="{{ route('portal.wizard.vorauszahlungen.speichern', ['billingRun' => $billingRun->getKey()]) }}">
         @csrf
 
-        <div class="overflow-x-auto">
-            <table class="w-full border-collapse text-sm">
-                <caption class="sr-only">Vorauszahlungen je Mietverhältnis</caption>
-                <thead>
-                    <tr class="border-b border-hvm-mittelgrau text-left">
-                        <th scope="col" class="p-2">Einheit und Mietverhältnis</th>
-                        <th scope="col" class="p-2">Nutzungszeitraum</th>
-                        <th scope="col" class="p-2">Monatlich Betriebskosten</th>
-                        <th scope="col" class="p-2">Monatlich Heizkosten</th>
-                        <th scope="col" class="p-2">Sollsumme</th>
-                        <th scope="col" class="p-2">Tatsächlich geleistet</th>
-                        <th scope="col" class="p-2">Herkunft</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach ($zeilen as $zeile)
-                        <tr class="border-b border-hvm-umrissgrau align-top">
-                            <td class="p-2">
-                                <span class="font-semibold">{{ $zeile->unitLabel }}</span><br>
-                                {{ $zeile->tenantLabel }}
-                            </td>
-                            <td class="p-2">
-                                {{ \Illuminate\Support\Carbon::parse($zeile->usagePeriod->startIso())->format('d.m.Y') }}
-                                bis
-                                {{ \Illuminate\Support\Carbon::parse($zeile->usagePeriod->endIso())->format('d.m.Y') }}<br>
-                                <span class="text-hvm-anthrazit">{{ $zeile->usageDays() }} Tage</span>
-                            </td>
-                            <td class="p-2">
-                                {{ $zeile->monthlyOperating !== null ? $zeile->monthlyOperating->format() : 'nicht hinterlegt' }}
-                            </td>
-                            <td class="p-2">
-                                @if ($zeile->heatingSeparate && $zeile->monthlyHeating !== null)
-                                    {{ $zeile->monthlyHeating->format() }}
-                                @else
-                                    nicht getrennt vereinbart
-                                @endif
-                            </td>
-                            <td class="p-2">
-                                {{ $zeile->targetTotal->format() }}
-                                <span class="mt-1 block text-hvm-anthrazit">{{ $zeile->targetExplanation }}</span>
-                            </td>
-                            <td class="p-2">
-                                <label class="block">
-                                    <span class="sr-only">Tatsächlich geleistete Vorauszahlungen für {{ $zeile->tenantLabel }}</span>
-                                    <input type="text" inputmode="decimal"
-                                           name="zeilen[{{ $zeile->tenancyId }}][ist]"
-                                           value="{{ $zeile->actualTotal !== null ? $zeile->actualTotal->formatAmount() : '' }}"
-                                           class="w-28 rounded border border-hvm-mittelgrau p-2"
-                                           placeholder="0,00">
-                                </label>
+        <h2 class="sr-only">Vorauszahlungen je Mietverhältnis</h2>
 
-                                <label class="mt-2 flex items-start gap-2">
-                                    <input type="checkbox" value="1" class="mt-1"
+        <div class="space-y-4">
+            @foreach ($zeilen as $zeile)
+                @php
+                    $feldId = 'vorauszahlung-'.$zeile->tenancyId;
+                @endphp
+                <x-hvm.card padding="none">
+                    <x-hvm.list-row :stacked="true" :title="$zeile->unitLabel" :subtitle="$zeile->tenantLabel">
+                        <x-slot:actions>
+                            @if ($zeile->isOpen())
+                                <x-hvm.badge variant="info">Fehlt noch</x-hvm.badge>
+                            @elseif ($zeile->hasDeviation())
+                                <x-hvm.badge variant="warning">Bitte prüfen</x-hvm.badge>
+                            @else
+                                <x-hvm.badge variant="success">Erledigt</x-hvm.badge>
+                            @endif
+                        </x-slot:actions>
+
+                        <div class="grid grid-cols-1 gap-6 border-t border-hvm-linie pt-5 lg:grid-cols-12 lg:gap-8">
+                            {{-- Vertragsdaten und Sollsumme ------------------------------------ --}}
+                            <dl class="grid min-w-0 grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:col-span-5 lg:grid-cols-1">
+                                <div class="min-w-0">
+                                    <dt class="text-xs font-semibold tracking-[0.08em] text-hvm-text-sekundaer uppercase">Einheit und Mietverhältnis</dt>
+                                    <dd class="mt-1 text-hvm-textschwarz">{{ $zeile->unitLabel }}, {{ $zeile->tenantLabel }}</dd>
+                                </div>
+                                <div class="min-w-0">
+                                    <dt class="text-xs font-semibold tracking-[0.08em] text-hvm-text-sekundaer uppercase">Nutzungszeitraum</dt>
+                                    <dd class="mt-1 text-hvm-textschwarz">
+                                        {{ \Illuminate\Support\Carbon::parse($zeile->usagePeriod->startIso())->format('d.m.Y') }}
+                                        bis
+                                        {{ \Illuminate\Support\Carbon::parse($zeile->usagePeriod->endIso())->format('d.m.Y') }}
+                                        <span class="block text-hvm-text-sekundaer">{{ $zeile->usageDays() }} Tage</span>
+                                    </dd>
+                                </div>
+                                <div class="min-w-0">
+                                    <dt class="text-xs font-semibold tracking-[0.08em] text-hvm-text-sekundaer uppercase">Monatlich Betriebskosten</dt>
+                                    <dd class="mt-1 text-hvm-textschwarz tabular">
+                                        {{ $zeile->monthlyOperating !== null ? $zeile->monthlyOperating->format() : 'nicht hinterlegt' }}
+                                    </dd>
+                                </div>
+                                <div class="min-w-0">
+                                    <dt class="text-xs font-semibold tracking-[0.08em] text-hvm-text-sekundaer uppercase">Monatlich Heizkosten</dt>
+                                    <dd class="mt-1 text-hvm-textschwarz tabular">
+                                        @if ($zeile->heatingSeparate && $zeile->monthlyHeating !== null)
+                                            {{ $zeile->monthlyHeating->format() }}
+                                        @else
+                                            nicht getrennt vereinbart
+                                        @endif
+                                    </dd>
+                                </div>
+                                <div class="min-w-0 rounded-2xl bg-hvm-canvas p-4 sm:col-span-2 lg:col-span-1">
+                                    <dt class="text-xs font-semibold tracking-[0.08em] text-hvm-text-sekundaer uppercase">Sollsumme</dt>
+                                    <dd class="mt-1">
+                                        <span class="text-xl font-semibold tracking-tight text-hvm-textschwarz tabular whitespace-nowrap">{{ $zeile->targetTotal->format() }}</span>
+                                        <span class="mt-1 block text-sm leading-relaxed text-hvm-text-sekundaer">{{ $zeile->targetExplanation }}</span>
+                                    </dd>
+                                </div>
+                            </dl>
+
+                            {{-- Eingaben ------------------------------------------------------- --}}
+                            <div class="min-w-0 space-y-6 lg:col-span-7">
+                                <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                                    <div class="min-w-0">
+                                        <label for="{{ $feldId }}-ist" class="block text-sm font-semibold text-hvm-textschwarz">
+                                            Tatsächlich geleistet<span class="sr-only">e Vorauszahlungen für {{ $zeile->tenantLabel }}</span>
+                                        </label>
+                                        <div class="mt-2">
+                                            <input type="text" inputmode="decimal"
+                                                   id="{{ $feldId }}-ist"
+                                                   name="zeilen[{{ $zeile->tenancyId }}][ist]"
+                                                   value="{{ $zeile->actualTotal !== null ? $zeile->actualTotal->formatAmount() : '' }}"
+                                                   class="hvm-input text-right tabular"
+                                                   @if ($zeile->isOpen()) aria-invalid="true" aria-describedby="{{ $feldId }}-fehler" @endif
+                                                   placeholder="0,00">
+                                        </div>
+                                    </div>
+
+                                    <div class="min-w-0">
+                                        <label for="{{ $feldId }}-herkunft" class="block text-sm font-semibold text-hvm-textschwarz">
+                                            Herkunft<span class="sr-only"> für {{ $zeile->tenantLabel }}</span>
+                                        </label>
+                                        <div class="mt-2">
+                                            <select id="{{ $feldId }}-herkunft" name="zeilen[{{ $zeile->tenancyId }}][herkunft]" class="hvm-input">
+                                                @foreach ($herkuenfte as $herkunft)
+                                                    <option value="{{ $herkunft->value }}"
+                                                            @selected($herkunft->label() === $zeile->sourceLabel)>
+                                                        {{ $herkunft->label() }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <p class="mt-2 text-sm text-hvm-text-sekundaer">Bisher: {{ $zeile->sourceLabel }}</p>
+                                    </div>
+                                </div>
+
+                                <label for="{{ $feldId }}-annahme" class="hvm-choice items-start">
+                                    <input type="checkbox" value="1" class="hvm-check mt-0.5"
+                                           id="{{ $feldId }}-annahme"
                                            name="zeilen[{{ $zeile->tenancyId }}][annahme]"
                                            @checked($zeile->assumedFromTarget)>
-                                    <span>
+                                    <span class="min-w-0">
                                         Ich habe keine Ist-Daten und bestätige ausdrücklich die Annahme
                                         Ist gleich Soll. Diese Annahme wird protokolliert und in der Abrechnung
                                         gekennzeichnet.
@@ -93,39 +149,26 @@
                                 </label>
 
                                 @if ($zeile->hasDeviation())
-                                    <span class="mt-2 block text-status-warning">
-                                        Abweichung gegenüber der Sollsumme: {{ $zeile->deviation()->format() }}
-                                    </span>
+                                    <p class="flex items-start gap-1.5 text-sm font-medium text-status-warning">
+                                        <x-hvm.icon name="warning" class="mt-0.5 h-4 w-4" />
+                                        <span>Abweichung gegenüber der Sollsumme: <span class="tabular whitespace-nowrap">{{ $zeile->deviation()->format() }}</span></span>
+                                    </p>
                                 @endif
 
                                 @if ($zeile->isOpen())
-                                    <span class="mt-2 block text-status-error">
-                                        Fehlt noch: Bitte tragen Sie den Betrag ein oder bestätigen Sie die Annahme.
-                                    </span>
+                                    <p id="{{ $feldId }}-fehler" class="flex items-start gap-1.5 text-sm font-medium text-status-error">
+                                        <x-hvm.icon name="alert" class="mt-0.5 h-4 w-4" />
+                                        <span>Fehlt noch: Bitte tragen Sie den Betrag ein oder bestätigen Sie die Annahme.</span>
+                                    </p>
                                 @endif
-                            </td>
-                            <td class="p-2">
-                                <label class="block">
-                                    <span class="sr-only">Herkunft für {{ $zeile->tenantLabel }}</span>
-                                    <select name="zeilen[{{ $zeile->tenancyId }}][herkunft]"
-                                            class="rounded border border-hvm-mittelgrau p-2">
-                                        @foreach ($herkuenfte as $herkunft)
-                                            <option value="{{ $herkunft->value }}"
-                                                    @selected($herkunft->label() === $zeile->sourceLabel)>
-                                                {{ $herkunft->label() }}
-                                            </option>
-                                        @endforeach
-                                    </select>
-                                </label>
-                                <span class="mt-1 block text-hvm-anthrazit">Bisher: {{ $zeile->sourceLabel }}</span>
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
+                            </div>
+                        </div>
+                    </x-hvm.list-row>
+                </x-hvm.card>
+            @endforeach
         </div>
 
-        <div class="mt-6 flex flex-wrap gap-3">
+        <div class="mt-8 flex flex-wrap gap-3">
             <x-hvm.button type="submit" variant="primary">Vorauszahlungen speichern</x-hvm.button>
         </div>
     </form>
@@ -133,6 +176,9 @@
     <form method="POST" class="mt-3"
           action="{{ route('portal.wizard.vorauszahlungen.weiter', ['billingRun' => $billingRun->getKey()]) }}">
         @csrf
-        <x-hvm.button type="submit" variant="secondary">Weiter zu den Verteilerschlüsseln</x-hvm.button>
+        <x-hvm.button type="submit" variant="secondary">
+            Weiter zu den Verteilerschlüsseln
+            <x-hvm.icon name="arrow-right" class="h-4 w-4" />
+        </x-hvm.button>
     </form>
 @endsection
