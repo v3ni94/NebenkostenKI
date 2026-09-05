@@ -54,7 +54,7 @@
                             :optional="true"
                             :value="$wert('address_extra', $vermieter?->address_extra)" />
 
-                        <div class="grid gap-6 sm:grid-cols-3">
+                        <div class="grid gap-6 sm:grid-cols-3 sm:items-end">
                             <x-hvm.field
                                 name="postal_code"
                                 label="Postleitzahl"
@@ -80,7 +80,7 @@
                             und die Belegeinsicht an Sie richten kann.
                         </p>
 
-                        <div class="mt-6 grid gap-6 sm:grid-cols-2">
+                        <div class="mt-6 grid gap-6 sm:grid-cols-2 sm:items-end">
                             <x-hvm.field
                                 name="email"
                                 label="E-Mail-Adresse"
@@ -112,7 +112,7 @@
                                 hint="Leer lassen, wenn der Kontoinhaber der Vermieter selbst ist."
                                 :value="$wert('account_holder', $vermieter?->account_holder)" />
 
-                            <div class="grid gap-6 sm:grid-cols-3">
+                            <div class="grid gap-6 sm:grid-cols-3 sm:items-end">
                                 <x-hvm.field wrapperClass="sm:col-span-2"
                                     name="iban"
                                     label="IBAN"

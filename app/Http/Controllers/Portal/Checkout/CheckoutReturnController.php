@@ -6,6 +6,8 @@ namespace App\Http\Controllers\Portal\Checkout;
 
 use App\Application\Account\OrganizationContext;
 use App\Application\Payment\CancelCheckout;
+use App\Application\Wizard\WizardProgress;
+use App\Application\Wizard\WizardStep;
 use App\Enums\BillingRunStatus;
 use App\Http\Controllers\Controller;
 use App\Models\BillingRun;
@@ -33,6 +35,7 @@ class CheckoutReturnController extends Controller
     public function __construct(
         private readonly OrganizationContext $context,
         private readonly CancelCheckout $cancelCheckout,
+        private readonly WizardProgress $progress,
     ) {}
 
     /**
@@ -54,6 +57,8 @@ class CheckoutReturnController extends Controller
 
         return view('portal.checkout.warten', [
             'lauf' => $lauf,
+            'schritt' => WizardStep::ZAHLUNG,
+            'fortschritt' => $this->progress->bar($lauf, WizardStep::ZAHLUNG),
             'objekt' => $lauf->getRelationValue('property'),
             'bezahlt' => $bezahlt,
             // Zahlung bestaetigt, Erstellung gescheitert: der Betrieb holt sie

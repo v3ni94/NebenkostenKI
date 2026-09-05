@@ -73,7 +73,10 @@
         Zum Hauptinhalt springen
     </a>
 
-    <header class="sticky top-0 z-40 border-b border-hvm-linie bg-hvm-canvas/90 backdrop-blur" x-data="{ menuOffen: false }">
+    <header class="sticky top-0 z-40 border-b border-hvm-linie bg-hvm-canvas/90 backdrop-blur"
+            x-data="{ menuOffen: false }"
+            x-on:keydown.escape.window="menuOffen = false"
+            x-on:focusout="if (menuOffen && $event.relatedTarget && ! $el.contains($event.relatedTarget)) menuOffen = false">
         {{-- HVM-Kennlinie als feine Linie ueber dem Header. --}}
         <div class="hvm-kennlinie" aria-hidden="true"></div>
 
@@ -103,7 +106,7 @@
                         <li>
                             <a href="{{ route($item['route']) }}"
                                @if (request()->routeIs($item['route'])) aria-current="page" @endif
-                               class="block rounded-full px-3 py-2.5 text-[13px] font-medium whitespace-nowrap no-underline transition-colors {{ request()->routeIs($item['route']) ? 'bg-hvm-textschwarz text-white' : 'text-hvm-textschwarz hover:bg-hvm-canvas-deep' }}">
+                               class="flex min-h-11 items-center rounded-full px-3.5 py-2 text-[13px] font-medium whitespace-nowrap no-underline transition-colors {{ request()->routeIs($item['route']) ? 'bg-hvm-textschwarz text-white' : 'text-hvm-textschwarz hover:bg-hvm-canvas-deep' }}">
                                 {{ $item['label'] }}
                             </a>
                         </li>
@@ -113,7 +116,8 @@
 
             <div class="hidden shrink-0 items-center gap-2 xl:flex">
                 <x-hvm.button href="{{ $appUrl }}" variant="ghost" size="sm" class="px-3! whitespace-nowrap">Anmelden</x-hvm.button>
-                <x-hvm.button href="{{ $appUrl }}" variant="primary" size="sm" class="whitespace-nowrap">Kostenlos starten</x-hvm.button>
+                {{-- Kopfleiste in Textschwarz (dark), damit Orange dem Hero und dem Schluss-CTA vorbehalten bleibt (4.12, 4.18). --}}
+                <x-hvm.button href="{{ $appUrl }}" variant="dark" size="sm" class="whitespace-nowrap">Kostenlos starten</x-hvm.button>
             </div>
 
             <button type="button"
@@ -154,7 +158,7 @@
     <main id="hauptinhalt">
         @if (session('status'))
             <div class="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
-                <x-hvm.alert variant="success" label="Erledigt">
+                <x-hvm.alert variant="success" label="Erledigt" role="status">
                     {{ session('status') }}
                 </x-hvm.alert>
             </div>
@@ -190,10 +194,10 @@
 
                 <div class="lg:col-span-3 lg:col-start-7">
                     <p class="text-xs font-semibold tracking-[0.12em] text-hvm-hellgrau uppercase">Portal</p>
-                    <ul class="mt-4 space-y-3 text-sm">
+                    <ul class="mt-2 space-y-0 text-sm">
                         @foreach ($navigation as $item)
                             <li>
-                                <a href="{{ route($item['route']) }}" class="text-hvm-hellgrau no-underline underline-offset-4 hover:text-white hover:underline">
+                                <a href="{{ route($item['route']) }}" class="inline-flex min-h-11 items-center text-hvm-hellgrau no-underline underline-offset-4 hover:text-white hover:underline">
                                     {{ $item['label'] }}
                                 </a>
                             </li>
@@ -203,17 +207,17 @@
 
                 <div class="lg:col-span-3">
                     <p class="text-xs font-semibold tracking-[0.12em] text-hvm-hellgrau uppercase">Rechtliches</p>
-                    <ul class="mt-4 space-y-3 text-sm">
+                    <ul class="mt-2 space-y-0 text-sm">
                         @foreach ($legalNavigation as $item)
                             <li>
-                                <a href="{{ route($item['route']) }}" class="text-hvm-hellgrau no-underline underline-offset-4 hover:text-white hover:underline">
+                                <a href="{{ route($item['route']) }}" class="inline-flex min-h-11 items-center text-hvm-hellgrau no-underline underline-offset-4 hover:text-white hover:underline">
                                     {{ $item['label'] }}
                                 </a>
                             </li>
                         @endforeach
                     </ul>
-                    <p class="mt-6 text-sm">
-                        <a href="{{ $operator['website'] }}" class="text-white underline decoration-hvm-mittelgrau underline-offset-4 hover:decoration-white">Website der Hausverwaltung</a>
+                    <p class="mt-4 text-sm">
+                        <a href="{{ $operator['website'] }}" class="inline-flex min-h-11 items-center text-white underline decoration-hvm-mittelgrau underline-offset-4 hover:decoration-white">Website der Hausverwaltung</a>
                     </p>
                 </div>
             </div>

@@ -100,9 +100,36 @@
         </div>
     </header>
 
-    {{-- Bereichsnavigation: alle Eintraege sichtbar, umbrechend, kein horizontales Scrollen. --}}
-    <nav class="border-b border-hvm-linie bg-white" aria-label="Bereichsnavigation">
-        <ul class="mx-auto flex max-w-7xl flex-wrap gap-1 px-4 py-2 sm:px-6 lg:px-8">
+    {{--
+        Bereichsnavigation: ab sm alle 14 Eintraege sichtbar und umbrechend,
+        kein horizontales Scrollen. Unter sm ist die Liste hinter einem Knopf
+        "Bereiche" eingeklappt, damit die Seitenueberschrift auf 390 px im
+        ersten Bildschirm bleibt. Ohne JavaScript bleibt die Liste sichtbar
+        (der Knopf erscheint nur mit der Klasse .js am Dokument).
+    --}}
+    <nav class="border-b border-hvm-linie bg-white" aria-label="Bereichsnavigation" x-data="{ bereicheOffen: false }">
+        <div class="mx-auto max-w-7xl px-4 py-2 sm:hidden">
+            <button type="button"
+                    class="hidden min-h-11 w-full items-center justify-between gap-2 rounded-xl border border-hvm-hellgrau bg-white px-4 py-2 text-sm font-semibold text-hvm-textschwarz [.js_&]:inline-flex"
+                    x-on:click="bereicheOffen = !bereicheOffen"
+                    x-bind:aria-expanded="bereicheOffen ? 'true' : 'false'"
+                    aria-expanded="false"
+                    aria-controls="bereichsnavigation-liste">
+                <span class="inline-flex items-center gap-2">
+                    <x-hvm.icon name="menu" class="h-5 w-5" />
+                    Bereiche
+                </span>
+                <span class="text-xs font-medium text-hvm-text-sekundaer">
+                    @foreach ($navigation as $eintrag)
+                        @if (request()->routeIs($eintrag['route'])){{ $eintrag['label'] }}@endif
+                    @endforeach
+                </span>
+            </button>
+        </div>
+        <ul id="bereichsnavigation-liste"
+            class="mx-auto flex max-w-7xl flex-wrap gap-1 px-4 pb-2 sm:px-6 sm:py-2 lg:px-8 sm:flex!"
+            x-show="bereicheOffen"
+            x-cloak>
             @foreach ($navigation as $eintrag)
                 <li>
                     <a href="{{ route($eintrag['route']) }}"
@@ -128,33 +155,10 @@
             </div>
         @endif
 
-        @if (session('status'))
-            <div class="mb-8">
-                <x-hvm.alert variant="success" label="Erledigt">
-                    {{ session('status') }}
-                </x-hvm.alert>
-            </div>
-        @endif
-
-        @if (session('hinweis'))
-            <div class="mb-8">
-                <x-hvm.alert variant="info" label="Hinweis">
-                    {{ session('hinweis') }}
-                </x-hvm.alert>
-            </div>
-        @endif
-
-        @if ($errors->any())
-            <div class="mb-8">
-                <x-hvm.alert variant="error" label="Bitte prüfen" title="Die Eingabe konnte nicht verarbeitet werden">
-                    <ul class="list-disc space-y-1 pl-5">
-                        @foreach ($errors->all() as $fehler)
-                            <li>{{ $fehler }}</li>
-                        @endforeach
-                    </ul>
-                </x-hvm.alert>
-            </div>
-        @endif
+        {{-- Meldungen rendert x-hvm.page-header unter dem Seitenkopf; hier nur der Rueckfall (Designsystem 4.14). --}}
+        @unless (view()->shared('hvmMeldungenGerendert', false))
+            <x-hvm.meldungen class="mb-8" titel="Die Eingabe konnte nicht verarbeitet werden" />
+        @endunless
 
         @yield('content')
     </main>
@@ -165,7 +169,13 @@
                 Interner Bereich der {{ config('smartabrechnen.operator.legal_name') }}. Einblicke in Kundendaten
                 erfolgen ausschließlich zu Supportzwecken, verlangen eine Begründung und werden protokolliert.
             </p>
+            <ul class="mt-6 flex flex-wrap gap-x-6 border-t border-hvm-linie pt-4">
+                <li><a class="inline-flex min-h-11 items-center text-hvm-textschwarz no-underline underline-offset-4 hover:underline" href="{{ route('legal.impressum') }}">Impressum</a></li>
+                <li><a class="inline-flex min-h-11 items-center text-hvm-textschwarz no-underline underline-offset-4 hover:underline" href="{{ route('legal.datenschutz') }}">Datenschutzerklärung</a></li>
+            </ul>
         </div>
+        {{-- Kennlinie als Fussakzent (Designsystem 4.15). --}}
+        <div class="hvm-kennlinie" aria-hidden="true"></div>
     </footer>
 </body>
 </html>

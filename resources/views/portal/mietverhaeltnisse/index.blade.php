@@ -108,9 +108,9 @@
                                                           action="{{ route('portal.belegung.destroy', ['occupancy' => $belegung->getKey()]) }}">
                                                         @csrf
                                                         @method('DELETE')
-                                                        <x-hvm.button type="submit" variant="danger" size="sm">
+                                                        <x-hvm.button type="submit" variant="danger" size="sm" class="px-3" title="Zeitraum entfernen">
                                                             <x-hvm.icon name="trash" class="h-4 w-4" />
-                                                            Entfernen
+                                                            <span class="sr-only">Zeitraum entfernen</span>
                                                         </x-hvm.button>
                                                     </form>
                                                 </li>
@@ -211,9 +211,9 @@
                         <form method="POST" action="{{ route('portal.leerstand.destroy', ['vacancy' => $leerstand->getKey()]) }}">
                             @csrf
                             @method('DELETE')
-                            <x-hvm.button type="submit" variant="danger" size="sm">
+                            <x-hvm.button type="submit" variant="danger" size="sm" class="px-3" title="Leerstand entfernen">
                                 <x-hvm.icon name="trash" class="h-4 w-4" />
-                                Entfernen
+                                <span class="sr-only">Leerstand entfernen</span>
                             </x-hvm.button>
                         </form>
                     </div>

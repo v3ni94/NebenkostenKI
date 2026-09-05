@@ -1,15 +1,17 @@
 {{--
     Schrittanzeige des gefuehrten Ablaufs (Wizard), Uebernahme aus Konzept B.
 
-    Ein Segment je Schritt: erledigt und aktuell in Orange, offen in Canvas
-    deep. Der Zustand steht zusaetzlich im Text ("Erledigt:", "Aktuell:"),
-    Farbe ist nur zusaetzliche Information. Erreichbare Schritte sind Links.
-    Darueber eine Zeile "Schritt X von N: Titel".
+    Ein Segment je Schritt mit vier Zustaenden: erledigt Orange, aktuell
+    Orange dunkel, pending (liegt vor dem aktuellen Schritt, ist fachlich aber
+    noch offen) Orange tint, offen Canvas deep. Der Zustand steht zusaetzlich
+    im Text ("Erledigt:", "Aktuell:", "Offen:"), Farbe ist nur zusaetzliche
+    Information. Erreichbare Schritte sind Links. Darueber eine Zeile
+    "Schritt X von N: Titel".
 
     Props:
       steps    Liste von Schritten (Pflicht). Je Schritt ein Array mit
                  label   Kurztitel (Pflicht)
-                 state   done | current | open (Standard open)
+                 state   done | current | pending | open (Standard open)
                  href    Link, wenn der Schritt erreichbar ist (optional)
                  note    kurzer Zusatz, z. B. Statuskategorie (optional)
       label    aria-label der Navigation, Standard "Ihr Fortschritt"
@@ -77,7 +79,12 @@
         {{-- Segmente ohne Beschriftung (dekorativ), Zustand steht in der Liste darunter. --}}
         <div class="mt-4 grid gap-2 {{ $spaltenKlasse }}" aria-hidden="true">
             @foreach (array_values($steps) as $schritt)
-                <span class="block h-1.5 rounded-full {{ in_array($schritt['state'] ?? 'open', ['done', 'current'], true) ? 'bg-hvm-orange' : 'bg-hvm-canvas-deep [.hvm-dark_&]:bg-hvm-graphit' }}"></span>
+                <span class="block h-1.5 rounded-full {{ match ($schritt['state'] ?? 'open') {
+                    'done' => 'bg-hvm-orange',
+                    'current' => 'bg-hvm-orange-dark',
+                    'pending' => 'bg-hvm-orange-tint',
+                    default => 'bg-hvm-canvas-deep [.hvm-dark_&]:bg-hvm-graphit',
+                } }}"></span>
             @endforeach
         </div>
 
@@ -94,7 +101,9 @@
                         ? 'font-semibold text-hvm-textschwarz [.hvm-dark_&]:text-white'
                         : 'text-hvm-text-sekundaer [.hvm-dark_&]:text-hvm-hellgrau';
                     $ziffer = match ($zustand) {
-                        'done', 'current' => 'bg-hvm-orange text-hvm-textschwarz',
+                        'done' => 'bg-hvm-orange text-hvm-textschwarz',
+                        'current' => 'bg-hvm-orange-dark text-hvm-textschwarz',
+                        'pending' => 'bg-hvm-orange-tint text-hvm-textschwarz',
                         default => 'bg-hvm-canvas-deep text-hvm-text-sekundaer [.hvm-dark_&]:bg-hvm-graphit [.hvm-dark_&]:text-hvm-hellgrau',
                     };
                 @endphp
@@ -121,7 +130,8 @@
                     $zustand = $schritt['state'] ?? 'open';
                     $segment = match ($zustand) {
                         'done' => 'bg-hvm-orange',
-                        'current' => 'bg-hvm-orange',
+                        'current' => 'bg-hvm-orange-dark',
+                        'pending' => 'bg-hvm-orange-tint',
                         default => 'bg-hvm-canvas-deep [.hvm-dark_&]:bg-hvm-graphit',
                     };
                     $zustandswort = match ($zustand) {

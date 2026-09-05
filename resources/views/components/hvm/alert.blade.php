@@ -6,11 +6,19 @@
     ausgeschriebenes Statuswort.
 
     Varianten: info, success, warning, error
+
+    Das Symbol kommt aus App\Support\Statussymbol (eine Quelle fuer alert,
+    badge, stat und Pruefbericht): success check-circle, warning eye, info
+    inbox, error alert. Ein anderes Symbol nur ueber die Prop icon.
+
+    Weitere Attribute (role="status", role="alert", id, tabindex) gehen an das
+    Wurzelelement, damit Meldungen nach dem Speichern angesagt werden koennen.
 --}}
 @props([
     'variant' => 'info',
     'label' => null,
     'title' => null,
+    'icon' => null,
 ])
 
 @php
@@ -37,12 +45,7 @@
         default => 'text-status-info',
     };
 
-    $symbol = match ($variante) {
-        'success' => 'check-circle',
-        'warning' => 'warning',
-        'error' => 'x-circle',
-        default => 'info',
-    };
+    $symbol = $icon ?? \App\Support\Statussymbol::fuer($variante);
 @endphp
 
 <div {{ $attributes->class(['rounded-2xl border p-5', $flaeche]) }}>

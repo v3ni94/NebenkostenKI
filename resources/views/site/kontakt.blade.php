@@ -51,7 +51,7 @@
                     angegeben, solange keine vom Auftraggeber freigegebene Nummer vorliegt.
                 --}}
                 <div class="min-w-0 lg:col-span-7">
-                    <x-hvm.card tone="canvas" class="h-full rounded-3xl p-7 sm:p-9">
+                    <x-hvm.card tone="canvas" class="rounded-3xl p-7 sm:p-9">
                         <span class="flex h-10 w-10 items-center justify-center rounded-full bg-hvm-orange-soft text-hvm-orange-dark" aria-hidden="true"><x-hvm.icon name="building" /></span>
                         <h2 class="mt-5 text-lg font-semibold tracking-tight text-hvm-textschwarz sm:text-xl">Anschrift der Betreiberin</h2>
 

@@ -21,15 +21,17 @@
 
 @section('content')
     <x-hvm.page-header
-        eyebrow="Schritt 11 von 12"
+        :eyebrow="$schritt->eyebrow()"
         title="Zahlung"
         lead="Sie zahlen einmalig je erzeugter Mieterabrechnung. Es entsteht kein Abonnement." />
 
-    @if (session('status'))
-        <div class="mt-8">
-            <x-hvm.alert variant="info">{{ session('status') }}</x-hvm.alert>
-        </div>
-    @endif
+    <div class="mt-8">
+        @include('portal.wizard.partials.fortschritt', [
+            'fortschritt' => $fortschritt,
+            'billingRun' => $lauf,
+            'wiedereinstieg' => null,
+        ])
+    </div>
 
     @error('zahlung')
         <div class="mt-8">
@@ -108,26 +110,32 @@
         @endif
     </div>
 
-    @if ($bestaetigungFehlt)
+    {{-- Offene Punkte vor der Zahlung in einer Meldung (4.14), nicht als Stapel. --}}
+    @if ($bestaetigungFehlt || $anschriftFehlt)
         <div class="mt-8">
-            <x-hvm.alert variant="warning" title="Bestätigung fehlt noch">
-                Bitte bestätigen Sie zuerst in der Vorschau (Schritt 10), dass Sie alle Werte, Umlageschlüssel
-                und Ergebnisse geprüft haben und als Vermieter für die Abrechnung verantwortlich sind.
-                <span class="mt-2 block">
-                    <a class="font-medium underline underline-offset-4"
-                       href="{{ route('portal.wizard.vorschau', ['billingRun' => $lauf->getKey()]) }}">Zur Vorschau</a>
-                </span>
-            </x-hvm.alert>
-        </div>
-    @endif
-
-    @if ($anschriftFehlt)
-        <div class="mt-8">
-            <x-hvm.alert variant="warning" title="Rechnungsanschrift fehlt noch">
-                Für die Rechnung der Hausverwaltung Müller GmbH benötigen wir Ihre vollständige Rechnungsanschrift
-                (Straße und Hausnummer, Postleitzahl, Ort). Bitte ergänzen Sie sie unter
-                <a href="{{ route('portal.konto.edit') }}" class="font-semibold underline underline-offset-4">Konto</a>, bevor Sie die
-                Zahlung einleiten. Eine festgeschriebene Rechnung kann nachträglich nicht geändert werden.
+            <x-hvm.alert variant="info" label="Fehlt noch">
+                <ul class="space-y-3">
+                    @if ($bestaetigungFehlt)
+                        <li>
+                            <p class="font-semibold">Bestätigung fehlt noch</p>
+                            Bitte bestätigen Sie zuerst in der Vorschau (Schritt 10), dass Sie alle Werte, Umlageschlüssel
+                            und Ergebnisse geprüft haben und als Vermieter für die Abrechnung verantwortlich sind.
+                            <span class="mt-2 block">
+                                <a class="font-medium underline underline-offset-4"
+                                   href="{{ route('portal.wizard.vorschau', ['billingRun' => $lauf->getKey()]) }}">Zur Vorschau</a>
+                            </span>
+                        </li>
+                    @endif
+                    @if ($anschriftFehlt)
+                        <li>
+                            <p class="font-semibold">Rechnungsanschrift fehlt noch</p>
+                            Für die Rechnung der Hausverwaltung Müller GmbH benötigen wir Ihre vollständige Rechnungsanschrift
+                            (Straße und Hausnummer, Postleitzahl, Ort). Bitte ergänzen Sie sie unter
+                            <a href="{{ route('portal.konto.edit') }}" class="font-semibold underline underline-offset-4">Konto</a>, bevor Sie die
+                            Zahlung einleiten. Eine festgeschriebene Rechnung kann nachträglich nicht geändert werden.
+                        </li>
+                    @endif
+                </ul>
             </x-hvm.alert>
         </div>
     @endif

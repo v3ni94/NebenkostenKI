@@ -7,19 +7,22 @@
         eyebrow="Laufende Vorgänge"
         title="Abrechnungen"
         lead="Jeder Abrechnungslauf gehört zu einem Objekt und einem Abrechnungszeitraum.">
-        <x-slot:actions>
-            <x-hvm.button href="{{ route('portal.abrechnungen.create') }}" variant="primary">
-                <x-hvm.icon name="plus" class="h-4 w-4" />
-                Neue Abrechnung
-            </x-hvm.button>
-        </x-slot:actions>
+        @if ($laeufe !== [])
+            <x-slot:actions>
+                <x-hvm.button href="{{ route('portal.abrechnungen.create') }}" variant="primary">
+                    <x-hvm.icon name="plus" class="h-4 w-4" />
+                    Neue Abrechnung
+                </x-hvm.button>
+            </x-slot:actions>
+        @endif
     </x-hvm.page-header>
 
     @if ($laeufe === [])
+        {{-- Im Leerzustand traegt allein der Leerzustand die Handlung (4.11), kein zweiter Button im Seitenkopf. --}}
         <x-hvm.empty-state class="mt-10" icon="document" title="Noch keine Abrechnung">
             <p>Es ist noch keine Abrechnung angelegt.</p>
             <x-slot:action>
-                <x-hvm.button href="{{ route('portal.abrechnungen.create') }}" variant="secondary">Neue Abrechnung</x-hvm.button>
+                <x-hvm.button href="{{ route('portal.abrechnungen.create') }}" variant="primary">Neue Abrechnung</x-hvm.button>
             </x-slot:action>
         </x-hvm.empty-state>
     @else

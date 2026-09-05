@@ -13,9 +13,9 @@
         title="Verarbeitung und Teiljobs"
         lead="Sichtbar sind Jobart, Status, Versuchszähler und Fehlercode. Nutzlasten, Rohdaten und Prompts werden nicht angezeigt." />
 
-    <div class="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        @include('admin.partials.statuszahlen', ['titel' => 'Dokumente je Status', 'werte' => $dokumente])
-        @include('admin.partials.statuszahlen', ['titel' => 'Teiljobs je Status', 'werte' => $jobs])
+    <div class="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
+        @include('admin.partials.statuszahlen', ['titel' => 'Dokumente je Status', 'werte' => $dokumente, 'enum' => \App\Enums\DocumentProcessingStatus::class])
+        @include('admin.partials.statuszahlen', ['titel' => 'Teiljobs je Status', 'werte' => $jobs, 'enum' => \App\Enums\ProcessingJobStatus::class])
     </div>
 
     @foreach ([['Fehlgeschlagene Teiljobs', $fehlgeschlagen, 'Wiederholbar'], ['Endgültig fehlgeschlagene Teiljobs (Dead Letter)', $deadletter, 'Endgültig']] as [$titel, $zeilen, $eyebrow])

@@ -22,10 +22,8 @@
                     Fehlgeschlagene oder überfällige Löschungen: {{ $zusammenfassung['fehlgeschlagene_loeschungen'] }}.
                     Überfällige temporäre Uploads: {{ $zusammenfassung['ueberfaellige_uploads'] }}.
                 </p>
-                <form class="mt-4" method="POST" action="{{ route('admin.datenschutz.wiederholen') }}">
-                    @csrf
-                    <x-hvm.button type="submit" variant="primary" size="sm">Löschung erneut anstoßen</x-hvm.button>
-                </form>
+                {{-- Die Handlung steht fachlich bei der Tabelle der fehlgeschlagenen Loeschungen (dort primary). --}}
+                <p class="mt-2">Die Handlung "Löschung erneut anstoßen" finden Sie unter der Liste der fehlgeschlagenen und überfälligen Löschungen.</p>
             </x-hvm.alert>
         </div>
     @endif
@@ -83,7 +81,7 @@
             <x-slot:footer>
                 <form method="POST" action="{{ route('admin.datenschutz.wiederholen') }}">
                     @csrf
-                    <x-hvm.button type="submit" variant="secondary" size="sm">Löschung erneut anstoßen</x-hvm.button>
+                    <x-hvm.button type="submit" variant="primary" size="sm">Löschung erneut anstoßen</x-hvm.button>
                 </form>
             </x-slot:footer>
         @endunless

@@ -11,8 +11,8 @@
 
 @section('content')
     <x-hvm.page-header
-        eyebrow="Geführter Ablauf"
-        title="Schritt 10: Vorschau und Bestätigung"
+        :eyebrow="$schritt->eyebrow()"
+        title="Vorschau und Bestätigung"
         lead="Alle Mieterabrechnungen und die Eigentümerübersicht werden serverseitig erzeugt. Jede Seite trägt ein Wasserzeichen." />
 
     <div class="mt-8">
@@ -29,15 +29,15 @@
         </x-hvm.alert>
     @endif
 
-    <div class="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-12">
-        <x-hvm.card class="min-w-0 lg:col-span-7" title="Unverbindliche Preisschätzung" eyebrow="Kosten">
-            <p class="max-w-prose">{{ $schaetzung->explanation() }}</p>
-            <p class="mt-4 text-xl font-semibold tracking-tight text-hvm-textschwarz sm:text-2xl">Voraussichtlich <span class="tabular whitespace-nowrap">{{ $schaetzung->totalGross->format() }}</span> brutto</p>
-            <p class="mt-2 text-sm leading-relaxed text-hvm-text-sekundaer">{{ $schaetzung->hint() }}</p>
-        </x-hvm.card>
-
-        <x-hvm.card tone="canvas" class="min-w-0 lg:col-span-5" title="Vorschau erzeugen" eyebrow="Dokumente">
-            <form method="POST"
+    {{-- Preisschaetzung und Handlung in einer Kennlinien-Karte (Muster "Naechster Schritt"), keine leere Kartenhaelfte. --}}
+    <x-hvm.card class="mt-10 rounded-3xl" :kennlinie="true" title="Unverbindliche Preisschätzung" eyebrow="Kosten">
+        <div class="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div class="min-w-0">
+                <p class="max-w-prose">{{ $schaetzung->explanation() }}</p>
+                <p class="mt-4 text-xl font-semibold tracking-tight text-hvm-textschwarz sm:text-2xl">Voraussichtlich <span class="tabular whitespace-nowrap">{{ $schaetzung->totalGross->format() }}</span> brutto</p>
+                <p class="mt-2 max-w-prose text-sm leading-relaxed text-hvm-text-sekundaer">{{ $schaetzung->hint() }}</p>
+            </div>
+            <form method="POST" class="lg:shrink-0"
                   action="{{ route('portal.wizard.vorschau.erzeugen', ['billingRun' => $billingRun->getKey()]) }}">
                 @csrf
                 <x-hvm.button type="submit" :variant="$gueltig ? 'secondary' : 'primary'">
@@ -45,8 +45,8 @@
                     {{ $gueltig ? 'Vorschau neu erzeugen' : 'Vorschau erzeugen' }}
                 </x-hvm.button>
             </form>
-        </x-hvm.card>
-    </div>
+        </div>
+    </x-hvm.card>
 
     @if (! $gueltig)
         <x-hvm.alert variant="info" class="mt-6" label="Fehlt noch">

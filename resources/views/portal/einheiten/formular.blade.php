@@ -41,7 +41,7 @@
                             :required="true"
                             :value="$wert('label', $einheit?->label)" />
 
-                        <div class="grid gap-6 sm:grid-cols-2">
+                        <div class="grid gap-6 sm:grid-cols-2 sm:items-end">
                             <x-hvm.field
                                 name="location"
                                 label="Lage"
@@ -60,7 +60,7 @@
                 <div class="border-t border-hvm-linie pt-8">
                     <fieldset>
                         <legend class="{{ $legende }}">Flächen und Anteile</legend>
-                        <div class="mt-6 grid gap-6 sm:grid-cols-2">
+                        <div class="mt-6 grid gap-6 sm:grid-cols-2 sm:items-end">
                             <x-hvm.field
                                 name="living_area_sqm"
                                 label="Wohnfläche in Quadratmeter"
@@ -93,7 +93,7 @@
                 <div class="border-t border-hvm-linie pt-8">
                     <fieldset>
                         <legend class="{{ $legende }}">Individuelle Schlüsselwerte</legend>
-                        <div class="mt-6 grid gap-6 sm:grid-cols-2">
+                        <div class="mt-6 grid gap-6 sm:grid-cols-2 sm:items-end">
                             @foreach (range(1, 5) as $nummer)
                                 @php
                                     $bezeichnung = $objekt->getAttribute('individual_key_'.$nummer.'_label');

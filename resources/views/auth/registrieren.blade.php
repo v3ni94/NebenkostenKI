@@ -6,9 +6,12 @@
 @section('content')
     <div class="mx-auto max-w-md py-4 sm:py-10">
         <x-hvm.section-heading
-            eyebrow="Schritt 1"
+            eyebrow="Konto"
             title="Konto anlegen"
             lead="Ihr Konto und alle Entwürfe sind kostenlos. Bezahlt wird erst, wenn Sie die Vorschau geprüft haben." />
+
+        {{-- Meldungen und Fehlerliste unter der Ueberschrift (4.14); das Layout laesst seinen Block dann aus. --}}
+        <x-hvm.meldungen class="mt-8" />
 
         <x-hvm.card :kennlinie="true" padding="none" class="mt-10 rounded-3xl">
             <form method="POST" action="{{ route('register') }}" class="space-y-6 p-6 sm:p-8">

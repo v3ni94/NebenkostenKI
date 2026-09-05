@@ -49,16 +49,19 @@
         <p class="text-xs font-semibold tracking-[0.12em] text-hvm-text-sekundaer uppercase">Stammdaten</p>
         <h2 id="ueberschrift-stammdaten" class="mt-1 text-2xl font-semibold tracking-tight text-hvm-textschwarz">Angaben und Rechnungsanschrift</h2>
 
-        <form method="POST" action="{{ route('portal.konto.update') }}" class="mt-6 max-w-2xl space-y-6">
+        {{-- Formularkarte nach 4.6: Kennlinie, rounded-3xl, Feldgruppen als fieldset, Buttonreihe in der Karte. --}}
+        <x-hvm.card :kennlinie="true" padding="none" class="mt-6 max-w-2xl rounded-3xl">
+            <form method="POST" action="{{ route('portal.konto.update') }}" class="space-y-10 p-6 sm:p-8">
             @csrf
             @method('PUT')
 
-            <x-hvm.card title="Name und Kontoart">
+            <fieldset class="space-y-6">
+                <legend class="text-lg font-semibold tracking-tight text-hvm-textschwarz sm:text-xl">Name und Kontoart</legend>
                 <div class="space-y-6">
                     <x-hvm.field name="name" label="Name" type="text" :required="true"
                                  :value="$wert('name', $benutzer->name)" />
 
-                    <div class="grid gap-6 sm:grid-cols-2">
+                    <div class="grid gap-6 sm:grid-cols-2 sm:items-end">
                         <x-hvm.field name="organization_name" label="Bezeichnung des Kontos" type="text" :required="true"
                                      :value="$wert('organization_name', $organisation->name)" />
 
@@ -72,10 +75,11 @@
                         </x-hvm.field>
                     </div>
                 </div>
-            </x-hvm.card>
+            </fieldset>
 
-            <x-hvm.card title="Rechnungsanschrift">
-                <p class="max-w-prose text-sm leading-relaxed text-hvm-text-sekundaer">
+            <fieldset class="border-t border-hvm-linie pt-8">
+                <legend class="float-left text-lg font-semibold tracking-tight text-hvm-textschwarz sm:text-xl">Rechnungsanschrift</legend>
+                <p class="mt-9 max-w-prose text-sm leading-relaxed text-hvm-text-sekundaer">
                     Diese Angaben erscheinen auf der Rechnung der Hausverwaltung Müller GmbH über die Nutzung des
                     Portals. Sie erscheinen nicht auf den Abrechnungen Ihrer Mieter.
                 </p>
@@ -87,10 +91,10 @@
                     <x-hvm.field name="billing_address_line" label="Straße und Hausnummer" type="text"
                                  :value="$wert('billing_address_line', $organisation->billing_address_line)" />
 
-                    <x-hvm.field name="billing_address_extra" label="Adresszusatz" type="text"
+                    <x-hvm.field name="billing_address_extra" label="Adresszusatz" type="text" :optional="true"
                                  :value="$wert('billing_address_extra', $organisation->billing_address_extra)" />
 
-                    <div class="grid gap-6 sm:grid-cols-3">
+                    <div class="grid gap-6 sm:grid-cols-3 sm:items-end">
                         <x-hvm.field name="billing_postal_code" label="Postleitzahl" type="text" inputmode="numeric"
                                      :value="$wert('billing_postal_code', $organisation->billing_postal_code)" />
 
@@ -102,12 +106,13 @@
                                  hint="Freiwillig, nur für Unternehmen. Eine Steuernummer wird nicht erhoben."
                                  :value="$wert('vat_id', $organisation->vat_id)" />
                 </div>
-            </x-hvm.card>
+            </fieldset>
 
-            <div class="flex flex-wrap gap-3">
+            <div class="flex flex-wrap gap-3 border-t border-hvm-linie pt-8">
                 <x-hvm.button type="submit" variant="primary" size="lg">Angaben speichern</x-hvm.button>
             </div>
-        </form>
+            </form>
+        </x-hvm.card>
     </section>
 
     {{-- E-Mail-Adresse --------------------------------------------------------- --}}

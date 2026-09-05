@@ -18,24 +18,32 @@
 
 @section('content')
     <x-hvm.page-header
-        eyebrow="Schritt 11 von 12"
+        :eyebrow="$schritt->eyebrow()"
         title="Wir bestätigen Ihre Zahlung"
         lead="Ihre Abrechnungen werden unmittelbar nach der Bestätigung des Zahlungsanbieters erstellt." />
 
+    <div class="mt-8">
+        @include('portal.wizard.partials.fortschritt', [
+            'fortschritt' => $fortschritt,
+            'billingRun' => $lauf,
+            'wiedereinstieg' => null,
+        ])
+    </div>
+
     <div class="mt-10 max-w-3xl">
         @if ($verzoegert)
-            <x-hvm.alert variant="warning" label="Hinweis" title="Zahlung bestätigt, Erstellung verzögert">
+            <x-hvm.alert variant="warning" label="Bitte prüfen" title="Zahlung bestätigt, Erstellung verzögert" role="status">
                 Ihre Zahlung ist bestätigt. Bei der Erstellung Ihrer Abrechnungen ist eine technische Störung
                 aufgetreten. Wir holen die Erstellung nach und melden uns per E-Mail, sobald Ihre Dateien
                 bereitstehen. Sie müssen nichts weiter tun und nicht erneut zahlen.
             </x-hvm.alert>
         @elseif ($bezahlt)
-            <x-hvm.alert variant="success" label="Erledigt" title="Zahlung bestätigt">
+            <x-hvm.alert variant="success" label="Erledigt" title="Zahlung bestätigt" role="status">
                 Die Zahlung ist bestätigt. Ihre Final-Abrechnungen werden erstellt. Sobald sie bereitstehen,
                 erhalten Sie eine E-Mail mit einem sicheren Downloadlink.
             </x-hvm.alert>
         @else
-            <x-hvm.alert variant="info" title="Bestätigung steht noch aus">
+            <x-hvm.alert variant="info" label="Hinweis" title="Bestätigung steht noch aus" role="status">
                 Die Rückmeldung des Zahlungsanbieters liegt uns noch nicht vor. Das dauert in der Regel nur wenige
                 Sekunden. Bitte laden Sie diese Seite in einem Moment erneut. Es ist nichts weiter zu tun, und Sie
                 müssen nicht erneut zahlen.

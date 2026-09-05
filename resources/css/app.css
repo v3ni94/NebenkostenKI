@@ -324,8 +324,9 @@
         transition: border-color 150ms ease, box-shadow 150ms ease;
     }
 
+    /* Platzhalter in Sekundaerfarbe (7,0:1 auf Weiss); Mittelgrau laege unter AA. */
     .hvm-input::placeholder {
-        color: var(--color-hvm-mittelgrau);
+        color: var(--color-hvm-text-sekundaer);
     }
 
     .hvm-input:hover {

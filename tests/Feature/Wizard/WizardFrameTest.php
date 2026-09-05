@@ -20,15 +20,31 @@ use Tests\Feature\Calculation\CalculationTestCase;
  */
 final class WizardFrameTest extends CalculationTestCase
 {
-    public function test_die_fortschrittsleiste_umfasst_alle_zehn_schritte(): void
+    public function test_die_fortschrittsleiste_umfasst_alle_zwoelf_schritte(): void
     {
         $szenario = $this->szenario();
 
         $leiste = app(WizardProgress::class)->bar($szenario['billingRun']);
 
-        self::assertCount(10, $leiste);
+        // Zwoelf Schritte wie auf der Website: 1 bis 10 im Assistenten, 11 Zahlung, 12 Finalisierung.
+        self::assertCount(12, $leiste);
         self::assertSame(1, $leiste[0]->nummer());
         self::assertSame('Vorschau und Bestätigung', $leiste[9]->label());
+        self::assertSame('Zahlung', $leiste[10]->label());
+        self::assertSame('Finalisierung', $leiste[11]->label());
+        self::assertSame(PortalStatusCategory::FEHLT_NOCH, $leiste[10]->kategorie);
+        self::assertFalse($leiste[10]->erreichbar);
+    }
+
+    public function test_der_wiedereinstiegshinweis_entfaellt_auf_der_seite_des_gespeicherten_schritts(): void
+    {
+        $szenario = $this->szenario();
+        $fortschritt = app(WizardProgress::class);
+
+        $fortschritt->remember($szenario['billingRun'], WizardStep::VERTEILERSCHLUESSEL);
+
+        self::assertNull($fortschritt->resumeHint($szenario['billingRun'], WizardStep::VERTEILERSCHLUESSEL));
+        self::assertStringContainsString('Schritt 8 von 12', (string) $fortschritt->resumeHint($szenario['billingRun'], WizardStep::VORAUSZAHLUNGEN));
     }
 
     public function test_die_statussprache_ist_verbindlich(): void
@@ -116,7 +132,9 @@ final class WizardFrameTest extends CalculationTestCase
 
         $antwort->assertOk();
         $antwort->assertSee('1.234,56');
-        $antwort->assertSee('Sie sind bei Schritt 8 von 10');
+        // Wiedereinstieg: die Seite zeigt Schritt 7, gespeichert ist Schritt 8 von zwoelf.
+        $antwort->assertSee('Schritt 7 von 12');
+        $antwort->assertSee('Ihr zuletzt gespeicherter Stand ist Schritt 8 von 12');
 
         // Der Fortschritt bleibt bei Schritt 8, obwohl Schritt 7 erneut
         // aufgerufen wurde.

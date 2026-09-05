@@ -40,6 +40,7 @@
                     <th scope="col">Entität</th>
                     <th scope="col">Gekürzte IP</th>
                     <th scope="col">Begründung</th>
+                    {{-- Mobil (gestapelt) entfallen Rolle und IP; leere Zellen werden ausgeblendet (empty:hidden). --}}
                 </tr>
             </thead>
             <tbody>
@@ -47,11 +48,11 @@
                     <tr>
                         <th scope="row" class="font-medium whitespace-nowrap tabular">{{ \Illuminate\Support\Carbon::parse((string) $eintrag->getAttribute('occurred_at'))->format('d.m.Y H:i') }}</th>
                         <td data-label="Akteur">{{ $eintrag->actor?->getAttribute('name') ?? 'System' }}</td>
-                        <td data-label="Interne Rolle" class="text-hvm-text-sekundaer">{{ $eintrag->getAttribute('actor_admin_role')?->label() ?? '' }}</td>
-                        <td data-label="Aktion" class="font-mono text-xs">{{ $eintrag->getAttribute('action') }}</td>
+                        <td data-label="Interne Rolle" class="hidden! text-hvm-text-sekundaer sm:table-cell!">{{ $eintrag->getAttribute('actor_admin_role')?->label() ?? 'keine' }}</td>
+                        <td data-label="Aktion" class="font-mono text-xs [overflow-wrap:anywhere]">{{ $eintrag->getAttribute('action') }}</td>
                         <td data-label="Entität" class="font-mono text-xs">{{ class_basename((string) $eintrag->getAttribute('subject_type')) }}</td>
-                        <td data-label="Gekürzte IP" class="font-mono text-xs">{{ $eintrag->getAttribute('ip_truncated') ?? '' }}</td>
-                        <td data-label="Begründung" class="text-hvm-text-sekundaer">{{ $eintrag->getAttribute('reason') ?? '' }}</td>
+                        <td data-label="Gekürzte IP" class="hidden! font-mono text-xs sm:table-cell!">{{ $eintrag->getAttribute('ip_truncated') ?? 'keine Angabe' }}</td>
+                        <td data-label="Begründung" class="text-hvm-text-sekundaer empty:hidden! sm:empty:table-cell!">{{ $eintrag->getAttribute('reason') ?? '' }}</td>
                     </tr>
                 @endforeach
             </tbody>

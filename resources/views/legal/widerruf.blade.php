@@ -12,7 +12,7 @@
 @section('meta_title', 'Widerrufsbelehrung')
 @section('meta_description', 'Widerrufsbelehrung von smart-abrechnen.de. Die Seite ist eine strukturierte Platzhalterfassung und wird vor dem Livegang anwaltlich geprüft und freigegeben.')
 
-@section('legal_title', 'Widerrufsbelehrung')
+@section('legal_title', 'Widerrufs&shy;belehrung')
 @section('legal_intro', 'Diese Seite enthält die Gliederung der Widerrufsbelehrung für Verbraucher. Die Textfassung wird vor dem Livegang anwaltlich erstellt und freigegeben.')
 
 @section('legal_content')

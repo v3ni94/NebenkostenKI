@@ -23,8 +23,9 @@
             <div class="mx-auto max-w-3xl">
                 <x-hvm.badge variant="akzent" :icon="false">Rechtliches</x-hvm.badge>
 
-                <h1 class="mt-6 text-3xl leading-[1.05] font-semibold tracking-tight text-hvm-textschwarz sm:text-5xl">
-                    @yield('legal_title')
+                {{-- legal_title darf &shy; enthalten (weicher Trennstrich fuer lange Komposita, Designsystem 2.2). --}}
+                <h1 class="mt-6 text-[2rem] leading-[1.05] font-semibold tracking-tight text-hvm-textschwarz sm:text-5xl">
+                    {!! str_replace('&amp;shy;', "\u{00AD}", $__env->yieldContent('legal_title')) !!}
                 </h1>
 
                 @hasSection('legal_intro')

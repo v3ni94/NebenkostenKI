@@ -13,12 +13,12 @@
         title="E-Mail und Erinnerungen"
         lead="Sichtbar sind Vorlage, Empfänger, Status und Fehlercode. Nachrichteninhalte und Downloadlinks werden nicht angezeigt." />
 
-    <div class="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        @include('admin.partials.statuszahlen', ['titel' => 'E-Mails je Status', 'werte' => $mailstatus])
+    <div class="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
+        @include('admin.partials.statuszahlen', ['titel' => 'E-Mails je Status', 'werte' => $mailstatus, 'enum' => \App\Enums\EmailStatus::class])
         @include('admin.partials.statuszahlen', ['titel' => 'Erinnerungen je Status', 'werte' => $erinnerungsstatus])
     </div>
 
-    <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+    <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
         <x-hvm.card title="Erinnerungsplan des laufenden Jahres" eyebrow="Termine" class="min-w-0">
             <p class="flex flex-wrap items-center gap-2 text-sm">
                 <x-hvm.badge :variant="$erinnerungen_aktiv ? 'success' : 'neutral'" :icon="$erinnerungen_aktiv ? 'check-circle' : 'clock'">{{ $erinnerungen_aktiv ? 'aktiv' : 'abgeschaltet' }}</x-hvm.badge>
@@ -107,13 +107,12 @@
                         <td data-label="Gesperrt am" class="text-hvm-text-sekundaer">{{ \Illuminate\Support\Carbon::parse((string) $eintrag->getAttribute('suppressed_at'))->format('d.m.Y') }}</td>
                         <td data-label="Sperre aufheben">
                             {{-- Zum Beispiel nach einem SMTP-Ausfall, der faelschlich als Unzustellbarkeit gewertet wurde. --}}
-                            <form method="POST" action="{{ route('admin.kommunikation.sperre.aufheben') }}" class="flex max-w-sm flex-col gap-2 sm:flex-row sm:items-center">
+                            <form method="POST" action="{{ route('admin.kommunikation.sperre.aufheben') }}" class="flex max-w-sm flex-col gap-2 sm:flex-row sm:items-end">
                                 @csrf
                                 <input type="hidden" name="email" value="{{ $eintrag->getAttribute('email') }}">
-                                <label class="sr-only" for="grund-{{ $eintrag->getKey() }}">Begründung</label>
-                                <input type="text" id="grund-{{ $eintrag->getKey() }}" name="grund" required
-                                       placeholder="Begründung"
-                                       class="hvm-input min-h-11 py-2 text-sm">
+                                {{-- Sichtbare Beschriftung statt Platzhalter als einziger Bezeichnung. --}}
+                                <x-hvm.field name="grund" :id="'grund-'.$eintrag->getKey()" label="Begründung" :required="true"
+                                             :errors="false" placeholder="Begründung" wrapperClass="min-w-0 flex-1" class="min-h-11 py-2 text-sm" />
                                 <x-hvm.button type="submit" variant="secondary" size="sm" class="shrink-0">Aufheben</x-hvm.button>
                             </form>
                         </td>

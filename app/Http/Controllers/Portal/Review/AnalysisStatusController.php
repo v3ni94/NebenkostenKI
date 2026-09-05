@@ -48,7 +48,7 @@ class AnalysisStatusController extends Controller
             'wegvorschlag' => $this->advisor->suggest($billingRun),
             'intervallMinuten' => self::schedulerIntervalMinutes(),
             'schritte' => $this->progress->bar($billingRun, WizardStep::ANALYSE),
-            'wiedereinstieg' => $this->progress->resumeHint($billingRun),
+            'wiedereinstieg' => $this->progress->resumeHint($billingRun, WizardStep::ANALYSE),
         ]);
     }
 

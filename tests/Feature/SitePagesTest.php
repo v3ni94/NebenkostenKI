@@ -30,9 +30,10 @@ final class SitePagesTest extends TestCase
             'Haeufige Fragen' => ['site.faq', 'Warum werden meine Dateien gelöscht?'],
             'Kontakt' => ['site.kontakt', 'kontakt@smart-abrechnen.de'],
             'Impressum' => ['legal.impressum', 'Impressum'],
-            'Datenschutzerklaerung' => ['legal.datenschutz', 'Datenschutzerklärung'],
-            'AGB' => ['legal.agb', 'Allgemeine Geschäftsbedingungen'],
-            'Widerrufsbelehrung' => ['legal.widerruf', 'Widerrufsbelehrung'],
+            // Die Titel der Rechtstexte tragen einen weichen Trennstrich (&shy;); geprueft wird ein Teilsatz ohne Trennstelle.
+            'Datenschutzerklaerung' => ['legal.datenschutz', 'Gliederung der Datenschutzerklärung'],
+            'AGB' => ['legal.agb', 'Allgemeine Geschäfts'],
+            'Widerrufsbelehrung' => ['legal.widerruf', 'Widerrufs'],
         ];
     }
 

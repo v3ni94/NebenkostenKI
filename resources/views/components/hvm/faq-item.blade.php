@@ -24,13 +24,13 @@
 <div class="border-b border-hvm-linie" x-data="{ offen: {{ $open ? 'true' : 'false' }} }">
     <{{ $level }} class="m-0">
         <button type="button"
-                class="flex w-full min-h-11 items-center justify-between gap-4 rounded-lg py-5 text-left text-base font-semibold tracking-tight text-hvm-textschwarz hover:text-hvm-orange-dark sm:text-lg"
+                class="group flex w-full min-h-11 items-center justify-between gap-4 rounded-lg py-5 text-left text-base font-semibold tracking-tight text-hvm-textschwarz transition-colors hover:bg-hvm-canvas-deep sm:text-lg -mx-2 px-2 w-[calc(100%+1rem)]"
                 x-on:click="offen = !offen"
                 x-bind:aria-expanded="offen ? 'true' : 'false'"
                 aria-expanded="{{ $open ? 'true' : 'false' }}"
                 aria-controls="{{ $panelId }}">
             <span>{{ $question }}</span>
-            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-hvm-linie bg-white text-hvm-text-sekundaer" aria-hidden="true">
+            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-hvm-linie bg-white text-hvm-text-sekundaer group-hover:border-hvm-orange group-hover:text-hvm-orange-dark" aria-hidden="true">
                 <svg class="h-4 w-4 transition-transform" viewBox="0 0 20 20" fill="currentColor"
                      x-bind:class="offen ? 'rotate-180' : ''">
                     <path d="M5.3 7.3a1 1 0 0 1 1.4 0L10 10.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 0-1.4Z" />

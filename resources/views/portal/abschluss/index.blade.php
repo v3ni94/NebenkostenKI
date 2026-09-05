@@ -19,13 +19,21 @@
 
 @section('content')
     <x-hvm.page-header
-        eyebrow="Schritt 12 von 12"
+        :eyebrow="$schritt->eyebrow()"
         title="Ihre Abrechnung ist fertig"
         lead="Alle Dateien stehen dauerhaft in Ihrem Konto bereit.">
         <x-hvm.badge variant="success">Erledigt</x-hvm.badge>
     </x-hvm.page-header>
 
-    <div class="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-2">
+    <div class="mt-8">
+        @include('portal.wizard.partials.fortschritt', [
+            'fortschritt' => $fortschritt,
+            'billingRun' => $lauf,
+            'wiedereinstieg' => null,
+        ])
+    </div>
+
+    <div class="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
         <x-hvm.card class="min-w-0 lg:col-span-2" title="Sammeldownload" eyebrow="Alle Dateien" accent>
             @forelse ($pakete as $paket)
                 <div class="flex gap-3">
@@ -49,8 +57,8 @@
         <x-hvm.card class="min-w-0" title="Gesamtübersicht" eyebrow="Für Sie als Vermieter">
             @forelse ($uebersichten as $uebersicht)
                 <div class="{{ $loop->first ? '' : 'mt-3' }}">
-                    <x-hvm.button href="{{ $downloadRoute($uebersicht) }}" variant="secondary" size="sm">
-                        <x-hvm.icon name="list" class="h-4 w-4" />
+                    <x-hvm.button href="{{ $downloadRoute($uebersicht) }}" variant="secondary" size="sm" class="max-w-full whitespace-normal">
+                        <x-hvm.icon name="list" class="h-4 w-4 shrink-0" />
                         Eigentümerübersicht herunterladen
                     </x-hvm.button>
                 </div>
@@ -154,7 +162,7 @@
 
     {{-- Hinweise -------------------------------------------------------------- --}}
 
-    <div class="mt-16 grid grid-cols-1 gap-6 {{ $ersetzt !== [] ? 'lg:grid-cols-2' : '' }}">
+    <div class="mt-16 grid grid-cols-1 gap-6 {{ $ersetzt !== [] ? 'lg:grid-cols-2 lg:items-start' : '' }}">
         @if ($ersetzt !== [])
             <x-hvm.card class="min-w-0" title="Frühere Versionen" eyebrow="Historie" tone="canvas">
                 <p class="text-sm leading-relaxed text-hvm-textschwarz">

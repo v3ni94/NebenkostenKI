@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace App\Application\Wizard;
 
 /**
- * Die Schritte des geführten Ablaufs (Masterprompt Abschnitt 9).
+ * Die zwölf Schritte des geführten Ablaufs (Masterprompt Abschnitt 9, Website
+ * "So funktioniert es").
  *
  * Der Schritt wird im Abrechnungslauf gespeichert (Spalte wizard_step). Der
  * Nutzer kann jederzeit unterbrechen und ohne Datenverlust fortsetzen; die
@@ -13,7 +14,11 @@ namespace App\Application\Wizard;
  * speichert.
  *
  * Die Schritte 1 bis 6 werden von anderen Bausteinen bereitgestellt und hier
- * ausschließlich verlinkt.
+ * ausschließlich verlinkt. Die Schritte 11 (Zahlung) und 12 (Finalisierung)
+ * liegen hinter der Bestätigung der Vorschau; ihr Stand ergibt sich aus dem
+ * Laufstatus, nicht aus der gespeicherten Schrittnummer. Damit zählen
+ * Schrittanzeige, Seitenköpfe, Zahlung und Abschluss dieselben zwölf Schritte
+ * wie die Website.
  */
 enum WizardStep: int
 {
@@ -27,6 +32,8 @@ enum WizardStep: int
     case VERTEILERSCHLUESSEL = 8;
     case PRUEFBERICHT = 9;
     case VORSCHAU = 10;
+    case ZAHLUNG = 11;
+    case ABSCHLUSS = 12;
 
     public function label(): string
     {
@@ -41,6 +48,8 @@ enum WizardStep: int
             self::VERTEILERSCHLUESSEL => 'Verteilerschlüssel und Verbrauch',
             self::PRUEFBERICHT => 'Prüfbericht',
             self::VORSCHAU => 'Vorschau und Bestätigung',
+            self::ZAHLUNG => 'Zahlung',
+            self::ABSCHLUSS => 'Finalisierung',
         };
     }
 
@@ -60,6 +69,8 @@ enum WizardStep: int
             self::VERTEILERSCHLUESSEL => 'Legen Sie je Kostenart den Verteilerschlüssel fest.',
             self::PRUEFBERICHT => 'Prüfen Sie die Ergebnisse der automatischen Prüfung.',
             self::VORSCHAU => 'Sehen Sie die Vorschau an und bestätigen Sie die Angaben.',
+            self::ZAHLUNG => 'Zahlen Sie einmalig je erzeugter Mieterabrechnung.',
+            self::ABSCHLUSS => 'Laden Sie die finalen Abrechnungen und die Rechnung herunter.',
         };
     }
 
@@ -80,6 +91,8 @@ enum WizardStep: int
             self::VERTEILERSCHLUESSEL => 'portal.wizard.schluessel',
             self::PRUEFBERICHT => 'portal.wizard.pruefbericht',
             self::VORSCHAU => 'portal.wizard.vorschau',
+            self::ZAHLUNG => 'portal.checkout.show',
+            self::ABSCHLUSS => 'portal.abschluss.show',
         };
     }
 
@@ -88,7 +101,21 @@ enum WizardStep: int
      */
     public function isOwnStep(): bool
     {
-        return $this->value >= self::VORAUSZAHLUNGEN->value;
+        return $this->value >= self::VORAUSZAHLUNGEN->value && $this->value <= self::VORSCHAU->value;
+    }
+
+    /**
+     * Einordnung für den Seitenkopf, z. B. "Schritt 7 von 12". Einzige Quelle
+     * der Zählung, damit Eyebrow, Schrittanzeige und Wiedereinstieg übereinstimmen.
+     */
+    public function eyebrow(): string
+    {
+        return sprintf('Schritt %d von %d', $this->value, self::count());
+    }
+
+    public static function count(): int
+    {
+        return count(self::cases());
     }
 
     public function previous(): ?self

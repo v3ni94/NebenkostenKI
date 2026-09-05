@@ -66,7 +66,7 @@
                             @endforeach
                         </x-hvm.field>
 
-                        <div class="grid gap-6 sm:grid-cols-2">
+                        <div class="grid gap-6 sm:grid-cols-2 sm:items-end">
                             <x-hvm.field
                                 name="starts_on"
                                 label="Einzug"
@@ -105,7 +105,7 @@
                                 :optional="true"
                                 :value="$wert('delivery_address_extra', $mietverhaeltnis?->delivery_address_extra)" />
 
-                            <div class="grid gap-6 sm:grid-cols-3">
+                            <div class="grid gap-6 sm:grid-cols-3 sm:items-end">
                                 <x-hvm.field
                                     name="delivery_postal_code"
                                     label="Postleitzahl"
@@ -130,7 +130,7 @@
                             später im Abrechnungslauf. Beträge in Euro, zum Beispiel 120,50.
                         </p>
 
-                        <div class="mt-6 grid gap-6 sm:grid-cols-2">
+                        <div class="mt-6 grid gap-6 sm:grid-cols-2 sm:items-end">
                             <x-hvm.field
                                 name="monthly_operating_prepayment_eur"
                                 label="Betriebskosten je Monat in EUR"
@@ -164,7 +164,7 @@
                             Vereinbarung unterstellt.
                         </p>
 
-                        <div class="mt-6 grid gap-6 sm:grid-cols-2">
+                        <div class="mt-6 grid gap-6 sm:grid-cols-2 sm:items-end">
                             <x-hvm.field name="operating_costs_apportionment_agreed" label="Umlage der Betriebskosten vereinbart" type="select">
                                 <option value="">Unbekannt</option>
                                 <option value="1" @selected($wert('operating_costs_apportionment_agreed', $mietverhaeltnis?->operating_costs_apportionment_agreed) === true)>Ja</option>

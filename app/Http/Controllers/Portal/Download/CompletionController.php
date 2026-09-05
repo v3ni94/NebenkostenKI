@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Portal\Download;
 
 use App\Application\Account\OrganizationContext;
+use App\Application\Wizard\WizardProgress;
+use App\Application\Wizard\WizardStep;
 use App\Enums\GeneratedDocumentKind;
 use App\Enums\GeneratedDocumentStatus;
 use App\Enums\GeneratedDocumentVariant;
@@ -38,7 +40,10 @@ class CompletionController extends Controller
 {
     use AuthorizesRequests;
 
-    public function __construct(private readonly OrganizationContext $context) {}
+    public function __construct(
+        private readonly OrganizationContext $context,
+        private readonly WizardProgress $progress,
+    ) {}
 
     public function show(string $billingRun): View
     {
@@ -51,6 +56,8 @@ class CompletionController extends Controller
 
         return view('portal.abschluss.index', [
             'lauf' => $lauf,
+            'schritt' => WizardStep::ABSCHLUSS,
+            'fortschritt' => $this->progress->bar($lauf, WizardStep::ABSCHLUSS),
             'objekt' => $lauf->getRelationValue('property'),
             'abrechnungen' => $this->ofKind($dokumente, GeneratedDocumentKind::MIETERABRECHNUNG),
             'anlagen' => $this->ofKind($dokumente, GeneratedDocumentKind::ANLAGE_35A),

@@ -12,6 +12,7 @@ use App\Application\BillingRun\IllegalStatusTransitionException;
 use App\Application\BillingRun\PortalStatusResolver;
 use App\Application\Payment\CancelCheckout;
 use App\Application\Wizard\WizardProgress;
+use App\Application\Wizard\WizardStep;
 use App\Enums\BillingMode;
 use App\Enums\BillingRunStatus;
 use App\Http\Controllers\Controller;
@@ -157,6 +158,8 @@ class BillingRunController extends Controller
         $aktuell = $lauf->getAttribute('status');
         $aktuell = $aktuell instanceof BillingRunStatus ? $aktuell : BillingRunStatus::DRAFT;
 
+        $naechsterSchritt = $this->naechsterSchritt($lauf, $aktuell);
+
         return view('portal.abrechnungen.detail', [
             'lauf' => $lauf,
             'objekt' => $objekt,
@@ -164,8 +167,10 @@ class BillingRunController extends Controller
             'objektHinweis' => $this->status->forProperty($objekt),
             'gewerbehinweis' => CreateBillingRun::commercialHint($objekt),
             'naechsteSchritte' => BillingRunStateMachine::allowedTargets($aktuell),
-            'naechsterSchritt' => $this->naechsterSchritt($lauf, $aktuell),
-            'fortschritt' => $this->wizard->bar($lauf),
+            'naechsterSchritt' => $naechsterSchritt,
+            // Die Schrittanzeige markiert denselben Schritt als aktuell, den die
+            // Karte "Naechster Schritt" nennt (eine Fortschrittsaussage je Seite).
+            'fortschritt' => $this->wizard->bar($lauf, $naechsterSchritt['schritt'] ?? null),
             'abbrechbar' => $this->stateMachine->canTransition($lauf, BillingRunStatus::CANCELLED),
         ]);
     }
@@ -176,7 +181,7 @@ class BillingRunController extends Controller
      * Downloadbereich. Fuer abgebrochene und fehlgeschlagene Laeufe gibt es
      * keinen naechsten Schritt.
      *
-     * @return array{titel: string, hinweis: string, url: string, schaltflaeche: string}|null
+     * @return array{titel: string, hinweis: string, url: string, schaltflaeche: string, schritt: WizardStep}|null
      */
     private function naechsterSchritt(BillingRun $lauf, BillingRunStatus $status): ?array
     {
@@ -189,6 +194,7 @@ class BillingRunController extends Controller
                     'hinweis' => 'Die Abrechnungen sind erstellt. Laden Sie die Dokumente und die Rechnung herunter.',
                     'url' => route('portal.abschluss.show', $parameter),
                     'schaltflaeche' => 'Zum Downloadbereich',
+                    'schritt' => WizardStep::ABSCHLUSS,
                 ];
             case BillingRunStatus::PAID:
             case BillingRunStatus::FINALIZING:
@@ -197,6 +203,7 @@ class BillingRunController extends Controller
                     'hinweis' => 'Die Zahlung ist bestätigt. Die Abrechnungen werden erstellt, Sie erhalten eine E-Mail.',
                     'url' => route('portal.checkout.erfolg', $parameter),
                     'schaltflaeche' => 'Stand ansehen',
+                    'schritt' => WizardStep::ABSCHLUSS,
                 ];
             case BillingRunStatus::CHECKOUT_PENDING:
                 return [
@@ -204,6 +211,7 @@ class BillingRunController extends Controller
                     'hinweis' => 'Die Zahlung ist eingeleitet und noch nicht bestätigt.',
                     'url' => route('portal.checkout.show', $parameter),
                     'schaltflaeche' => 'Zur Zahlung',
+                    'schritt' => WizardStep::ZAHLUNG,
                 ];
             case BillingRunStatus::CANCELLED:
             case BillingRunStatus::FAILED:
@@ -218,6 +226,7 @@ class BillingRunController extends Controller
                 'hinweis' => 'Ihre Bestätigung liegt vor. Der verbindliche Preis wird vor der Zahlung erneut berechnet.',
                 'url' => route('portal.checkout.show', $parameter),
                 'schaltflaeche' => 'Zur Zahlung',
+                'schritt' => WizardStep::ZAHLUNG,
             ];
         }
 
@@ -228,6 +237,7 @@ class BillingRunController extends Controller
             'hinweis' => $schritt->hint(),
             'url' => route($schritt->routeName(), $parameter),
             'schaltflaeche' => 'Weiter mit: '.$schritt->label(),
+            'schritt' => $schritt,
         ];
     }
 

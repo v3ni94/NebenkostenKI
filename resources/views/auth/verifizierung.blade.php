@@ -23,7 +23,7 @@
 
                         <div class="mt-5 rounded-2xl bg-hvm-canvas p-4">
                             <p class="text-sm text-hvm-text-sekundaer">Ihre hinterlegte Adresse lautet:</p>
-                            <p class="mt-1 text-base font-semibold break-all text-hvm-textschwarz">{{ auth()->user()?->email }}</p>
+                            <p class="mt-1 text-base font-semibold [overflow-wrap:anywhere] text-hvm-textschwarz">{{ auth()->user()?->email }}</p>
                         </div>
                     </div>
                 </div>

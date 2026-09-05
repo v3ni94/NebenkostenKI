@@ -4,8 +4,8 @@
 
 @section('content')
     <x-hvm.page-header
-        eyebrow="Geführter Ablauf"
-        title="Schritt 8: Verteilerschlüssel und Verbrauch"
+        :eyebrow="$schritt->eyebrow()"
+        title="Verteilerschlüssel und Verbrauch"
         lead="Je Kostenart legen Sie den Schlüssel fest. Wir zeigen Werte je Einheit, Nenner und Rechenweg." />
 
     <div class="mt-8">
@@ -115,7 +115,7 @@
                         </p>
                     @endif
 
-                    <div class="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-3">
+                    <div class="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-3 sm:items-end">
                         <x-hvm.field name="kostenarten[{{ $zeile->categoryId }}][key_type]" :id="$feldId.'-typ'" label="Verteilerschlüssel" type="select">
                             @foreach ($schluesseltypen as $typ)
                                 <option value="{{ $typ->value }}" @selected($typ === $zeile->keyType)>
@@ -187,17 +187,18 @@
             </x-hvm.card>
         @endforeach
 
+        {{-- Buttonreihe (4.12): Speichern und Weiter nebeneinander, das zweite Formular ist per form-Attribut angebunden. --}}
         <div class="flex flex-wrap gap-3 pt-4">
             <x-hvm.button type="submit" variant="primary">Verteilerschlüssel speichern</x-hvm.button>
+            <x-hvm.button type="submit" variant="secondary" form="schluessel-weiter">
+                Weiter zum Prüfbericht
+                <x-hvm.icon name="arrow-right" class="h-4 w-4" />
+            </x-hvm.button>
         </div>
     </form>
 
-    <form method="POST" class="mt-3"
+    <form method="POST" id="schluessel-weiter"
           action="{{ route('portal.wizard.schluessel.weiter', ['billingRun' => $billingRun->getKey()]) }}">
         @csrf
-        <x-hvm.button type="submit" variant="secondary">
-            Weiter zum Prüfbericht
-            <x-hvm.icon name="arrow-right" class="h-4 w-4" />
-        </x-hvm.button>
     </form>
 @endsection

@@ -66,13 +66,15 @@
         Zum Hauptinhalt springen
     </a>
 
-    {{-- HVM-Kennlinie als feine Linie an der Oberkante jeder Seite. --}}
-    <div class="hvm-kennlinie" aria-hidden="true"></div>
-
     @if ($mitNavigation)
-        <div class="lg:grid lg:min-h-[calc(100vh-3px)] lg:grid-cols-[17rem_minmax(0,1fr)]">
-            {{-- Seitenleiste ab lg (Uebernahme aus Konzept B). --}}
+        <div class="lg:grid lg:min-h-screen lg:grid-cols-[17rem_minmax(0,1fr)]">
+            {{--
+                Seitenleiste ab lg (Uebernahme aus Konzept B). Die Kennlinie liegt
+                in beiden Spalten als erstes Kind, damit das Band ueber die volle
+                Breite durchlaeuft und die klebende Seitenleiste es nicht verdeckt.
+            --}}
             <aside class="hidden border-r border-hvm-linie bg-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col">
+                <div class="hvm-kennlinie" aria-hidden="true"></div>
                 <div class="flex items-center gap-3 px-5 pt-5 pb-4">
                     {{-- Logo der Hausverwaltung Mueller GmbH aus /public/ci, sonst Textplatzhalter. --}}
                     <x-hvm.logo height="h-9" />
@@ -118,6 +120,7 @@
             </aside>
 
             <div class="flex min-w-0 flex-col">
+                <div class="hvm-kennlinie" aria-hidden="true"></div>
                 {{-- Kopfleiste unterhalb lg: Marke, Abmelden, umbrechende Pill-Navigation. --}}
                 <header class="border-b border-hvm-linie bg-white lg:hidden">
                     <div class="flex items-center justify-between gap-3 px-4 py-3 sm:px-6">
@@ -154,25 +157,14 @@
                 </header>
 
                 <main id="hauptinhalt" class="w-full max-w-6xl flex-1 px-4 py-10 sm:px-6 lg:px-10 lg:py-12">
-                    @if (session('status'))
-                        <div class="mb-8">
-                            <x-hvm.alert variant="success" label="Erledigt">
-                                {{ session('status') }}
-                            </x-hvm.alert>
-                        </div>
-                    @endif
-
-                    @if ($errors->any())
-                        <div class="mb-8">
-                            <x-hvm.alert variant="error" label="Bitte prüfen" title="Ihre Eingabe konnte nicht gespeichert werden">
-                                <ul class="list-disc space-y-1 pl-5">
-                                    @foreach ($errors->all() as $fehler)
-                                        <li>{{ $fehler }}</li>
-                                    @endforeach
-                                </ul>
-                            </x-hvm.alert>
-                        </div>
-                    @endif
+                    {{--
+                        Meldungen (Status, Fehlerliste) rendert x-hvm.page-header direkt
+                        unter dem Seitenkopf (Designsystem 4.14). Nur Seiten ohne
+                        Seitenkopf bekommen den Block hier als Rueckfall.
+                    --}}
+                    @unless (view()->shared('hvmMeldungenGerendert', false))
+                        <x-hvm.meldungen class="mb-8" />
+                    @endunless
 
                     @yield('content')
                 </main>
@@ -189,17 +181,22 @@
                                 Auswertung automatisch gelöscht.
                             </p>
                         </div>
-                        <ul class="mt-8 flex flex-wrap gap-x-6 gap-y-2 border-t border-hvm-linie pt-6">
-                            <li><a class="text-hvm-textschwarz no-underline underline-offset-4 hover:underline" href="{{ route('legal.impressum') }}">Impressum</a></li>
-                            <li><a class="text-hvm-textschwarz no-underline underline-offset-4 hover:underline" href="{{ route('legal.datenschutz') }}">Datenschutzerklärung</a></li>
-                            <li><a class="text-hvm-textschwarz no-underline underline-offset-4 hover:underline" href="{{ route('legal.agb') }}">AGB</a></li>
-                            <li><a class="text-hvm-textschwarz no-underline underline-offset-4 hover:underline" href="{{ route('legal.widerruf') }}">Widerrufsbelehrung</a></li>
+                        <ul class="mt-8 flex flex-wrap gap-x-6 border-t border-hvm-linie pt-4">
+                            <li><a class="inline-flex min-h-11 items-center text-hvm-textschwarz no-underline underline-offset-4 hover:underline" href="{{ route('legal.impressum') }}">Impressum</a></li>
+                            <li><a class="inline-flex min-h-11 items-center text-hvm-textschwarz no-underline underline-offset-4 hover:underline" href="{{ route('legal.datenschutz') }}">Datenschutzerklärung</a></li>
+                            <li><a class="inline-flex min-h-11 items-center text-hvm-textschwarz no-underline underline-offset-4 hover:underline" href="{{ route('legal.agb') }}">AGB</a></li>
+                            <li><a class="inline-flex min-h-11 items-center text-hvm-textschwarz no-underline underline-offset-4 hover:underline" href="{{ route('legal.widerruf') }}">Widerrufsbelehrung</a></li>
+                            <li><a class="inline-flex min-h-11 items-center text-hvm-textschwarz no-underline underline-offset-4 hover:underline" href="{{ $operator['website'] }}">Website der Hausverwaltung</a></li>
+                            <li><a class="inline-flex min-h-11 items-center text-hvm-textschwarz no-underline underline-offset-4 hover:underline" href="mailto:kontakt@smart-abrechnen.de">kontakt@smart-abrechnen.de</a></li>
                         </ul>
                     </div>
                 </footer>
             </div>
         </div>
     @else
+        {{-- HVM-Kennlinie als feine Linie an der Oberkante der Seite. --}}
+        <div class="hvm-kennlinie" aria-hidden="true"></div>
+
         {{-- Schmale Kopfleiste fuer Anmeldung, Registrierung und Seiten ohne Navigation. --}}
         <header class="border-b border-hvm-linie bg-white">
             <div class="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
@@ -226,25 +223,10 @@
         </header>
 
         <main id="hauptinhalt" class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
-            @if (session('status'))
-                <div class="mx-auto mb-8 max-w-md">
-                    <x-hvm.alert variant="success" label="Erledigt">
-                        {{ session('status') }}
-                    </x-hvm.alert>
-                </div>
-            @endif
-
-            @if ($errors->any())
-                <div class="mx-auto mb-8 max-w-md">
-                    <x-hvm.alert variant="error" label="Bitte prüfen" title="Ihre Eingabe konnte nicht gespeichert werden">
-                        <ul class="list-disc space-y-1 pl-5">
-                            @foreach ($errors->all() as $fehler)
-                                <li>{{ $fehler }}</li>
-                            @endforeach
-                        </ul>
-                    </x-hvm.alert>
-                </div>
-            @endif
+            {{-- Rueckfall fuer Seiten, die den Meldungsblock nicht selbst unter der Ueberschrift platzieren. --}}
+            @unless (view()->shared('hvmMeldungenGerendert', false))
+                <x-hvm.meldungen class="mx-auto mb-8 max-w-md" />
+            @endunless
 
             @yield('content')
         </main>
@@ -261,11 +243,13 @@
                         Auswertung automatisch gelöscht.
                     </p>
                 </div>
-                <ul class="mt-8 flex flex-wrap gap-x-6 gap-y-2 border-t border-hvm-linie pt-6">
-                    <li><a class="text-hvm-textschwarz no-underline underline-offset-4 hover:underline" href="{{ route('legal.impressum') }}">Impressum</a></li>
-                    <li><a class="text-hvm-textschwarz no-underline underline-offset-4 hover:underline" href="{{ route('legal.datenschutz') }}">Datenschutzerklärung</a></li>
-                    <li><a class="text-hvm-textschwarz no-underline underline-offset-4 hover:underline" href="{{ route('legal.agb') }}">AGB</a></li>
-                    <li><a class="text-hvm-textschwarz no-underline underline-offset-4 hover:underline" href="{{ route('legal.widerruf') }}">Widerrufsbelehrung</a></li>
+                <ul class="mt-8 flex flex-wrap gap-x-6 border-t border-hvm-linie pt-4">
+                    <li><a class="inline-flex min-h-11 items-center text-hvm-textschwarz no-underline underline-offset-4 hover:underline" href="{{ route('legal.impressum') }}">Impressum</a></li>
+                    <li><a class="inline-flex min-h-11 items-center text-hvm-textschwarz no-underline underline-offset-4 hover:underline" href="{{ route('legal.datenschutz') }}">Datenschutzerklärung</a></li>
+                    <li><a class="inline-flex min-h-11 items-center text-hvm-textschwarz no-underline underline-offset-4 hover:underline" href="{{ route('legal.agb') }}">AGB</a></li>
+                    <li><a class="inline-flex min-h-11 items-center text-hvm-textschwarz no-underline underline-offset-4 hover:underline" href="{{ route('legal.widerruf') }}">Widerrufsbelehrung</a></li>
+                    <li><a class="inline-flex min-h-11 items-center text-hvm-textschwarz no-underline underline-offset-4 hover:underline" href="{{ $operator['website'] }}">Website der Hausverwaltung</a></li>
+                    <li><a class="inline-flex min-h-11 items-center text-hvm-textschwarz no-underline underline-offset-4 hover:underline" href="mailto:kontakt@smart-abrechnen.de">kontakt@smart-abrechnen.de</a></li>
                 </ul>
             </div>
         </footer>

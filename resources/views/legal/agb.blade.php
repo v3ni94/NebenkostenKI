@@ -10,7 +10,7 @@
 @section('meta_title', 'Allgemeine Geschäftsbedingungen')
 @section('meta_description', 'Allgemeine Geschäftsbedingungen von smart-abrechnen.de. Die Seite ist eine strukturierte Platzhalterfassung und wird vor dem Livegang anwaltlich geprüft und freigegeben.')
 
-@section('legal_title', 'Allgemeine Geschäftsbedingungen')
+@section('legal_title', 'Allgemeine Geschäfts&shy;bedingungen')
 @section('legal_intro', 'Diese Seite enthält die Gliederung der Allgemeinen Geschäftsbedingungen. Die Textfassung wird vor dem Livegang anwaltlich erstellt und freigegeben.')
 
 @section('legal_content')

@@ -33,7 +33,7 @@ abstract class WizardController extends Controller
             'billingRun' => $billingRun,
             'schritt' => $step,
             'fortschritt' => $this->progress->bar($billingRun, $step),
-            'wiedereinstieg' => $this->progress->resumeHint($billingRun),
+            'wiedereinstieg' => $this->progress->resumeHint($billingRun, $step),
         ];
     }
 

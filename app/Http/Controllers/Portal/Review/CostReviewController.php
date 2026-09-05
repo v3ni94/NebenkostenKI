@@ -59,7 +59,7 @@ class CostReviewController extends Controller
         return view('portal.pruefung.kosten', [
             'billingRun' => $billingRun,
             'schritte' => $this->wizard->bar($billingRun, WizardStep::KOSTENPRUEFUNG),
-            'wiedereinstieg' => $this->wizard->resumeHint($billingRun),
+            'wiedereinstieg' => $this->wizard->resumeHint($billingRun, WizardStep::KOSTENPRUEFUNG),
             'uebersicht' => $this->presenter->overview($billingRun),
             'kategorien' => $this->categories->selectable($billingRun),
             'einheiten' => $this->units($billingRun),
