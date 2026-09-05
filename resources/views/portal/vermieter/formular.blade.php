@@ -1,6 +1,9 @@
 @php
     $wert = static fn (string $feld, mixed $vorgabe = null): mixed => old($feld, $vorgabe);
     $bankAnzeigen = (bool) old('show_bank_details_on_statement', $vermieter?->show_bank_details_on_statement ?? false);
+
+    $legende = 'text-lg font-semibold tracking-tight text-hvm-textschwarz sm:text-xl';
+    $erlaeuterung = 'mt-2 max-w-prose text-sm leading-relaxed text-hvm-text-sekundaer';
 @endphp
 
 @extends('layouts.portal')
@@ -8,138 +11,141 @@
 @section('titel', 'Vermieter bearbeiten')
 
 @section('content')
-    <div class="mx-auto max-w-3xl">
-        <x-hvm.section-heading
+    <div class="mx-auto max-w-2xl">
+        <x-hvm.page-header
             eyebrow="{{ $objekt->label }}"
             title="Vermieter bearbeiten"
-            lead="Der Vermieter ist Absender und Verantwortlicher der Mieterabrechnung. Name und Anschrift erscheinen im Absenderfeld jeder Abrechnung." />
+            lead="Der Vermieter ist Absender und Verantwortlicher der Mieterabrechnung. Name und Anschrift erscheinen im Absenderfeld jeder Abrechnung."
+            :back="route('portal.objekte.index')"
+            backLabel="Zurück zu den Objekten" />
 
-        <form method="POST" action="{{ route('portal.objekte.vermieter.update', ['property' => $objekt->getKey()]) }}" class="mt-8 space-y-6">
-            @csrf
-            @method('PUT')
+        <x-hvm.card :kennlinie="true" padding="none" class="mt-10 rounded-3xl">
+            <form method="POST" action="{{ route('portal.objekte.vermieter.update', ['property' => $objekt->getKey()]) }}" class="space-y-10 p-6 sm:p-8">
+                @csrf
+                @method('PUT')
 
-            <x-hvm.card title="Absender">
-                <div class="space-y-5">
-                    <div>
-                        <label for="sender_name" class="block text-sm font-semibold text-hvm-textschwarz">Name des Vermieters</label>
-                        <input id="sender_name" name="sender_name" type="text" required
-                               value="{{ $wert('sender_name', $vermieter?->sender_name) }}"
-                               class="mt-1 block w-full min-h-11 rounded-md border border-hvm-mittelgrau px-3 py-2">
-                        <p class="mt-1 text-sm text-hvm-anthrazit">Vor- und Nachname der Person, die als Vermieter auftritt.</p>
-                        @error('sender_name')<p class="mt-1 text-sm text-status-error">{{ $message }}</p>@enderror
-                    </div>
+                {{-- Absender ------------------------------------------------------ --}}
 
-                    <div>
-                        <label for="company_name" class="block text-sm font-semibold text-hvm-textschwarz">Firma (optional)</label>
-                        <input id="company_name" name="company_name" type="text"
-                               value="{{ $wert('company_name', $vermieter?->company_name) }}"
-                               class="mt-1 block w-full min-h-11 rounded-md border border-hvm-mittelgrau px-3 py-2">
-                        <p class="mt-1 text-sm text-hvm-anthrazit">Nur ausfüllen, wenn eine Gesellschaft vermietet.</p>
-                        @error('company_name')<p class="mt-1 text-sm text-status-error">{{ $message }}</p>@enderror
-                    </div>
+                <fieldset>
+                    <legend class="{{ $legende }}">Absender</legend>
+                    <div class="mt-6 space-y-6">
+                        <x-hvm.field
+                            name="sender_name"
+                            label="Name des Vermieters"
+                            hint="Vor- und Nachname der Person, die als Vermieter auftritt."
+                            :required="true"
+                            :value="$wert('sender_name', $vermieter?->sender_name)" />
 
-                    <div>
-                        <label for="address_line" class="block text-sm font-semibold text-hvm-textschwarz">Straße und Hausnummer</label>
-                        <input id="address_line" name="address_line" type="text" required
-                               value="{{ $wert('address_line', $vermieter?->address_line) }}"
-                               class="mt-1 block w-full min-h-11 rounded-md border border-hvm-mittelgrau px-3 py-2">
-                        @error('address_line')<p class="mt-1 text-sm text-status-error">{{ $message }}</p>@enderror
-                    </div>
+                        <x-hvm.field
+                            name="company_name"
+                            label="Firma (optional)"
+                            hint="Nur ausfüllen, wenn eine Gesellschaft vermietet."
+                            :value="$wert('company_name', $vermieter?->company_name)" />
 
-                    <div>
-                        <label for="address_extra" class="block text-sm font-semibold text-hvm-textschwarz">Adresszusatz</label>
-                        <input id="address_extra" name="address_extra" type="text"
-                               value="{{ $wert('address_extra', $vermieter?->address_extra) }}"
-                               class="mt-1 block w-full min-h-11 rounded-md border border-hvm-mittelgrau px-3 py-2">
-                    </div>
+                        <x-hvm.field
+                            name="address_line"
+                            label="Straße und Hausnummer"
+                            :required="true"
+                            :value="$wert('address_line', $vermieter?->address_line)" />
 
-                    <div class="grid gap-5 sm:grid-cols-3">
-                        <div>
-                            <label for="postal_code" class="block text-sm font-semibold text-hvm-textschwarz">Postleitzahl</label>
-                            <input id="postal_code" name="postal_code" type="text" required inputmode="numeric"
-                                   value="{{ $wert('postal_code', $vermieter?->postal_code) }}"
-                                   class="mt-1 block w-full min-h-11 rounded-md border border-hvm-mittelgrau px-3 py-2">
-                            @error('postal_code')<p class="mt-1 text-sm text-status-error">{{ $message }}</p>@enderror
-                        </div>
-                        <div class="sm:col-span-2">
-                            <label for="city" class="block text-sm font-semibold text-hvm-textschwarz">Ort</label>
-                            <input id="city" name="city" type="text" required
-                                   value="{{ $wert('city', $vermieter?->city) }}"
-                                   class="mt-1 block w-full min-h-11 rounded-md border border-hvm-mittelgrau px-3 py-2">
-                            @error('city')<p class="mt-1 text-sm text-status-error">{{ $message }}</p>@enderror
+                        <x-hvm.field
+                            name="address_extra"
+                            label="Adresszusatz"
+                            :optional="true"
+                            :value="$wert('address_extra', $vermieter?->address_extra)" />
+
+                        <div class="grid gap-6 sm:grid-cols-3">
+                            <x-hvm.field
+                                name="postal_code"
+                                label="Postleitzahl"
+                                inputmode="numeric"
+                                :required="true"
+                                :value="$wert('postal_code', $vermieter?->postal_code)" />
+                            <div class="sm:col-span-2">
+                                <x-hvm.field
+                                    name="city"
+                                    label="Ort"
+                                    :required="true"
+                                    :value="$wert('city', $vermieter?->city)" />
+                            </div>
                         </div>
                     </div>
+                </fieldset>
+
+                {{-- Kontakt ------------------------------------------------------- --}}
+
+                <div class="border-t border-hvm-linie pt-8">
+                    <fieldset>
+                        <legend class="{{ $legende }}">Kontakt (optional)</legend>
+                        <p class="{{ $erlaeuterung }}">
+                            Die Angaben erscheinen als Kontaktzeile in der Mieterabrechnung, damit der Mieter Rückfragen
+                            und die Belegeinsicht an Sie richten kann.
+                        </p>
+
+                        <div class="mt-6 grid gap-6 sm:grid-cols-2">
+                            <x-hvm.field
+                                name="email"
+                                label="E-Mail-Adresse"
+                                type="email"
+                                :value="$wert('email', $vermieter?->email)" />
+                            <x-hvm.field
+                                name="phone"
+                                label="Telefon"
+                                inputmode="tel"
+                                :value="$wert('phone', $vermieter?->phone)" />
+                        </div>
+                    </fieldset>
                 </div>
-            </x-hvm.card>
 
-            <x-hvm.card title="Kontakt (optional)">
-                <p class="text-sm text-hvm-anthrazit">
-                    Die Angaben erscheinen als Kontaktzeile in der Mieterabrechnung, damit der Mieter Rückfragen
-                    und die Belegeinsicht an Sie richten kann.
-                </p>
-                <div class="mt-5 grid gap-5 sm:grid-cols-2">
-                    <div>
-                        <label for="email" class="block text-sm font-semibold text-hvm-textschwarz">E-Mail-Adresse</label>
-                        <input id="email" name="email" type="email"
-                               value="{{ $wert('email', $vermieter?->email) }}"
-                               class="mt-1 block w-full min-h-11 rounded-md border border-hvm-mittelgrau px-3 py-2">
-                        @error('email')<p class="mt-1 text-sm text-status-error">{{ $message }}</p>@enderror
-                    </div>
-                    <div>
-                        <label for="phone" class="block text-sm font-semibold text-hvm-textschwarz">Telefon</label>
-                        <input id="phone" name="phone" type="text" inputmode="tel"
-                               value="{{ $wert('phone', $vermieter?->phone) }}"
-                               class="mt-1 block w-full min-h-11 rounded-md border border-hvm-mittelgrau px-3 py-2">
-                        @error('phone')<p class="mt-1 text-sm text-status-error">{{ $message }}</p>@enderror
-                    </div>
-                </div>
-            </x-hvm.card>
+                {{-- Bankverbindung ------------------------------------------------ --}}
 
-            <x-hvm.card title="Bankverbindung (optional)">
-                <p class="text-sm text-hvm-anthrazit">
-                    IBAN und BIC werden verschlüsselt gespeichert. Sie erscheinen nur dann in der Mieterabrechnung,
-                    wenn Sie das unten ausdrücklich wählen.
-                </p>
-                <div class="mt-5 space-y-5">
-                    <div>
-                        <label for="account_holder" class="block text-sm font-semibold text-hvm-textschwarz">Kontoinhaber</label>
-                        <input id="account_holder" name="account_holder" type="text"
-                               value="{{ $wert('account_holder', $vermieter?->account_holder) }}"
-                               class="mt-1 block w-full min-h-11 rounded-md border border-hvm-mittelgrau px-3 py-2">
-                        <p class="mt-1 text-sm text-hvm-anthrazit">Leer lassen, wenn der Kontoinhaber der Vermieter selbst ist.</p>
-                    </div>
-                    <div class="grid gap-5 sm:grid-cols-3">
-                        <div class="sm:col-span-2">
-                            <label for="iban" class="block text-sm font-semibold text-hvm-textschwarz">IBAN</label>
-                            <input id="iban" name="iban" type="text" autocomplete="off" spellcheck="false"
-                                   value="{{ $wert('iban', $vermieter?->iban) }}"
-                                   class="mt-1 block w-full min-h-11 rounded-md border border-hvm-mittelgrau px-3 py-2">
-                            @error('iban')<p class="mt-1 text-sm text-status-error">{{ $message }}</p>@enderror
+                <div class="border-t border-hvm-linie pt-8">
+                    <fieldset>
+                        <legend class="{{ $legende }}">Bankverbindung (optional)</legend>
+                        <p class="{{ $erlaeuterung }}">
+                            IBAN und BIC werden verschlüsselt gespeichert. Sie erscheinen nur dann in der Mieterabrechnung,
+                            wenn Sie das unten ausdrücklich wählen.
+                        </p>
+
+                        <div class="mt-6 space-y-6">
+                            <x-hvm.field
+                                name="account_holder"
+                                label="Kontoinhaber"
+                                hint="Leer lassen, wenn der Kontoinhaber der Vermieter selbst ist."
+                                :value="$wert('account_holder', $vermieter?->account_holder)" />
+
+                            <div class="grid gap-6 sm:grid-cols-3">
+                                <div class="sm:col-span-2">
+                                    <x-hvm.field
+                                        name="iban"
+                                        label="IBAN"
+                                        autocomplete="off"
+                                        spellcheck="false"
+                                        :value="$wert('iban', $vermieter?->iban)" />
+                                </div>
+                                <x-hvm.field
+                                    name="bic"
+                                    label="BIC"
+                                    autocomplete="off"
+                                    spellcheck="false"
+                                    :value="$wert('bic', $vermieter?->bic)" />
+                            </div>
+
+                            <x-hvm.field
+                                name="show_bank_details_on_statement"
+                                label="Bankverbindung in der Abrechnung anzeigen. Der Mieter sieht dann Zahlungsempfänger, IBAN und BIC unter dem Nachzahlungsbetrag."
+                                type="checkbox"
+                                value="1"
+                                :checked="$bankAnzeigen" />
                         </div>
-                        <div>
-                            <label for="bic" class="block text-sm font-semibold text-hvm-textschwarz">BIC</label>
-                            <input id="bic" name="bic" type="text" autocomplete="off" spellcheck="false"
-                                   value="{{ $wert('bic', $vermieter?->bic) }}"
-                                   class="mt-1 block w-full min-h-11 rounded-md border border-hvm-mittelgrau px-3 py-2">
-                            @error('bic')<p class="mt-1 text-sm text-status-error">{{ $message }}</p>@enderror
-                        </div>
-                    </div>
-                    <div class="flex items-start gap-3">
-                        <input id="show_bank_details_on_statement" name="show_bank_details_on_statement" type="checkbox" value="1"
-                               @checked($bankAnzeigen)
-                               class="mt-1 h-5 w-5 rounded border-hvm-mittelgrau">
-                        <label for="show_bank_details_on_statement" class="text-sm text-hvm-textschwarz">
-                            Bankverbindung in der Abrechnung anzeigen. Der Mieter sieht dann Zahlungsempfänger, IBAN
-                            und BIC unter dem Nachzahlungsbetrag.
-                        </label>
-                    </div>
+                    </fieldset>
                 </div>
-            </x-hvm.card>
 
-            <div class="flex flex-wrap gap-3">
-                <x-hvm.button type="submit" variant="primary">Speichern</x-hvm.button>
-                <x-hvm.button href="{{ route('portal.objekte.index') }}" variant="secondary">Abbrechen</x-hvm.button>
-            </div>
-        </form>
+                <div class="flex flex-wrap gap-3 border-t border-hvm-linie pt-8">
+                    <x-hvm.button type="submit" variant="primary" size="lg">Speichern</x-hvm.button>
+                    <x-hvm.button href="{{ route('portal.objekte.index') }}" variant="secondary" size="lg">Abbrechen</x-hvm.button>
+                </div>
+            </form>
+        </x-hvm.card>
     </div>
 @endsection
