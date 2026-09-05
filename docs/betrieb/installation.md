@@ -359,6 +359,36 @@ Dritter Cronjob, Datenbanksicherung nach
 **Erwartetes Ergebnis:** `smartabrechnen:check-config` meldet nach spätestens
 zwei Minuten `Cronjob: OK` mit Zeitstempel des letzten Laufs.
 
+
+### 13.1 Hosting ohne Shell: Cronjob als Webadresse
+
+Bietet der Tarif Cronjobs nur als Aufruf einer Webadresse (URL-Cronjob) und
+keinen Shellzugang, übernimmt der Wartungsaufruf der Anwendung alle Befehle
+dieses Kapitels. Er ist nur aktiv, wenn in der `.env` ein Schlüssel gesetzt ist:
+
+```
+CRON_TOKEN=<mindestens 32 zufällige Zeichen, zum Beispiel aus openssl rand -hex 32>
+```
+
+Danach stehen folgende Adressen bereit (Schlüssel jeweils als `token`):
+
+| Aufgabe | Adresse | Wann |
+| --- | --- | --- |
+| Installation und Update | `https://smart-abrechnen.de/wartung/install?token=…` | einmal nach jedem Release |
+| Konfigurationsprüfung | `https://smart-abrechnen.de/wartung/check-config?token=…` | nach Bedarf |
+| Ersten Administrator anlegen | `https://smart-abrechnen.de/wartung/admin?token=…&email=ADRESSE&name=NAME` | einmal; das Einmalpasswort steht genau einmal in der Antwort |
+| Scheduler | `https://smart-abrechnen.de/wartung/schedule?token=…` | als URL-Cronjob jede Minute |
+
+Die Antwort ist reiner Text mit dem Ergebnis des Befehls. Fehlt der Schlüssel
+in der `.env`, existiert die Adresse nach außen nicht (404). Ein falscher
+Schlüssel wird abgewiesen (403) und protokolliert, mehr als zehn Aufrufe je
+Minute und IP werden gebremst. Der Schlüssel ist ein Zugangsdatum: nur in der
+`.env` und im Cronjob-Dialog hinterlegen, nicht per E-Mail versenden, bei
+Verdacht auf Weitergabe austauschen. Die Installation kann länger als ein
+normaler Seitenaufruf dauern; der Aufruf läuft serverseitig weiter, auch wenn
+der Browser die Verbindung vorher beendet. Das Ergebnis lässt sich dann über
+`check-config` prüfen.
+
 ## Schritt 14: Stripe-Webhook eintragen
 
 Stripe-Dashboard, Entwickler, Webhooks: Endpunkt

@@ -148,6 +148,7 @@ Die vollständige, kommentierte Referenz steht in
 | Zahlung | `STRIPE_KEY`, `STRIPE_SECRET`, `STRIPE_WEBHOOK_SECRET` | Stripe Checkout und Webhook |
 | Preise | `PRICE_PER_STATEMENT_GROSS_CENT=2490`, `PRICE_BASE_GROSS_CENT=0`, `VAT_RATE_PERCENT=19` | Bruttopreis je erzeugter Mieterabrechnung |
 | Betreiber | `HVM_*` | Pflichtangaben, Steuer- und Bankdaten |
+| Wartung ohne Shell | `CRON_TOKEN` | schaltet `/wartung/{aufgabe}` für URL-Cronjobs frei (installation.md 13.1) |
 | Erinnerungen | `REMINDER_Q1_DATE`, `REMINDER_Q2_DATE`, `REMINDER_Q3_DATE`, `REMINDER_DECEMBER_DATE` | Q1, Q2, Q3 und 1. Dezember, Zeitzone Europe/Berlin |
 | Uploads und Löschung | `UPLOAD_MAX_FILE_MB`, `MALWARE_SCANNER_DRIVER`, `TEMP_UPLOAD_TTL_MINUTES`, `TEMP_CLEANUP_INTERVAL_MINUTES`, `AI_PROVIDER_FILE_TTL_MINUTES`, `SIGNED_DOWNLOAD_TTL_MINUTES` | Grenzen und Löschfristen |
 | Monitoring | `LOG_CHANNEL`, `LOG_STACK`, `LOG_LEVEL` | strukturierte Logs |
