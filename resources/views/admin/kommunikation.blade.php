@@ -8,24 +8,25 @@
 @section('titel', 'Kommunikation')
 
 @section('content')
-    <x-hvm.section-heading
-        level="h1"
+    <x-hvm.page-header
+        eyebrow="Kommunikation"
         title="E-Mail und Erinnerungen"
         lead="Sichtbar sind Vorlage, Empfänger, Status und Fehlercode. Nachrichteninhalte und Downloadlinks werden nicht angezeigt." />
 
-    <div class="mt-6 grid gap-6 lg:grid-cols-2">
+    <div class="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-2">
         @include('admin.partials.statuszahlen', ['titel' => 'E-Mails je Status', 'werte' => $mailstatus])
         @include('admin.partials.statuszahlen', ['titel' => 'Erinnerungen je Status', 'werte' => $erinnerungsstatus])
     </div>
 
-    <div class="mt-6 grid gap-6 lg:grid-cols-2">
-        <x-hvm.card title="Erinnerungsplan des laufenden Jahres">
-            <p class="text-sm text-hvm-anthrazit">
-                Erinnerungen sind {{ $erinnerungen_aktiv ? 'aktiv' : 'abgeschaltet' }}.
+    <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <x-hvm.card title="Erinnerungsplan des laufenden Jahres" eyebrow="Termine" class="min-w-0">
+            <p class="flex flex-wrap items-center gap-2 text-sm">
+                <x-hvm.badge :variant="$erinnerungen_aktiv ? 'success' : 'neutral'" :icon="$erinnerungen_aktiv ? 'check-circle' : 'clock'">{{ $erinnerungen_aktiv ? 'aktiv' : 'abgeschaltet' }}</x-hvm.badge>
+                <span class="text-hvm-text-sekundaer">Erinnerungen sind {{ $erinnerungen_aktiv ? 'aktiv' : 'abgeschaltet' }}.</span>
             </p>
-            <dl class="mt-3 space-y-1 text-sm">
+            <dl class="mt-4 divide-y divide-hvm-linie">
                 @foreach ($erinnerungsplan as $fenster => $termin)
-                    <div class="flex justify-between"><dt>{{ $fenster }}</dt><dd>{{ $termin }}</dd></div>
+                    <x-hvm.rollout-admin-kv :label="$fenster">{{ $termin }}</x-hvm.rollout-admin-kv>
                 @endforeach
             </dl>
         </x-hvm.card>
@@ -34,137 +35,115 @@
     </div>
 
     <div class="mt-6">
-        <x-hvm.card title="Verwendete Vorlagen">
+        <x-hvm.card title="Verwendete Vorlagen" eyebrow="Vorlagen">
             @if ($vorlagen === [])
-                <p>Kein Eintrag.</p>
+                <p class="text-sm text-hvm-text-sekundaer">Kein Eintrag.</p>
             @else
-                <dl class="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                <dl class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     @foreach ($vorlagen as $vorlage => $anzahl)
-                        <div class="flex justify-between rounded border border-hvm-hellgrau px-3 py-2">
-                            <dt>{{ $vorlage }}</dt>
-                            <dd>{{ $anzahl }}</dd>
-                        </div>
+                        <x-hvm.rollout-admin-kennzahl :label="$vorlage">{{ $anzahl }}</x-hvm.rollout-admin-kennzahl>
                     @endforeach
                 </dl>
             @endif
         </x-hvm.card>
     </div>
 
-    <div class="mt-6">
-        <x-hvm.card title="Fehlgeschlagene E-Mails">
-            @if ($fehlgeschlagen === [])
-                <p>Kein Eintrag.</p>
-            @else
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm">
-                        <thead class="bg-hvm-orange-soft">
-                            <tr>
-                                <th class="px-3 py-2">Vorlage</th>
-                                <th class="px-3 py-2">Empfänger</th>
-                                <th class="px-3 py-2">Status</th>
-                                <th class="px-3 py-2">Fehlercode</th>
-                                <th class="px-3 py-2">Versuche</th>
-                                <th class="px-3 py-2">Handlung</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($fehlgeschlagen as $nachricht)
-                                <tr class="border-t border-hvm-hellgrau">
-                                    <td class="px-3 py-2">{{ $nachricht->getAttribute('template') }}</td>
-                                    <td class="px-3 py-2">{{ $nachricht->getAttribute('recipient_email') }}</td>
-                                    <td class="px-3 py-2">{{ $nachricht->getAttribute('status')->label() }}</td>
-                                    <td class="px-3 py-2">{{ $nachricht->getAttribute('error_code') ?? 'ohne Angabe' }}</td>
-                                    <td class="px-3 py-2">{{ $nachricht->getAttribute('attempts') }}</td>
-                                    <td class="px-3 py-2">
-                                        @if ($wiederholbar($nachricht))
-                                            {{-- Zeitweiliger Fehler: erneuter Versand aus dem verschluesselten Wiederholungspuffer. --}}
-                                            <form method="POST" action="{{ route('admin.kommunikation.nachricht.erneut', $nachricht) }}">
-                                                @csrf
-                                                <x-hvm.button type="submit" variant="secondary" size="sm">Erneut senden</x-hvm.button>
-                                            </form>
-                                        @else
-                                            <span class="text-xs text-hvm-anthrazit">keine Wiederholung</span>
-                                        @endif
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            @endif
-        </x-hvm.card>
-    </div>
+    <x-hvm.rollout-admin-abschnitt class="mt-16" eyebrow="Zustellung" title="Fehlgeschlagene E-Mails" :leer="$fehlgeschlagen === []" leer-icon="mail">
+        <table class="hvm-table hvm-table-zebra hvm-table-stack text-sm">
+            <caption class="sr-only">Fehlgeschlagene E-Mails</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Vorlage</th>
+                    <th scope="col">Empfänger</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Fehlercode</th>
+                    <th scope="col">Versuche</th>
+                    <th scope="col">Handlung</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach ($fehlgeschlagen as $nachricht)
+                    <tr>
+                        <th scope="row" class="font-mono text-xs font-medium">{{ $nachricht->getAttribute('template') }}</th>
+                        <td data-label="Empfänger">{{ $nachricht->getAttribute('recipient_email') }}</td>
+                        <td data-label="Status">
+                            <x-hvm.badge variant="error" icon="x-circle">{{ $nachricht->getAttribute('status')->label() }}</x-hvm.badge>
+                        </td>
+                        <td data-label="Fehlercode" class="font-mono text-xs">{{ $nachricht->getAttribute('error_code') ?? 'ohne Angabe' }}</td>
+                        <td data-label="Versuche" class="tabular">{{ $nachricht->getAttribute('attempts') }}</td>
+                        <td data-label="Handlung">
+                            @if ($wiederholbar($nachricht))
+                                {{-- Zeitweiliger Fehler: erneuter Versand aus dem verschluesselten Wiederholungspuffer. --}}
+                                <form method="POST" action="{{ route('admin.kommunikation.nachricht.erneut', $nachricht) }}">
+                                    @csrf
+                                    <x-hvm.button type="submit" variant="secondary" size="sm">Erneut senden</x-hvm.button>
+                                </form>
+                            @else
+                                <span class="text-sm text-hvm-text-sekundaer">keine Wiederholung</span>
+                            @endif
+                        </td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </x-hvm.rollout-admin-abschnitt>
 
-    <div class="mt-6">
-        <x-hvm.card title="Sperrliste">
-            @if ($sperrliste === [])
-                <p>Kein Eintrag.</p>
-            @else
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm">
-                        <thead class="bg-hvm-orange-soft">
-                            <tr>
-                                <th class="px-3 py-2">Adresse</th>
-                                <th class="px-3 py-2">Grund</th>
-                                <th class="px-3 py-2">Gesperrt am</th>
-                                <th class="px-3 py-2">Sperre aufheben</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($sperrliste as $eintrag)
-                                <tr class="border-t border-hvm-hellgrau">
-                                    <td class="px-3 py-2">{{ $eintrag->getAttribute('email') }}</td>
-                                    <td class="px-3 py-2">{{ $eintrag->getAttribute('reason')->label() }}</td>
-                                    <td class="px-3 py-2">{{ \Illuminate\Support\Carbon::parse((string) $eintrag->getAttribute('suppressed_at'))->format('d.m.Y') }}</td>
-                                    <td class="px-3 py-2">
-                                        {{-- Zum Beispiel nach einem SMTP-Ausfall, der faelschlich als Unzustellbarkeit gewertet wurde. --}}
-                                        <form method="POST" action="{{ route('admin.kommunikation.sperre.aufheben') }}" class="space-y-2">
-                                            @csrf
-                                            <input type="hidden" name="email" value="{{ $eintrag->getAttribute('email') }}">
-                                            <label class="sr-only" for="grund-{{ $eintrag->getKey() }}">Begründung</label>
-                                            <input type="text" id="grund-{{ $eintrag->getKey() }}" name="grund" required
-                                                   placeholder="Begründung"
-                                                   class="w-56 rounded border border-hvm-mittelgrau px-2 py-1">
-                                            <x-hvm.button type="submit" variant="secondary" size="sm">Aufheben</x-hvm.button>
-                                        </form>
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            @endif
-        </x-hvm.card>
-    </div>
+    <x-hvm.rollout-admin-abschnitt class="mt-16" eyebrow="Zustellung" title="Sperrliste" :leer="$sperrliste === []" leer-icon="mail">
+        <table class="hvm-table hvm-table-zebra hvm-table-stack text-sm">
+            <caption class="sr-only">Sperrliste</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Adresse</th>
+                    <th scope="col">Grund</th>
+                    <th scope="col">Gesperrt am</th>
+                    <th scope="col">Sperre aufheben</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach ($sperrliste as $eintrag)
+                    <tr>
+                        <th scope="row" class="font-medium">{{ $eintrag->getAttribute('email') }}</th>
+                        <td data-label="Grund">{{ $eintrag->getAttribute('reason')->label() }}</td>
+                        <td data-label="Gesperrt am" class="text-hvm-text-sekundaer">{{ \Illuminate\Support\Carbon::parse((string) $eintrag->getAttribute('suppressed_at'))->format('d.m.Y') }}</td>
+                        <td data-label="Sperre aufheben">
+                            {{-- Zum Beispiel nach einem SMTP-Ausfall, der faelschlich als Unzustellbarkeit gewertet wurde. --}}
+                            <form method="POST" action="{{ route('admin.kommunikation.sperre.aufheben') }}" class="flex max-w-sm flex-col gap-2 sm:flex-row sm:items-center">
+                                @csrf
+                                <input type="hidden" name="email" value="{{ $eintrag->getAttribute('email') }}">
+                                <label class="sr-only" for="grund-{{ $eintrag->getKey() }}">Begründung</label>
+                                <input type="text" id="grund-{{ $eintrag->getKey() }}" name="grund" required
+                                       placeholder="Begründung"
+                                       class="hvm-input min-h-11 py-2 text-sm">
+                                <x-hvm.button type="submit" variant="secondary" size="sm" class="shrink-0">Aufheben</x-hvm.button>
+                            </form>
+                        </td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </x-hvm.rollout-admin-abschnitt>
 
-    <div class="mt-6">
-        <x-hvm.card title="Anstehende Erinnerungen">
-            @if ($anstehend === [])
-                <p>Kein Eintrag.</p>
-            @else
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm">
-                        <thead class="bg-hvm-orange-soft">
-                            <tr>
-                                <th class="px-3 py-2">Fällig am</th>
-                                <th class="px-3 py-2">Fenster</th>
-                                <th class="px-3 py-2">Abrechnungsjahr</th>
-                                <th class="px-3 py-2">Empfänger</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($anstehend as $termin)
-                                <tr class="border-t border-hvm-hellgrau">
-                                    <td class="px-3 py-2">{{ \Illuminate\Support\Carbon::parse((string) $termin->getAttribute('scheduled_for'))->format('d.m.Y') }}</td>
-                                    <td class="px-3 py-2">{{ $termin->getAttribute('reminder_window')->label() }}</td>
-                                    <td class="px-3 py-2">{{ $termin->getAttribute('billing_year') }}</td>
-                                    <td class="px-3 py-2">{{ $termin->getAttribute('recipient_email') }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            @endif
-        </x-hvm.card>
-    </div>
+    <x-hvm.rollout-admin-abschnitt class="mt-16" eyebrow="Erinnerungen" title="Anstehende Erinnerungen" :leer="$anstehend === []" leer-icon="calendar">
+        <table class="hvm-table hvm-table-zebra hvm-table-stack text-sm">
+            <caption class="sr-only">Anstehende Erinnerungen</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Fällig am</th>
+                    <th scope="col">Fenster</th>
+                    <th scope="col">Abrechnungsjahr</th>
+                    <th scope="col">Empfänger</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach ($anstehend as $termin)
+                    <tr>
+                        <th scope="row" class="font-medium tabular">{{ \Illuminate\Support\Carbon::parse((string) $termin->getAttribute('scheduled_for'))->format('d.m.Y') }}</th>
+                        <td data-label="Fenster">{{ $termin->getAttribute('reminder_window')->label() }}</td>
+                        <td data-label="Abrechnungsjahr" class="tabular">{{ $termin->getAttribute('billing_year') }}</td>
+                        <td data-label="Empfänger">{{ $termin->getAttribute('recipient_email') }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </x-hvm.rollout-admin-abschnitt>
 @endsection

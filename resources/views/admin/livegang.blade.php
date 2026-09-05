@@ -4,23 +4,30 @@
 @section('titel', 'Livegang-Blocker')
 
 @section('content')
-    <x-hvm.section-heading
-        level="h1"
+    <x-hvm.page-header
+        eyebrow="Livegang"
         title="Livegang-Blocker"
-        lead="Die Prüfung liest ausschließlich den tatsächlichen Zustand. Es wird keine Angabe erfunden und keine Freigabe behauptet." />
+        lead="Die Prüfung liest ausschließlich den tatsächlichen Zustand. Es wird keine Angabe erfunden und keine Freigabe behauptet.">
+        @unless ($bericht->isClear())
+            <p class="flex flex-wrap items-center gap-2">
+                <x-hvm.badge variant="error">Offene Punkte: {{ $bericht->count() }}</x-hvm.badge>
+                <x-hvm.badge variant="warning">Blockierend: {{ $bericht->blockingCount() }}</x-hvm.badge>
+            </p>
+        @endunless
+    </x-hvm.page-header>
 
-    <div class="mt-6">
+    <div class="mt-10">
         @include('admin.partials.blockerliste', ['bericht' => $bericht])
     </div>
 
-    <div class="mt-6">
-        <x-hvm.card title="Hinweis zur Bewertung">
-            <p>
+    <div class="mt-10">
+        <x-hvm.card title="Hinweis zur Bewertung" tone="canvas">
+            <p class="max-w-prose">
                 Die Freigabe des KI-Providers wird aus Sicht der Produktionsumgebung bewertet, auch wenn diese
                 Seite lokal geöffnet wird. Damit zeigt die Liste den Zustand zum Livegang und nicht den Zustand
                 der Entwicklungsumgebung.
             </p>
-            <p class="mt-2">
+            <p class="mt-3 max-w-prose">
                 Zu Schlüsseln wird ausschließlich gemeldet, ob sie gesetzt sind. Werte werden nicht angezeigt,
                 auch nicht teilweise maskiert.
             </p>

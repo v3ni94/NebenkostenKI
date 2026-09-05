@@ -10,9 +10,13 @@
 @section('titel', 'Storno vorbereiten')
 
 @section('content')
-    <x-hvm.section-heading level="h1" title="Storno der Rechnung {{ $rechnung->getAttribute('number') }}" />
+    <x-hvm.page-header
+        eyebrow="Zahlungen"
+        :title="'Storno der Rechnung '.$rechnung->getAttribute('number')"
+        :back="route('admin.zahlungen')"
+        back-label="Zahlungen und Rechnungen" />
 
-    <div class="mt-6 max-w-3xl space-y-6">
+    <div class="mt-8 max-w-3xl space-y-8">
         <x-hvm.alert variant="warning" label="Achtung" title="Freigabe der Geschäftsführung erforderlich">
             <p>
                 Ein Storno ist ausschließlich nach Freigabe durch die Geschäftsführung auszulösen. Die
@@ -22,14 +26,14 @@
             </p>
         </x-hvm.alert>
 
-        <x-hvm.card title="Rechnungsdaten">
-            <dl class="space-y-1 text-sm">
-                <div class="flex justify-between"><dt>Nummer</dt><dd class="font-mono">{{ $rechnung->getAttribute('number') }}</dd></div>
-                <div class="flex justify-between"><dt>Kunde</dt><dd>{{ $rechnung->getAttribute('customer_name') }}</dd></div>
-                <div class="flex justify-between"><dt>Netto</dt><dd>{{ \App\Application\Admin\MetricsOverview::formatCent((int) $rechnung->getAttribute('net_cent')) }}</dd></div>
-                <div class="flex justify-between"><dt>Umsatzsteuer</dt><dd>{{ \App\Application\Admin\MetricsOverview::formatCent((int) $rechnung->getAttribute('tax_cent')) }}</dd></div>
-                <div class="flex justify-between"><dt>Brutto</dt><dd>{{ \App\Application\Admin\MetricsOverview::formatCent((int) $rechnung->getAttribute('gross_cent')) }}</dd></div>
-                <div class="flex justify-between"><dt>Status</dt><dd>{{ $rechnung->getAttribute('status')->label() }}</dd></div>
+        <x-hvm.card title="Rechnungsdaten" eyebrow="Ursprungsrechnung">
+            <dl class="divide-y divide-hvm-linie">
+                <x-hvm.rollout-admin-kv label="Nummer" :mono="true">{{ $rechnung->getAttribute('number') }}</x-hvm.rollout-admin-kv>
+                <x-hvm.rollout-admin-kv label="Kunde">{{ $rechnung->getAttribute('customer_name') }}</x-hvm.rollout-admin-kv>
+                <x-hvm.rollout-admin-kv label="Netto">{{ \App\Application\Admin\MetricsOverview::formatCent((int) $rechnung->getAttribute('net_cent')) }}</x-hvm.rollout-admin-kv>
+                <x-hvm.rollout-admin-kv label="Umsatzsteuer">{{ \App\Application\Admin\MetricsOverview::formatCent((int) $rechnung->getAttribute('tax_cent')) }}</x-hvm.rollout-admin-kv>
+                <x-hvm.rollout-admin-kv label="Brutto">{{ \App\Application\Admin\MetricsOverview::formatCent((int) $rechnung->getAttribute('gross_cent')) }}</x-hvm.rollout-admin-kv>
+                <x-hvm.rollout-admin-kv label="Status">{{ $rechnung->getAttribute('status')->label() }}</x-hvm.rollout-admin-kv>
             </dl>
         </x-hvm.card>
 
@@ -39,28 +43,25 @@
             </x-hvm.alert>
         @endif
 
-        <x-hvm.card title="Storno auslösen">
-            <form method="POST" action="{{ route('admin.rechnungen.storno.store', $rechnung) }}" class="space-y-4">
+        <x-hvm.card title="Storno auslösen" eyebrow="Handlung" :kennlinie="true" class="rounded-3xl">
+            <form method="POST" action="{{ route('admin.rechnungen.storno.store', $rechnung) }}" class="space-y-6">
                 @csrf
 
-                <div>
-                    <label for="grund" class="block text-sm font-semibold">Begründung</label>
-                    <p class="text-sm text-hvm-anthrazit">
-                        Die Begründung wird im Revisionsprotokoll gespeichert.
-                    </p>
-                    <textarea id="grund" name="grund" rows="4" required
-                              class="mt-2 w-full rounded border border-hvm-mittelgrau px-3 py-2">{{ old('grund') }}</textarea>
-                </div>
+                <x-hvm.field
+                    name="grund"
+                    label="Begründung"
+                    type="textarea"
+                    rows="4"
+                    hint="Die Begründung wird im Revisionsprotokoll gespeichert."
+                    :required="true" />
 
-                <div class="flex items-start gap-3">
-                    <input type="checkbox" id="freigabe_geschaeftsfuehrung" name="freigabe_geschaeftsfuehrung" value="1"
-                           class="mt-1 h-5 w-5">
-                    <label for="freigabe_geschaeftsfuehrung" class="text-sm">
-                        Die Freigabe der Geschäftsführung für dieses Storno liegt vor.
-                    </label>
-                </div>
+                <x-hvm.field
+                    name="freigabe_geschaeftsfuehrung"
+                    label="Die Freigabe der Geschäftsführung für dieses Storno liegt vor."
+                    type="checkbox"
+                    value="1" />
 
-                <x-hvm.button type="submit">Stornorechnung erzeugen</x-hvm.button>
+                <x-hvm.button type="submit" variant="primary">Stornorechnung erzeugen</x-hvm.button>
             </form>
         </x-hvm.card>
     </div>

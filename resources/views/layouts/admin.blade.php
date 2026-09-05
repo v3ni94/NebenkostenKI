@@ -7,8 +7,11 @@
     den Portalbereich, damit ein Adminview niemals versehentlich wie eine
     Kundenseite aussieht.
 
-    Die Kopfzeile ist dunkel und traegt den Hinweis "Interner Bereich", damit
-    eine Verwechslung mit der Kundenoberflaeche ausgeschlossen ist.
+    Die Kopfleiste ist dunkel (Graphit, Kontextklasse .hvm-dark nach
+    docs/designsystem.md Abschnitt 4.15) und traegt den Hinweis "Interner
+    Bereich", damit eine Verwechslung mit der Kundenoberflaeche ausgeschlossen
+    ist. Darunter liegt die Bereichsnavigation als umbrechende Liste auf Weiss,
+    der Arbeitsbereich liegt auf Canvas.
 
     Die Seiten sind nicht indexierbar.
 
@@ -22,20 +25,20 @@
     $zweitfaktorFehlt = $benutzer !== null && $benutzer->getAttribute('two_factor_confirmed_at') === null;
 
     $navigation = [
-        ['route' => 'admin.dashboard', 'label' => 'Übersicht'],
-        ['route' => 'admin.livegang', 'label' => 'Livegang-Blocker'],
-        ['route' => 'admin.datenschutz', 'label' => 'Datenschutz'],
-        ['route' => 'admin.verarbeitung', 'label' => 'Verarbeitung'],
-        ['route' => 'admin.ki', 'label' => 'KI'],
-        ['route' => 'admin.zahlungen', 'label' => 'Zahlungen'],
-        ['route' => 'admin.preise', 'label' => 'Preise'],
-        ['route' => 'admin.nutzer', 'label' => 'Nutzer'],
-        ['route' => 'admin.organisationen', 'label' => 'Organisationen'],
-        ['route' => 'admin.kommunikation', 'label' => 'Kommunikation'],
-        ['route' => 'admin.versionen', 'label' => 'Versionen'],
-        ['route' => 'admin.technik', 'label' => 'Technik'],
-        ['route' => 'admin.kennzahlen', 'label' => 'Kennzahlen'],
-        ['route' => 'admin.protokoll', 'label' => 'Protokoll'],
+        ['route' => 'admin.dashboard', 'label' => 'Übersicht', 'icon' => 'grid'],
+        ['route' => 'admin.livegang', 'label' => 'Livegang-Blocker', 'icon' => 'alert'],
+        ['route' => 'admin.datenschutz', 'label' => 'Datenschutz', 'icon' => 'shield'],
+        ['route' => 'admin.verarbeitung', 'label' => 'Verarbeitung', 'icon' => 'layers'],
+        ['route' => 'admin.ki', 'label' => 'KI', 'icon' => 'sparkle'],
+        ['route' => 'admin.zahlungen', 'label' => 'Zahlungen', 'icon' => 'euro'],
+        ['route' => 'admin.preise', 'label' => 'Preise', 'icon' => 'receipt'],
+        ['route' => 'admin.nutzer', 'label' => 'Nutzer', 'icon' => 'user'],
+        ['route' => 'admin.organisationen', 'label' => 'Organisationen', 'icon' => 'building'],
+        ['route' => 'admin.kommunikation', 'label' => 'Kommunikation', 'icon' => 'mail'],
+        ['route' => 'admin.versionen', 'label' => 'Versionen', 'icon' => 'document'],
+        ['route' => 'admin.technik', 'label' => 'Technik', 'icon' => 'key'],
+        ['route' => 'admin.kennzahlen', 'label' => 'Kennzahlen', 'icon' => 'list'],
+        ['route' => 'admin.protokoll', 'label' => 'Protokoll', 'icon' => 'clock'],
     ];
 @endphp
 <!DOCTYPE html>
@@ -60,53 +63,65 @@
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="min-h-screen bg-hvm-umrissgrau text-hvm-textschwarz antialiased">
+<body class="min-h-screen bg-hvm-canvas text-hvm-textschwarz antialiased">
     <a href="#hauptinhalt"
-       class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded focus:bg-hvm-orange focus:px-4 focus:py-2 focus:font-semibold focus:text-hvm-textschwarz">
+       class="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50 focus:rounded-full focus:bg-hvm-orange focus:px-5 focus:py-3 focus:font-semibold focus:text-hvm-textschwarz">
         Zum Hauptinhalt springen
     </a>
 
-    <header class="bg-hvm-textschwarz">
-        <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
-            <div class="flex flex-col leading-tight">
-                <span class="text-xs font-semibold tracking-widest text-hvm-orange uppercase">Interner Bereich</span>
-                <span class="text-lg font-bold text-white">Verwaltung Smart Abrechnen</span>
+    {{-- Dunkle Kopfleiste mit Kennlinie: der interne Bereich ist auf den ersten Blick vom Portal unterscheidbar. --}}
+    <header class="hvm-dark">
+        <div class="hvm-kennlinie" aria-hidden="true"></div>
+        <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-4 sm:px-6 lg:px-8">
+            <div class="flex min-w-0 items-center gap-4">
+                <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-hvm-graphit-soft text-hvm-orange" aria-hidden="true">
+                    <x-hvm.icon name="lock" class="h-5 w-5" />
+                </span>
+                <span class="flex min-w-0 flex-col leading-tight">
+                    <span class="text-xs font-semibold tracking-[0.12em] text-hvm-orange uppercase">Interner Bereich</span>
+                    <span class="mt-0.5 text-lg font-semibold tracking-tight text-white">Verwaltung Smart Abrechnen</span>
+                </span>
             </div>
 
             <div class="flex flex-wrap items-center gap-3">
                 @if ($benutzer !== null)
                     <span class="text-sm text-hvm-hellgrau">
-                        Angemeldet als {{ $benutzer->name }}
+                        Angemeldet als <span class="font-semibold text-white">{{ $benutzer->name }}</span>
                     </span>
                 @endif
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
-                    <x-hvm.button type="submit" variant="secondary" size="sm">Abmelden</x-hvm.button>
+                    <x-hvm.button type="submit" variant="secondary" size="sm">
+                        <x-hvm.icon name="logout" class="h-4 w-4" />
+                        Abmelden
+                    </x-hvm.button>
                 </form>
             </div>
         </div>
-
-        <nav class="border-t border-hvm-anthrazit" aria-label="Bereichsnavigation">
-            <ul class="mx-auto flex max-w-7xl flex-wrap gap-1 px-4 sm:px-6">
-                @foreach ($navigation as $eintrag)
-                    <li>
-                        <a href="{{ route($eintrag['route']) }}"
-                           @if (request()->routeIs($eintrag['route'])) aria-current="page" @endif
-                           class="block px-3 py-3 text-sm font-medium text-hvm-hellgrau hover:bg-hvm-anthrazit hover:text-white {{ request()->routeIs($eintrag['route']) ? 'border-b-2 border-hvm-orange text-white' : '' }}">
-                            {{ $eintrag['label'] }}
-                            @if ($eintrag['route'] === 'admin.livegang' && ! $blockerbericht->isClear())
-                                <span class="ml-1 rounded-full bg-hvm-orange px-2 py-0.5 text-xs font-bold text-hvm-textschwarz">{{ $blockerbericht->count() }}</span>
-                            @endif
-                        </a>
-                    </li>
-                @endforeach
-            </ul>
-        </nav>
     </header>
 
-    <main id="hauptinhalt" class="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+    {{-- Bereichsnavigation: alle Eintraege sichtbar, umbrechend, kein horizontales Scrollen. --}}
+    <nav class="border-b border-hvm-linie bg-white" aria-label="Bereichsnavigation">
+        <ul class="mx-auto flex max-w-7xl flex-wrap gap-1 px-4 py-2 sm:px-6 lg:px-8">
+            @foreach ($navigation as $eintrag)
+                <li>
+                    <a href="{{ route($eintrag['route']) }}"
+                       @if (request()->routeIs($eintrag['route'])) aria-current="page" @endif
+                       class="hvm-nav-item">
+                        <x-hvm.icon :name="$eintrag['icon']" class="h-4 w-4" />
+                        {{ $eintrag['label'] }}
+                        @if ($eintrag['route'] === 'admin.livegang' && ! $blockerbericht->isClear())
+                            <x-hvm.badge variant="akzent" :icon="false" class="ml-1">{{ $blockerbericht->count() }}</x-hvm.badge>
+                        @endif
+                    </a>
+                </li>
+            @endforeach
+        </ul>
+    </nav>
+
+    <main id="hauptinhalt" class="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-12">
         @if ($zweitfaktorFehlt)
-            <div class="mb-6">
+            <div class="mb-8">
                 <x-hvm.alert variant="warning" label="Achtung" title="Zweiter Faktor nicht eingerichtet">
                     {{ \App\Http\Middleware\RequireAdminTwoFactor::MELDUNG_ZWEITFAKTOR }}
                 </x-hvm.alert>
@@ -114,7 +129,7 @@
         @endif
 
         @if (session('status'))
-            <div class="mb-6">
+            <div class="mb-8">
                 <x-hvm.alert variant="success" label="Erledigt">
                     {{ session('status') }}
                 </x-hvm.alert>
@@ -122,7 +137,7 @@
         @endif
 
         @if (session('hinweis'))
-            <div class="mb-6">
+            <div class="mb-8">
                 <x-hvm.alert variant="info" label="Hinweis">
                     {{ session('hinweis') }}
                 </x-hvm.alert>
@@ -130,7 +145,7 @@
         @endif
 
         @if ($errors->any())
-            <div class="mb-6">
+            <div class="mb-8">
                 <x-hvm.alert variant="error" label="Bitte prüfen" title="Die Eingabe konnte nicht verarbeitet werden">
                     <ul class="list-disc space-y-1 pl-5">
                         @foreach ($errors->all() as $fehler)
@@ -144,9 +159,9 @@
         @yield('content')
     </main>
 
-    <footer class="mt-12 border-t border-hvm-mittelgrau bg-white">
-        <div class="mx-auto max-w-7xl px-4 py-6 text-sm text-hvm-anthrazit sm:px-6">
-            <p>
+    <footer class="mt-16 border-t border-hvm-linie bg-white">
+        <div class="mx-auto max-w-7xl px-4 py-10 text-sm leading-relaxed text-hvm-text-sekundaer sm:px-6 lg:px-8">
+            <p class="max-w-prose">
                 Interner Bereich der {{ config('smartabrechnen.operator.legal_name') }}. Einblicke in Kundendaten
                 erfolgen ausschließlich zu Supportzwecken, verlangen eine Begründung und werden protokolliert.
             </p>
