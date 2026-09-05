@@ -59,6 +59,17 @@ final class CronUrlTest extends TestCase
         $antwort->assertSee('erfolgreich');
     }
 
+    public function test_install_liefert_die_vollstaendige_ausgabe_des_befehls(): void
+    {
+        config()->set('smartabrechnen.cron_token', self::TOKEN);
+
+        $antwort = $this->get('/wartung/install?token='.self::TOKEN.'&no-cache=1');
+
+        $antwort->assertSee('Aufgabe: install');
+        $antwort->assertSee('Smart Abrechnen: Inbetriebnahme');
+        $antwort->assertSee('Migrationen');
+    }
+
     public function test_check_config_laeuft_ueber_die_url(): void
     {
         config()->set('smartabrechnen.cron_token', self::TOKEN);

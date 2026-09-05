@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
@@ -107,8 +108,15 @@ final class CronController extends Controller
 
         Log::info('Wartungsaufruf gestartet.', ['aufgabe' => $aufgabe, 'ip' => $request->ip()]);
 
-        $exit = Artisan::call(self::AUFGABEN[$aufgabe], $parameter);
-        $ausgabe = trim(Artisan::output());
+        // Im Webbetrieb gibt es keinen brauchbaren PHP-CLI-Prozess fuer den
+        // Neustart nach config:clear; die Befehle laufen im selben Prozess.
+        putenv('SMARTABRECHNEN_CONFIG_REFRESHED=1');
+
+        // Eigener Puffer: verschachtelte Artisan-Aufrufe innerhalb des Befehls
+        // wuerden sonst die gemeinsame Ausgabe ueberschreiben.
+        $puffer = new BufferedOutput;
+        $exit = Artisan::call(self::AUFGABEN[$aufgabe], $parameter, $puffer);
+        $ausgabe = trim($puffer->fetch());
 
         Log::info('Wartungsaufruf beendet.', ['aufgabe' => $aufgabe, 'exit' => $exit]);
 
