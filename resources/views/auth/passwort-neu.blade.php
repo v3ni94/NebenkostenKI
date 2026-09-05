@@ -4,43 +4,41 @@
 @section('ohne_navigation', 'ja')
 
 @section('content')
-    <div class="mx-auto max-w-xl">
+    <div class="mx-auto max-w-md py-4 sm:py-10">
         <x-hvm.section-heading
+            eyebrow="Portal"
             title="Neues Passwort vergeben"
             lead="Bitte vergeben Sie ein neues Passwort. Der Link lässt sich nur einmal verwenden." />
 
-        <x-hvm.card class="mt-8">
-            <form method="POST" action="{{ route('password.update') }}" class="space-y-5">
+        <x-hvm.card :kennlinie="true" padding="none" class="mt-10 rounded-3xl">
+            <form method="POST" action="{{ route('password.update') }}" class="space-y-6 p-6 sm:p-8">
                 @csrf
                 <input type="hidden" name="token" value="{{ $token }}">
 
-                <div>
-                    <label for="email" class="block text-sm font-semibold text-hvm-textschwarz">E-Mail-Adresse</label>
-                    <input id="email" name="email" type="email" required autocomplete="email"
-                           value="{{ old('email', $email) }}"
-                           class="mt-1 block w-full min-h-11 rounded-md border border-hvm-mittelgrau px-3 py-2">
-                </div>
+                <x-hvm.field
+                    name="email"
+                    label="E-Mail-Adresse"
+                    type="email"
+                    autocomplete="email"
+                    :value="old('email', $email)"
+                    :required="true" />
 
-                <div>
-                    <label for="password" class="block text-sm font-semibold text-hvm-textschwarz">Neues Passwort</label>
-                    <input id="password" name="password" type="password" required autocomplete="new-password"
-                           aria-describedby="password-hinweis"
-                           class="mt-1 block w-full min-h-11 rounded-md border border-hvm-mittelgrau px-3 py-2">
-                    <p id="password-hinweis" class="mt-1 text-sm text-hvm-anthrazit">
-                        Mindestens 12 Zeichen mit Buchstaben und Ziffern.
-                    </p>
-                </div>
+                <x-hvm.field
+                    name="password"
+                    label="Neues Passwort"
+                    type="password"
+                    autocomplete="new-password"
+                    hint="Mindestens 12 Zeichen mit Buchstaben und Ziffern."
+                    :required="true" />
 
-                <div>
-                    <label for="password_confirmation" class="block text-sm font-semibold text-hvm-textschwarz">
-                        Passwort wiederholen
-                    </label>
-                    <input id="password_confirmation" name="password_confirmation" type="password" required
-                           autocomplete="new-password"
-                           class="mt-1 block w-full min-h-11 rounded-md border border-hvm-mittelgrau px-3 py-2">
-                </div>
+                <x-hvm.field
+                    name="password_confirmation"
+                    label="Passwort wiederholen"
+                    type="password"
+                    autocomplete="new-password"
+                    :required="true" />
 
-                <x-hvm.button type="submit" variant="primary">Passwort speichern</x-hvm.button>
+                <x-hvm.button type="submit" variant="primary" size="lg" class="w-full">Passwort speichern</x-hvm.button>
             </form>
         </x-hvm.card>
     </div>
