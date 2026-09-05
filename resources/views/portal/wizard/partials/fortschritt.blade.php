@@ -35,8 +35,8 @@
     }
 @endphp
 
-{{-- Kompakt: bei zehn Schritten wuerden die Beschriftungen unter den Segmenten in Silben brechen. --}}
-<x-hvm.stepper :steps="$schritte" label="Ihr Fortschritt" :compact="true">
+{{-- Zehn Schritte: die Komponente waehlt automatisch den Listenmodus (Schritte mit Kategorie unter den Segmenten). --}}
+<x-hvm.stepper :steps="$schritte" label="Ihr Fortschritt">
     @if ($wiedereinstieg !== null)
         <p class="text-hvm-textschwarz">{{ $wiedereinstieg }}</p>
     @endif

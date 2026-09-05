@@ -44,24 +44,12 @@
     {{-- Ueberblick als Kennzahlenreihe --------------------------------------- --}}
 
     <x-hvm.card class="mt-10" title="Überblick" eyebrow="Zwischenstand">
-        <dl class="grid grid-cols-2 gap-x-6 gap-y-6 lg:grid-cols-4">
-            <div class="min-w-0">
-                <dt class="text-sm leading-5 font-semibold text-hvm-text-sekundaer">Positionen insgesamt</dt>
-                <dd class="mt-1 text-2xl font-semibold tracking-tight text-hvm-textschwarz tabular sm:text-3xl">{{ $uebersicht->positionCount }}</dd>
-            </div>
-            <div class="min-w-0">
-                <dt class="text-sm leading-5 font-semibold text-hvm-text-sekundaer">Noch offen</dt>
-                <dd class="mt-1 text-2xl font-semibold tracking-tight text-hvm-textschwarz tabular sm:text-3xl">{{ $uebersicht->openCount }}</dd>
-            </div>
-            <div class="min-w-0">
-                <dt class="text-sm leading-5 font-semibold text-hvm-text-sekundaer">Umlagefähig, bisher bestätigt oder vorgeschlagen</dt>
-                <dd class="mt-1 text-2xl font-semibold tracking-tight text-hvm-textschwarz tabular sm:text-3xl">{{ $uebersicht->apportionableSumLabel }}</dd>
-            </div>
-            <div class="min-w-0">
-                <dt class="text-sm leading-5 font-semibold text-hvm-text-sekundaer">Getrennt ausgewiesen, nicht umgelegt</dt>
-                <dd class="mt-1 text-2xl font-semibold tracking-tight text-hvm-textschwarz tabular sm:text-3xl">{{ $uebersicht->excludedSumLabel }}</dd>
-            </div>
-        </dl>
+        <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <x-hvm.stat size="sm" tone="canvas" :icon="false" label="Positionen insgesamt" :value="$uebersicht->positionCount" />
+            <x-hvm.stat size="sm" tone="canvas" :icon="false" label="Noch offen" :value="$uebersicht->openCount" />
+            <x-hvm.stat size="sm" tone="canvas" :icon="false" label="Umlagefähig, bisher bestätigt oder vorgeschlagen" :value="$uebersicht->apportionableSumLabel" />
+            <x-hvm.stat size="sm" tone="canvas" :icon="false" label="Getrennt ausgewiesen, nicht umgelegt" :value="$uebersicht->excludedSumLabel" />
+        </div>
     </x-hvm.card>
 
     @if ($uebersicht->bulkConfirmableIds !== [])

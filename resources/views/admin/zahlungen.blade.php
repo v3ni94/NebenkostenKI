@@ -42,9 +42,9 @@
 
         <x-hvm.card :title="'Rechnungsnummernkreis '.$nummernkreis['jahr']" eyebrow="Nummernkreis" class="min-w-0">
             <dl class="divide-y divide-hvm-linie">
-                <x-hvm.rollout-admin-kv label="Nächste Nummer" :mono="true">{{ $nummernkreis['naechste_nummer'] }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Letzter Zählerwert">{{ $nummernkreis['letzter_wert'] }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Vergebene Rechnungen">{{ $nummernkreis['vergebene_rechnungen'] }}</x-hvm.rollout-admin-kv>
+                <x-hvm.kv label="Nächste Nummer" :mono="true">{{ $nummernkreis['naechste_nummer'] }}</x-hvm.kv>
+                <x-hvm.kv label="Letzter Zählerwert">{{ $nummernkreis['letzter_wert'] }}</x-hvm.kv>
+                <x-hvm.kv label="Vergebene Rechnungen">{{ $nummernkreis['vergebene_rechnungen'] }}</x-hvm.kv>
             </dl>
             @if ($nummernkreis['lueckenlos'])
                 <p class="mt-4"><x-hvm.badge variant="success">Lückenlos</x-hvm.badge></p>
@@ -63,7 +63,7 @@
         @include('admin.partials.statuszahlen', ['titel' => 'Zahlungen je Status', 'werte' => $zahlungsstatus])
     </div>
 
-    <x-hvm.rollout-admin-abschnitt class="mt-16" eyebrow="Rechnungen" title="Rechnungen" :leer="$rechnungen === []" leer-icon="receipt">
+    <x-hvm.abschnitt class="mt-16" eyebrow="Rechnungen" title="Rechnungen" :leer="$rechnungen === []" leer-icon="receipt">
         <table class="hvm-table hvm-table-zebra hvm-table-stack text-sm">
             <caption class="sr-only">Rechnungen</caption>
             <thead>
@@ -107,9 +107,9 @@
                 @endforeach
             </tbody>
         </table>
-    </x-hvm.rollout-admin-abschnitt>
+    </x-hvm.abschnitt>
 
-    <x-hvm.rollout-admin-abschnitt class="mt-16" eyebrow="Stornos" title="Stornorechnungen" :leer="$stornos === []" leer-icon="receipt">
+    <x-hvm.abschnitt class="mt-16" eyebrow="Stornos" title="Stornorechnungen" :leer="$stornos === []" leer-icon="receipt">
         <ul class="divide-y divide-hvm-linie">
             @foreach ($stornos as $storno)
                 <li class="flex flex-wrap items-baseline gap-x-2 gap-y-1 px-5 py-4 text-sm sm:px-6">
@@ -120,9 +120,9 @@
                 </li>
             @endforeach
         </ul>
-    </x-hvm.rollout-admin-abschnitt>
+    </x-hvm.abschnitt>
 
-    <x-hvm.rollout-admin-abschnitt class="mt-16" eyebrow="Zahlungseingänge" title="Zahlungen" :leer="$zahlungen === []" leer-icon="euro">
+    <x-hvm.abschnitt class="mt-16" eyebrow="Zahlungseingänge" title="Zahlungen" :leer="$zahlungen === []" leer-icon="euro">
         <table class="hvm-table hvm-table-zebra hvm-table-stack text-sm">
             <caption class="sr-only">Zahlungen</caption>
             <thead>
@@ -148,7 +148,7 @@
                 @endforeach
             </tbody>
         </table>
-    </x-hvm.rollout-admin-abschnitt>
+    </x-hvm.abschnitt>
 
     <div class="mt-16">
         @include('admin.partials.statuszahlen', ['titel' => 'Rechnungen je Status', 'werte' => $rechnungsstatus])

@@ -33,24 +33,24 @@
     <div class="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <x-hvm.card title="Zusammenfassung" eyebrow="Stand" class="min-w-0">
             <dl class="divide-y divide-hvm-linie">
-                <x-hvm.rollout-admin-kv label="Überfällige temporäre Uploads">{{ $zusammenfassung['ueberfaellige_uploads'] }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Ältester überfälliger Upload">{{ $zusammenfassung['aeltester_upload_minuten'] === null ? 'keiner' : $zusammenfassung['aeltester_upload_minuten'].' Minuten' }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Offene lokale Löschungen">{{ $zusammenfassung['offene_lokale_loeschungen'] }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Offene Providerlöschungen">{{ $zusammenfassung['offene_providerloeschungen'] }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Fehlgeschlagene Löschungen">{{ $zusammenfassung['fehlgeschlagene_loeschungen'] }}</x-hvm.rollout-admin-kv>
+                <x-hvm.kv label="Überfällige temporäre Uploads">{{ $zusammenfassung['ueberfaellige_uploads'] }}</x-hvm.kv>
+                <x-hvm.kv label="Ältester überfälliger Upload">{{ $zusammenfassung['aeltester_upload_minuten'] === null ? 'keiner' : $zusammenfassung['aeltester_upload_minuten'].' Minuten' }}</x-hvm.kv>
+                <x-hvm.kv label="Offene lokale Löschungen">{{ $zusammenfassung['offene_lokale_loeschungen'] }}</x-hvm.kv>
+                <x-hvm.kv label="Offene Providerlöschungen">{{ $zusammenfassung['offene_providerloeschungen'] }}</x-hvm.kv>
+                <x-hvm.kv label="Fehlgeschlagene Löschungen">{{ $zusammenfassung['fehlgeschlagene_loeschungen'] }}</x-hvm.kv>
             </dl>
         </x-hvm.card>
 
         <x-hvm.card title="Kurzzeit-Aufbewahrung" eyebrow="Fristen" class="min-w-0">
             <dl class="divide-y divide-hvm-linie">
-                <x-hvm.rollout-admin-kv label="TTL temporärer Uploads">{{ config('smartabrechnen.retention.temp_upload_ttl_minutes') }} Minuten</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Harte Obergrenze">{{ config('smartabrechnen.retention.temp_upload_ttl_hard_limit_minutes') }} Minuten</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="TTL Providerdatei">{{ config('smartabrechnen.retention.ai_provider_file_ttl_minutes') }} Minuten</x-hvm.rollout-admin-kv>
+                <x-hvm.kv label="TTL temporärer Uploads">{{ config('smartabrechnen.retention.temp_upload_ttl_minutes') }} Minuten</x-hvm.kv>
+                <x-hvm.kv label="Harte Obergrenze">{{ config('smartabrechnen.retention.temp_upload_ttl_hard_limit_minutes') }} Minuten</x-hvm.kv>
+                <x-hvm.kv label="TTL Providerdatei">{{ config('smartabrechnen.retention.ai_provider_file_ttl_minutes') }} Minuten</x-hvm.kv>
             </dl>
         </x-hvm.card>
     </div>
 
-    <x-hvm.rollout-admin-abschnitt class="mt-16" eyebrow="Löschungen" title="Fehlgeschlagene und überfällige Löschungen" :leer="$fehlgeschlagen === []">
+    <x-hvm.abschnitt class="mt-16" eyebrow="Löschungen" title="Fehlgeschlagene und überfällige Löschungen" :leer="$fehlgeschlagen === []">
         <table class="hvm-table hvm-table-zebra hvm-table-stack text-sm">
             <caption class="sr-only">Fehlgeschlagene und überfällige Löschungen</caption>
             <thead>
@@ -87,9 +87,9 @@
                 </form>
             </x-slot:footer>
         @endunless
-    </x-hvm.rollout-admin-abschnitt>
+    </x-hvm.abschnitt>
 
-    <x-hvm.rollout-admin-abschnitt class="mt-16" eyebrow="Uploads" title="Überfällige temporäre Uploads" :leer="$ueberfaellig === []">
+    <x-hvm.abschnitt class="mt-16" eyebrow="Uploads" title="Überfällige temporäre Uploads" :leer="$ueberfaellig === []">
         <table class="hvm-table hvm-table-zebra hvm-table-stack text-sm">
             <caption class="sr-only">Überfällige temporäre Uploads</caption>
             <thead>
@@ -111,9 +111,9 @@
                 @endforeach
             </tbody>
         </table>
-    </x-hvm.rollout-admin-abschnitt>
+    </x-hvm.abschnitt>
 
-    <x-hvm.rollout-admin-abschnitt class="mt-16" eyebrow="Provider" title="Offene Providerlöschungen" :leer="$provider === []">
+    <x-hvm.abschnitt class="mt-16" eyebrow="Provider" title="Offene Providerlöschungen" :leer="$provider === []">
         <table class="hvm-table hvm-table-zebra hvm-table-stack text-sm">
             <caption class="sr-only">Offene Providerlöschungen</caption>
             <thead>
@@ -135,5 +135,5 @@
                 @endforeach
             </tbody>
         </table>
-    </x-hvm.rollout-admin-abschnitt>
+    </x-hvm.abschnitt>
 @endsection

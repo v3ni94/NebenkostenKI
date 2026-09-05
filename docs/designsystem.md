@@ -51,7 +51,9 @@ Systemschrift `system-ui, 'Helvetica Neue', Arial, sans-serif`, keine Webfonts. 
 | Preis | `text-5xl font-semibold tracking-tight tabular sm:text-6xl` |
 | Betrag in Tabellen und Listen | `tabular whitespace-nowrap` (Klasse `.betrag` in `.hvm-table`) |
 
-Lange Komposita in Ueberschriften bekommen `&shy;` an der Wortfuge (z. B. `Betriebskosten&shy;abrechnung`, `Mieter&shy;abrechnung`). Prueft ein Test den Text wortgleich, wird der Test auf einen Teilsatz ohne Trennstelle umgestellt (Beispiel `tests/Feature/SitePagesTest.php`, Startseite und Preisseite). Betraege niemals mit `&shy;` und nie ohne `whitespace-nowrap`.
+Lange Komposita in Ueberschriften bekommen `&shy;` an der Wortfuge (z. B. `Betriebskosten&shy;abrechnung`, `Mieter&shy;abrechnung`). Das gilt auch fuer das Prop `title` von `x-hvm.section-heading` und `x-hvm.page-header`: die Komponente gibt `&shy;` als weichen Trennstrich aus, alles andere bleibt escaped (`title="Abrechnungs&shy;zeitraum und Weg"`). Prueft ein Test den Text wortgleich, wird der Test auf einen Teilsatz ohne Trennstelle umgestellt (Beispiel `tests/Feature/SitePagesTest.php`, Startseite und Preisseite). Betraege niemals mit `&shy;` und nie ohne `whitespace-nowrap`.
+
+Seitenkoepfe, deren Titel aus einem einzigen langen Wort bestehen und ueber `@yield` kommen (Rechtstexte: "Widerrufsbelehrung", "Datenschutzerklärung"), nutzen die Variante `text-3xl sm:text-5xl` statt der Display-Skala, damit das Wort bei 390 px nicht bricht (`layouts/legal.blade.php`).
 
 ### 2.3 Abstaende
 
@@ -75,29 +77,32 @@ Kein Schlagschatten auf Karten. Erlaubt: `shadow-hairline` als zusaetzliche Kont
 
 | Komponente | Props | Verwendung |
 | --- | --- | --- |
-| `x-hvm.button` | `variant` primary, secondary, ghost, danger, dark, inverse; `size` sm, md, lg; `href`; `type` | Pillform, 44/48/56 px. Genau ein `primary` je Ansicht. `secondary` Nebenhandlung, `ghost` textnah, `danger` destruktiv (Entfernen, Loeschen, nie als Textlink), `inverse` weiss auf Graphit. Unter `sm` duerfen lange Beschriftungen umbrechen. Auf `.hvm-dark` passen sich secondary, ghost, danger und dark automatisch an. |
-| `x-hvm.card` | `title`, `level`, `eyebrow`, `accent`, `tone` white, canvas, dark; `padding` md, sm, none; `kennlinie` | Standardflaeche. `tone="canvas"` auf weissen Sektionen. `tone="dark"` setzt `.hvm-dark` auf die Karte. `kennlinie` setzt das Markenband als Kartenkante. `padding="none"` plus `divide-y divide-hvm-linie` fuer Listen (Slot wird direkt gerendert). Innerhalb `.hvm-dark` wird jede helle Karte automatisch Graphit soft. |
-| `x-hvm.badge` | `variant` neutral, akzent, info, success, warning, error; `icon` | Statusvarianten tragen automatisch ihr Symbol (Tabelle in Abschnitt 4.9); Text nennt immer die Bedeutung. `:icon="false"` unterdrueckt das Symbol (z. B. Marken-Pill). |
+| `x-hvm.button` | `variant` primary, secondary, ghost, danger, dark, inverse; `size` sm, md, lg; `href`; `type`; `as` label | Pillform, 44/48/56 px. Genau ein `primary` je Ansicht. `secondary` Nebenhandlung, `ghost` textnah, `danger` destruktiv (Entfernen, Loeschen, nie als Textlink), `inverse` weiss auf Graphit. Unter `sm` duerfen lange Beschriftungen umbrechen, ab `sm` bleiben sie einzeilig: Drittelkarten tragen deshalb keine Buttons mit mehr als etwa 25 Zeichen (sonst Zweispalten-Raster). `as="label"` plus `for="{id}"` rendert ein Label im Buttonbild fuer die Dateiauswahl (Upload). Auf `.hvm-dark` passen sich secondary, ghost, danger und dark automatisch an. |
+| `x-hvm.card` | `title`, `level`, `eyebrow`, `accent`, `tone` white, canvas, dark; `padding` md, sm, none; `kennlinie` | Standardflaeche. `tone="canvas"` auf weissen Sektionen. `tone="dark"` setzt `.hvm-dark` auf die Karte. `kennlinie` setzt das Markenband als Kartenkante. `padding="none"` plus `divide-y divide-hvm-linie` fuer Listen (Slot wird direkt gerendert); mit `title` oder `eyebrow` entsteht ein Kartenkopf mit Innenabstand und Trennlinie ueber dem Slot (Tabellenkarten). Innerhalb `.hvm-dark` wird jede helle Karte automatisch Graphit soft. |
+| `x-hvm.badge` | `variant` neutral, akzent, info, success, warning, error; `icon` | Statusvarianten tragen automatisch ihr Symbol (Tabelle in Abschnitt 4.9); Text nennt immer die Bedeutung. `icon="..."` waehlt ein anderes Symbol (z. B. Pruefbericht-Gruppen, Abschnitt 4.9), `:icon="false"` unterdrueckt es (Marken-Pill). |
 | `x-hvm.alert` | `variant`, `label`, `title` | Meldung mit Symbol und Statuswort, `rounded-2xl`, softe Flaeche. Darf unveraendert auf `.hvm-dark` stehen. |
 | `x-hvm.section-heading` | `title`, `eyebrow`, `level`, `lead`, `align`, `size` sm, md, lg | Abschnitts- und Seitenkopf. Passt sich auf `.hvm-dark` an. |
 | `x-hvm.page-header` | `title`, `eyebrow`, `lead`, `size`, `back`, `backLabel`; Slots default, `actions` | Seitenkopf der Anwendung: h1 links, Buttons rechts, mobil gestapelt, optional Zurueck-Link. |
-| `x-hvm.stepper` (neu) | `steps` (Liste aus `label`, `state` done/current/open, `href`, `note`), `label`, `compact`; Slot | Wizard-Fortschritt: ein Segment je Schritt, Zustand im Text, Zeile "Schritt X von N". |
+| `x-hvm.stepper` | `steps` (Liste aus `label`, `state` done/current/open, `href`, `note`), `label`, `layout` auto, segments, list; `compact`; Slot | Wizard-Fortschritt: ein Segment je Schritt, Zustand im Text, Zeile "Schritt X von N". `layout="auto"` (Standard) zeigt bis sechs Schritte die Beschriftung unter dem Segment, ab sieben die Liste unter den Segmenten (ab `sm` zweispaltig, ab `lg` zweizeilig, keine Silbentrennung, Kategorie je Schritt sichtbar); mobil bleibt die Zeile "Schritt X von N: Titel". `compact` nur fuer schmale Karten. |
+| `x-hvm.progress` | `value`, `max` (100), `label`, `text`, `size` sm, md | Fortschrittsbalken als natives `<progress>` mit Klasse `.hvm-progress` (Orange auf Canvas deep), kein Inline-Style. Zeigt standardmaessig "N Prozent" als Text, `:text="false"` wenn der Wert bereits im Satz steht. |
 | `x-hvm.step` | `number`, `title`, `level`, `note` | Erklaerende Schrittfolge (Website). Orange Ziffernkreis 44 px. |
 | `x-hvm.faq-item` | `question`, `open`, `level` | Frage mit rundem Chevron-Knopf. |
-| `x-hvm.field` | `name`, `label`, `id`, `type` (text, email, password, number, date, tel, url, textarea, select, checkbox, radio-group, checkbox-group), `value`, `checked`, `options`, `inline`, `hint`, `required`, `autocomplete`, `optional`, `errorKey`; weitere Attribute gehen ans Feld | Label, Hilfetext, Eingabefeld (`.hvm-input`, 48 px) oder Auswahloptionen (`.hvm-choice`, 44 px) und Fehleranzeige mit `aria-invalid`, `aria-describedby`. Gruppen als `fieldset`/`legend`, `old()` fuer Arrays. |
-| `x-hvm.stat` | `label`, `value`, `variant`, `icon`, `note`, `href` | Kennzahlkarte mit Icon-Kachel in Statusfarbe, Label mit fester Mindesthoehe (zwei Zeilen), Ziffer in Textschwarz. |
+| `x-hvm.field` | `name`, `label`, `id`, `type` (text, email, password, number, date, tel, url, textarea, select, checkbox, radio-group, checkbox-group), `value`, `checked`, `options` (Wert => Text oder `['label', 'hint', 'id']`), `inline`, `hint`, `hintPosition` above/below, `align` start (checkbox), `required`, `autocomplete`, `optional`, `errorKey`, `errors` false, `wrapperClass`, `labelHidden`, `labelSize` sm/lg (Gruppen); Slot `labelHtml`; weitere Attribute gehen ans Feld | Label, Hilfetext, Eingabefeld (`.hvm-input`, 48 px) oder Auswahloptionen (`.hvm-choice`, 44 px) und Fehleranzeige mit `aria-invalid`, `aria-describedby`. Gruppen als `fieldset`/`legend`, `old()` fuer Arrays. Regeln in 4.6. |
+| `x-hvm.stat` | `label`, `value`, `variant`, `icon` (false ohne Kachel), `note`, `href`, `size` md, sm; `tone` white, canvas | Kennzahlkarte mit Icon-Kachel in Statusfarbe, Label mit fester Mindesthoehe (zwei Zeilen), Ziffer in Textschwarz. `size="sm"` (Ziffer `text-2xl sm:text-3xl`) fuer Betraege in Vierer-Reihen und Zaehlreihen; `tone="canvas" :icon="false"` als innere Kachel in einer Karte (Statuszaehler, Tageskosten). |
+| `x-hvm.kv` | `label`, `mono`; Slot | Schluessel-Wert-Zeile in `<dl class="divide-y divide-hvm-linie">`: Bezeichnung links in Sekundaerfarbe, Wert rechts mit Tabellenziffern, mobil gestapelt. `mono` fuer Kennungen. Ersetzt "dl mit flex justify-between". |
+| `x-hvm.abschnitt` | `title`, `level`, `eyebrow`, `lead`, `leer`, `leertext`, `leerIcon`, `rahmen`; Slots default, `actions`, `footer` | Unterabschnitt der Anwendung (Muster 4.3) mit weissem Rahmen fuer Tabellen (Muster 4.7) oder Leerzustand (`leer`). `rahmen=false` rendert den Slot direkt (Karten). |
 | `x-hvm.empty-state` | `title`, `icon`, `level`; Slot `action` | Gestrichelte Karte mit Icon, Titel, Satz und Handlung. |
 | `x-hvm.list-row` | `title`, `subtitle`, `level`, `href`, `stacked`; Slots default, `actions` | Listenzeile. Standard: Inhalt links, Buttons rechts. `stacked`: Titelzeile mit Buttons, darunter Inhalt ueber volle Breite. |
 | `x-hvm.icon` | `name`, `class` | Inline-SVG, 24er Raster, `currentColor`, immer `aria-hidden`. Namen siehe Kopf von `icon.blade.php`. |
 | `x-hvm.legal-placeholder-banner`, `x-hvm.logo` | unveraendert | Rechtstext-Warnung bleibt sichtbar; Logo aus `public/ci`. |
 
-CSS-Klassen: `.hvm-kennlinie` (3 px Markenband), `.hvm-dark` (dunkle Kontextflaeche), `.hvm-nav-item` (Seitenleiste), `.hvm-input`, `.hvm-check`, `.hvm-choice`, `.hvm-table`, `.hvm-table-zebra`, `.hvm-table-stack`, `.betrag`, `.hvm-prose`, `.tabular`.
+CSS-Klassen: `.hvm-kennlinie` (3 px Markenband), `.hvm-dark` (dunkle Kontextflaeche), `.hvm-nav-item` (Seitenleiste), `.hvm-nav-item-compact` (horizontale Leisten mit vielen Eintraegen, Icon erst ab `sm`), `.hvm-input`, `.hvm-check`, `.hvm-choice`, `.hvm-progress`, `.hvm-table`, `.hvm-table-zebra`, `.hvm-table-stack`, `.betrag`, `.hvm-prose`, `.tabular`.
 
 ## 4. Layoutmuster (Klassenrezepte)
 
 ### 4.1 Anwendungs-Shell (layouts/portal.blade.php)
 
-Ab `lg`: Grid `lg:grid-cols-[17rem_minmax(0,1fr)]`, linke Seitenleiste `sticky top-0 h-screen` in Weiss mit Logo, Markenzusatz (nie gekuerzt, zweizeilig), Navigation (`.hvm-nav-item` mit Icon, aktiver Eintrag ueber `aria-current="page"`), Kontoblock und Abmelden unten. Unter `lg`: weisse Kopfleiste mit Marke und Abmelden, darunter Pill-Navigation `flex flex-wrap gap-1` (alle Eintraege sichtbar, kein horizontales Scrollen). Neue Bereiche werden ausschliesslich in `$navigation` des Layouts eingetragen (`route`, `label`, `icon`). Seiten ohne Navigation (`@section('ohne_navigation')`) bekommen die schmale Kopfleiste.
+Ab `lg`: Grid `lg:grid-cols-[17rem_minmax(0,1fr)]`, linke Seitenleiste `sticky top-0 h-screen` in Weiss mit Logo, Markenzusatz (nie gekuerzt, zweizeilig), Navigation (`.hvm-nav-item` mit Icon, aktiver Eintrag ueber `aria-current="page"`), Kontoblock und Abmelden unten. Unter `lg`: weisse Kopfleiste mit Marke und Abmelden, darunter Pill-Navigation `flex flex-wrap gap-1` (alle Eintraege sichtbar, kein horizontales Scrollen). Neue Bereiche werden ausschliesslich in `$navigation` des Layouts eingetragen (`route`, `label`, `icon`). Seiten ohne Navigation (`@section('ohne_navigation')`) bekommen die schmale Kopfleiste. Horizontale Leisten mit vielen Eintraegen (Admin, 14 Bereiche) nutzen `.hvm-nav-item .hvm-nav-item-compact` (engerer Innenabstand, 13 px, Icon erst ab `sm`; bei 390 px fuenf statt sieben Zeilen).
 
 ### 4.2 Seitenkopf Website
 
@@ -171,7 +176,17 @@ Zweispaltig (Text links, Inhalt rechts): `grid gap-12 lg:grid-cols-12`, Text `lg
 </div>
 ```
 
-Regeln: Mehrspaltige Felder `grid gap-6 sm:grid-cols-2`. Feldgruppen mit Zwischenueberschrift `<fieldset class="space-y-6"><legend class="text-lg font-semibold tracking-tight text-hvm-textschwarz">`. `id`, `name`, `type`, `required`, `autocomplete` bleiben wie bisher (Tests). Fehler kommen automatisch aus `$errors` (`errorKey` fuer Punkt-Notation, z. B. `errorKey="einheiten.0.flaeche"`). Kein `@error` innerhalb eines Komponenten-Tags (Blade kompiliert es dort nicht). Bestehende `<input>` ohne Komponente erhalten `class="hvm-input"`, Auswahloptionen `<label class="hvm-choice"><input class="hvm-check"> Text</label>`; Fehlermeldung `<p id="{id}-fehler" class="mt-2 text-sm font-medium text-status-error">`. Datei-Uploads: Label plus `<input type="file" class="hvm-input">`.
+Regeln:
+
+- Mehrspaltige Felder `grid gap-6 sm:grid-cols-2`; ein Feld ueber zwei Spalten bekommt `wrapperClass="sm:col-span-2"` (kein umschliessendes `div`). `class` geht immer an das Eingabefeld.
+- Feldgruppen mit Zwischenueberschrift `<fieldset class="space-y-6"><legend class="text-lg font-semibold tracking-tight text-hvm-textschwarz">`. Bildet eine Radio- oder Checkbox-Gruppe selbst den Abschnitt, `labelSize="lg"` (Legende in Abschnittsgroesse, `hint` als Erlaeuterung).
+- `id`, `name`, `type`, `required`, `autocomplete` bleiben wie bisher (Tests). Optionen mit festen IDs: `options` als `['wert' => ['label' => ..., 'hint' => ..., 'id' => 'mode-wert']]`.
+- Hilfetext: `hint` steht unter dem Label. Fuer lange Hinweise (mehrere Saetze, Codeeingabe) `hintPosition="below"`, damit das Feld direkt unter dem Label bleibt.
+- Kontrollkaestchen: Beschriftungen mit Link oder Markup ueber den Slot `<x-slot:labelHtml>` statt `label`. Mehrzeilige Rechtstexte richten das Kaestchen an der ersten Zeile aus (`align="start"`; ab 80 Zeichen, mit Hilfetext oder Slot automatisch).
+- Fehler kommen automatisch aus `$errors` (`errorKey` fuer Punkt-Notation, z. B. `errorKey="einheiten.0.flaeche"`). Kein `@error` innerhalb eines Komponenten-Tags (Blade kompiliert es dort nicht).
+- Wiederholformulare (mehrere Formulare mit gleichen Feldnamen auf einer Seite, z. B. Belegung je Mietverhaeltnis, Bearbeitung je Position): immer `id` mit Praefix setzen (`:id="'belegung-start-'.$schluessel"`) und `:errors="false"`, damit ein Feldfehler nicht unter jedem Formular erscheint; die Fehler stehen in der Sammelmeldung des Layouts.
+- Inline-Formulare in Tabellenzellen: `labelHidden` (Label bleibt fuer Screenreader) plus `placeholder`.
+- Bestehende `<input>` ohne Komponente erhalten `class="hvm-input"`, Auswahloptionen `<label class="hvm-choice"><input class="hvm-check"> Text</label>`; Fehlermeldung `<p id="{id}-fehler" class="mt-2 text-sm font-medium text-status-error">`. Datei-Uploads: `<x-hvm.button as="label" for="upload-dateien" variant="primary">` plus `<input id="upload-dateien" type="file" class="sr-only">` oder sichtbar `<input type="file" class="hvm-input">`.
 
 ### 4.7 Tabelle (Desktop klassisch, mobil gestapelt)
 
@@ -218,7 +233,9 @@ Eintraege mit viel Inhalt (Objekte): je Eintrag eine eigene `<x-hvm.card padding
 </div>
 ```
 
-Variante ueber `PortalStatusCategory::variant($kategorie)`. Verbindliche Zuordnung Kategorie, Variante, Symbol (gilt fuer Badge, Stat und Statusbox):
+Kompakte Kennzahlen (Betraege in Vierer-Reihen, Zaehler je Status, Tageskosten): `<x-hvm.stat size="sm" tone="canvas" :icon="false" label="..." :value="..." />` in `grid grid-cols-2 gap-3 lg:grid-cols-4` innerhalb einer Karte. Betraege darin brechen am Leerzeichen vor "EUR", nie innerhalb der Zahl.
+
+Variante ueber `PortalStatusCategory::variant($kategorie)`. Verbindliche Zuordnung Kategorie, Variante, Symbol (gilt fuer Badge, Stat und Statusbox der Portalkategorien):
 
 | Kategorie | Variante | Icon |
 | --- | --- | --- |
@@ -228,6 +245,8 @@ Variante ueber `PortalStatusCategory::variant($kategorie)`. Verbindliche Zuordnu
 | Blockiert die Abrechnung | error | alert |
 
 Statusbox mit Hinweis und Details: `portal/partials/status.blade.php` (Badge mit Icon und Text, Satz, Detailliste). Nie nur Farbe.
+
+Pruefbericht-Gruppen (Website "Ablauf", Pruefbericht im Portal) sind keine Portalkategorien und tragen eigene Symbole per `icon`: Blocker `variant="error" icon="alert"`, Warnung `variant="warning" icon="warning"`, Hinweis `variant="info" icon="info"`, Bestanden `variant="success" icon="check-circle"`. Sonstige Zustandsetiketten (aktiv, gesperrt, Zweitfaktor) waehlen ein sprechendes Symbol (`check-circle`, `x-circle`, `lock`, `shield`, `clock`).
 
 ### 4.10 Schrittanzeige (Wizard)
 
@@ -241,7 +260,9 @@ Statusbox mit Hinweis und Details: `portal/partials/status.blade.php` (Badge mit
 </x-hvm.stepper>
 ```
 
-Erledigte und aktuelle Segmente Orange, offene Canvas deep; Zustand zusaetzlich im Text ("Erledigt:", "Aktuell:", sr-only) und in der Zeile "Schritt X von N". Bei zwoelf Schritten `:compact="true"` (nur Segmente plus Zeile). Das bestehende Partial `portal/wizard/partials/fortschritt.blade.php` wird beim Ausrollen durch `x-hvm.stepper` ersetzt (`WizardProgress::bar()` liefert `nummer()`, `label()`, `aktuell`, `erreichbar`, `kategorie`; `state` = `aktuell` ? current : (Kategorie Erledigt ? done : open), `note` = Kategorie). Erklaerende Schrittfolgen auf der Website: `<ol class="divide-y divide-hvm-linie">` mit `<li class="py-7 first:pt-0 last:pb-0"><x-hvm.step number="1" title="..." /></li>`.
+Erledigte und aktuelle Segmente Orange, offene Canvas deep; Zustand zusaetzlich im Text ("Erledigt:", "Aktuell:", sr-only) und in der Zeile "Schritt X von N". Ab sieben Schritten wechselt die Komponente automatisch in den Listenmodus (`layout="list"`): Segmente ohne Beschriftung, darunter die Schritte mit Ziffernkreis, Titel und Kategorie als Liste (ab `sm` zweispaltig, ab `lg` zweizeilig mit `ceil(N/2)` Spalten, `hyphens-none break-normal`, erreichbare Schritte verlinkt). Mobil zeigt der Listenmodus nur Segmente und die Zeile "Schritt X von N: Titel"; die Liste bleibt fuer Screenreader erreichbar. `:compact="true"` nur in schmalen Karten. Das Partial `portal/wizard/partials/fortschritt.blade.php` liefert die Schritte aus `WizardProgress::bar()` (`label()`, `aktuell`, `erledigt()`, `erreichbar`, `kategorie`; `state` = `aktuell` ? current : (erledigt ? done : open), `note` = Kategorie).
+
+Fortschritt in Prozent (Analyse): `<x-hvm.progress :value="$prozent" label="Stand der Auswertung" :text="false" />` statt `style="width: N%"`. Erklaerende Schrittfolgen auf der Website: `<ol class="divide-y divide-hvm-linie">` mit `<li class="py-7 first:pt-0 last:pb-0"><x-hvm.step number="1" title="..." /></li>`.
 
 ### 4.11 Leerzustand
 
@@ -273,7 +294,35 @@ Statusbadge immer mit Kategorietext (`<x-hvm.badge :variant="$status->variante()
 - Fokus auf Graphit: automatisch Orange mit weisser Innenkante (app.css).
 - Admin-Kopfleiste (layouts/admin.blade.php beim Ausrollen): `<header class="hvm-dark">` mit Kennlinie, `<span class="text-xs font-semibold tracking-[0.12em] text-hvm-orange uppercase">Interner Bereich</span>` (Versalien-Label, kein Fliesstext), Titel `text-lg font-semibold text-white`, Navigation als `.hvm-nav-item`-Liste auf Weiss unter der Kopfleiste oder als Seitenleiste nach Muster 4.1, Blocker-Zaehler als `<x-hvm.badge variant="akzent">`. Arbeitsbereich `bg-hvm-canvas`.
 
-### 4.16 Kopfleiste Website
+### 4.16 Schluessel-Wert-Listen und Unterabschnitte (Admin, Detailseiten)
+
+```blade
+<x-hvm.abschnitt class="mt-16" eyebrow="Bestand" title="Konten" lead="Ein Satz." :leer="$eintraege === []" leer-icon="user">
+  <x-slot:actions><x-hvm.button href="..." variant="secondary" size="sm">Export</x-hvm.button></x-slot:actions>
+  <table class="hvm-table hvm-table-zebra hvm-table-stack text-sm">...</table>
+</x-hvm.abschnitt>
+
+<x-hvm.card title="Rechnung">
+  <dl class="divide-y divide-hvm-linie">
+    <x-hvm.kv label="Nummer" :mono="true">{{ $rechnung->nummer }}</x-hvm.kv>
+    <x-hvm.kv label="Betrag">{{ $rechnung->betrag }} EUR</x-hvm.kv>
+  </dl>
+</x-hvm.card>
+```
+
+Sprunglisten im Seitenkopf (Website "Ablauf", "FAQ") sind ein lokales Muster: `<x-hvm.card padding="none">` mit Liste aus `min-h-11`-Links und Ziffern- oder Icon-Kreis. Erst wenn das Muster im Portal auftaucht, wird daraus eine Komponente.
+
+### 4.17 E-Mail
+
+Der Rahmen `resources/views/emails/transaktion/_rahmen.blade.php` ist die verbindliche Uebersetzung des Designsystems fuer Mailprogramme; `emails/auth/_rahmen` delegiert dorthin. Neue Mails binden ausschliesslich diesen Rahmen ein und liefern `$titel`, `$inhalt` (Absaetze), optional `$aktionText`/`$aktionUrl`, `$punkte`, `$fussnoten`, `$abmeldeUrl`.
+
+- Technik: Tabellenlayout, alle Stile inline, Breite 100 % bis 600 px, Systemschrift, keine Tailwind-Klassen, kein Skript, kein Tracking.
+- Flaechen: Leinwand Canvas `#FAF8F4`, weisse Karte mit Linie `#E6E3DD` und 24 px Radius, HVM-Kennlinie 3 px als obere Kartenkante und als unterer Abschluss der Fusszeile, Fusszeile Graphit `#141414`.
+- Marke: Wortmarke "Smart Abrechnen" plus Markenzusatz statt Logo. Ein Bild waere nur als externe Ressource oder Base64 moeglich, beides ist untersagt (`TransaktionsmailInhaltTest` verbietet jedes `<img`); CID-Einbettung ist in Gmail Web nicht zuverlaessig und bleibt ausgeschlossen.
+- Farben und Kontraste (AA): Fliesstext Textschwarz `#1A1A1A` auf Weiss 17,4:1; Sekundaertext `#5C5C5E` auf Weiss 6,4:1 und auf Canvas 6,0:1; Hellgrau `#D7D8DA` auf Graphit 12,6:1; Weiss auf Graphit 18,6:1; Schaltflaeche Textschwarz auf Orange `#E6A83C` 9,3:1. Anthrazit nur als Kennlinien-Segment, Orange nur fuer Akzentstrich und die eine Schaltflaeche (Pillform, 48 px).
+- Inhalt: Sie-Anrede, keine Werbung, keine Superlative, keine Gedankenstriche. URLs, die als Zeichenkette geliefert werden, bleiben Text.
+
+### 4.18 Kopfleiste Website
 
 Container `mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8`, Marke links (Logo `h-9`, Name `text-base`, Markenzusatz `text-[11px] leading-[1.25] xl:max-w-[11rem]` zweizeilig, nie `truncate`), Pill-Navigation ab `xl` (`text-[13px] px-3 py-2.5 whitespace-nowrap`), rechts `Anmelden` (ghost) und `Kostenlos starten` (primary), darunter Menue-Knopf. Nachgemessen: 1280 bis 1920 px eine Zeile mit 151 px Reserve fuer einen siebten Menuepunkt.
 
@@ -292,6 +341,7 @@ Nicht erlaubt: Fliesstext, Ueberschriften, Betraege oder Eyebrow-Texte in Orange
 - Keine Aenderung der Inline-Bloecke im `<head>` (CSP-Hash), keine weiteren Inline-Skripte; `style=""` nur in begruendeten Ausnahmen.
 - Kein Schlagschatten auf Karten, keine Verlaeufe, keine neuen Buntfarben; jeder neue Token nur als Tint oder Shade im `@theme`-Block mit Kommentar.
 - Kein `whitespace-nowrap` an Texten, die auf 390 px breiter als der Viewport werden koennen (Ausnahme: Betraege, Buttons ab `sm`, Kopfleisten).
+- Keine lokalen Nachbauten von Komponenten: kein U+00AD im PHP-String (Komponente versteht `&shy;`), keine `.hvm-choice`-Labels mit Link (Slot `labelHtml`), keine Primaerbutton-Klassen am Datei-Label (`as="label"`), kein `style="width: N%"` (`x-hvm.progress`), keine eigenen `dl`-Kennzahlen (`x-hvm.stat size="sm"`), keine Hilfskomponenten mit Seitenpraefix (Katalog ergaenzen statt `rollout-*`).
 - Keine Gedankenstriche in sichtbaren Texten. Sichtbare Texte bleiben wortgleich (Tests); `&shy;` nur mit angepasstem Test.
 - Keine Status- oder Vermieterangaben ueber mehrere Elemente verteilen, wenn ein Test die Zeichenkette zusammenhaengend prueft.
 - Kein Status nur ueber Farbe: immer Text plus Symbol.

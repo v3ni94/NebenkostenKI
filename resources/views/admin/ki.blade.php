@@ -23,7 +23,7 @@
         </div>
     @endif
 
-    <x-hvm.rollout-admin-abschnitt
+    <x-hvm.abschnitt
         class="mt-10"
         eyebrow="Provider"
         title="Healthcheck je Provider"
@@ -66,30 +66,30 @@
                 @endforeach
             </tbody>
         </table>
-    </x-hvm.rollout-admin-abschnitt>
+    </x-hvm.abschnitt>
 
     <div class="mt-16 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <x-hvm.card title="Kosten" eyebrow="Laufender Monat" class="min-w-0">
             <dl class="divide-y divide-hvm-linie">
-                <x-hvm.rollout-admin-kv label="Laufender Monat">{{ \App\Application\Admin\AiOverview::formatCent($monat['kosten_cent']) }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Aufrufe im Monat">{{ $monat['aufrufe'] }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Fehlerhafte Aufrufe im Monat">{{ $monat['fehler'] }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Gesamt">{{ \App\Application\Admin\AiOverview::formatCent($gesamt['kosten_cent']) }}</x-hvm.rollout-admin-kv>
+                <x-hvm.kv label="Laufender Monat">{{ \App\Application\Admin\AiOverview::formatCent($monat['kosten_cent']) }}</x-hvm.kv>
+                <x-hvm.kv label="Aufrufe im Monat">{{ $monat['aufrufe'] }}</x-hvm.kv>
+                <x-hvm.kv label="Fehlerhafte Aufrufe im Monat">{{ $monat['fehler'] }}</x-hvm.kv>
+                <x-hvm.kv label="Gesamt">{{ \App\Application\Admin\AiOverview::formatCent($gesamt['kosten_cent']) }}</x-hvm.kv>
             </dl>
         </x-hvm.card>
 
         <x-hvm.card title="Limits" eyebrow="Konfiguration" class="min-w-0">
             <dl class="divide-y divide-hvm-linie">
-                <x-hvm.rollout-admin-kv label="Tageslimit je Nutzer">{{ $limits['tageslimit_cent_je_nutzer'] === null ? 'kein Limit gesetzt' : \App\Application\Admin\AiOverview::formatCent($limits['tageslimit_cent_je_nutzer']) }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Konfidenzschwelle">{{ number_format($limits['konfidenzschwelle'], 2, ',', '.') }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Maximale Wiederholungen">{{ $limits['maximale_wiederholungen'] }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Doppelprüfung">{{ $limits['doppelpruefung_aktiv'] ? 'aktiv' : 'aus' }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Fallback">{{ $limits['fallback_aktiv'] ? 'aktiv' : 'aus' }}</x-hvm.rollout-admin-kv>
+                <x-hvm.kv label="Tageslimit je Nutzer">{{ $limits['tageslimit_cent_je_nutzer'] === null ? 'kein Limit gesetzt' : \App\Application\Admin\AiOverview::formatCent($limits['tageslimit_cent_je_nutzer']) }}</x-hvm.kv>
+                <x-hvm.kv label="Konfidenzschwelle">{{ number_format($limits['konfidenzschwelle'], 2, ',', '.') }}</x-hvm.kv>
+                <x-hvm.kv label="Maximale Wiederholungen">{{ $limits['maximale_wiederholungen'] }}</x-hvm.kv>
+                <x-hvm.kv label="Doppelprüfung">{{ $limits['doppelpruefung_aktiv'] ? 'aktiv' : 'aus' }}</x-hvm.kv>
+                <x-hvm.kv label="Fallback">{{ $limits['fallback_aktiv'] ? 'aktiv' : 'aus' }}</x-hvm.kv>
             </dl>
         </x-hvm.card>
     </div>
 
-    <x-hvm.rollout-admin-abschnitt class="mt-16" eyebrow="Nutzer" title="Kosten je Nutzer im laufenden Monat" :leer="$je_nutzer === []" leer-icon="user">
+    <x-hvm.abschnitt class="mt-16" eyebrow="Nutzer" title="Kosten je Nutzer im laufenden Monat" :leer="$je_nutzer === []" leer-icon="user">
         <table class="hvm-table hvm-table-zebra hvm-table-stack text-sm">
             <caption class="sr-only">Kosten je Nutzer im laufenden Monat</caption>
             <thead>
@@ -111,19 +111,19 @@
                 @endforeach
             </tbody>
         </table>
-    </x-hvm.rollout-admin-abschnitt>
+    </x-hvm.abschnitt>
 
     <div class="mt-16">
         <x-hvm.card title="Tageskosten" eyebrow="Letzte Tage">
-            <dl class="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
                 @foreach ($tageskosten as $tag => $cent)
-                    <x-hvm.rollout-admin-kennzahl :label="$tag">{{ \App\Application\Admin\AiOverview::formatCent($cent) }}</x-hvm.rollout-admin-kennzahl>
+                    <x-hvm.stat size="sm" tone="canvas" :icon="false" :label="$tag" :value="\App\Application\Admin\AiOverview::formatCent($cent)" />
                 @endforeach
-            </dl>
+            </div>
         </x-hvm.card>
     </div>
 
-    <x-hvm.rollout-admin-abschnitt class="mt-16" eyebrow="Prompts" title="Promptversionen" :leer="$prompts === []" leertext="Es ist keine Promptversion hinterlegt." leer-icon="document">
+    <x-hvm.abschnitt class="mt-16" eyebrow="Prompts" title="Promptversionen" :leer="$prompts === []" leertext="Es ist keine Promptversion hinterlegt." leer-icon="document">
         <table class="hvm-table hvm-table-zebra hvm-table-stack text-sm">
             <caption class="sr-only">Promptversionen</caption>
             <thead>
@@ -149,5 +149,5 @@
                 @endforeach
             </tbody>
         </table>
-    </x-hvm.rollout-admin-abschnitt>
+    </x-hvm.abschnitt>
 @endsection

@@ -89,20 +89,11 @@
     @endif
 
     @if ($matrix->externalTotalCent !== null && $matrix->lineSumCent !== null)
-        <dl class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div class="min-w-0 rounded-2xl border border-hvm-linie bg-white p-5">
-                <dt class="text-sm leading-5 font-semibold text-hvm-text-sekundaer">Ausgewiesener Gesamtbetrag</dt>
-                <dd class="mt-1 text-2xl font-semibold tracking-tight text-hvm-textschwarz tabular whitespace-nowrap">{{ number_format($matrix->externalTotalCent / 100, 2, ',', '.') }} EUR</dd>
-            </div>
-            <div class="min-w-0 rounded-2xl border border-hvm-linie bg-white p-5">
-                <dt class="text-sm leading-5 font-semibold text-hvm-text-sekundaer">Summe der Einzelbeträge</dt>
-                <dd class="mt-1 text-2xl font-semibold tracking-tight text-hvm-textschwarz tabular whitespace-nowrap">{{ number_format($matrix->lineSumCent / 100, 2, ',', '.') }} EUR</dd>
-            </div>
-            <div class="min-w-0 rounded-2xl border border-hvm-linie bg-white p-5">
-                <dt class="text-sm leading-5 font-semibold text-hvm-text-sekundaer">Abweichung, zulässig {{ number_format($matrix->toleranceCent / 100, 2, ',', '.') }} EUR</dt>
-                <dd class="mt-1 text-2xl font-semibold tracking-tight text-hvm-textschwarz tabular whitespace-nowrap">{{ number_format(($matrix->differenceCent ?? 0) / 100, 2, ',', '.') }} EUR</dd>
-            </div>
-        </dl>
+        <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <x-hvm.stat size="sm" :icon="false" label="Ausgewiesener Gesamtbetrag" :value="number_format($matrix->externalTotalCent / 100, 2, ',', '.').' EUR'" />
+            <x-hvm.stat size="sm" :icon="false" label="Summe der Einzelbeträge" :value="number_format($matrix->lineSumCent / 100, 2, ',', '.').' EUR'" />
+            <x-hvm.stat size="sm" :icon="false" :label="'Abweichung, zulässig '.number_format($matrix->toleranceCent / 100, 2, ',', '.').' EUR'" :value="number_format(($matrix->differenceCent ?? 0) / 100, 2, ',', '.').' EUR'" />
+        </div>
     @endif
 
     @if ($matrix->missing !== [])

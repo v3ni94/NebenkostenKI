@@ -27,8 +27,8 @@
 
         <x-hvm.card title="Angeforderter Datensatz" eyebrow="Datensatz">
             <dl class="divide-y divide-hvm-linie">
-                <x-hvm.rollout-admin-kv label="Art">{{ $entitaet }}</x-hvm.rollout-admin-kv>
-                <x-hvm.rollout-admin-kv label="Kennung" :mono="true">{{ $id }}</x-hvm.rollout-admin-kv>
+                <x-hvm.kv label="Art">{{ $entitaet }}</x-hvm.kv>
+                <x-hvm.kv label="Kennung" :mono="true">{{ $id }}</x-hvm.kv>
             </dl>
         </x-hvm.card>
 

@@ -23,9 +23,7 @@
             </p>
 
             {{-- Fortschrittsbalken als zusaetzliche Darstellung des Prozentwerts (Orange als Fortschrittsfarbe). --}}
-            <div class="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-hvm-canvas-deep" aria-hidden="true">
-                <div class="h-1.5 rounded-full bg-hvm-orange" style="width: {{ max(0, min(100, $fortschritt->percent())) }}%"></div>
-            </div>
+            <x-hvm.progress class="mt-3" :value="$fortschritt->percent()" label="Stand der Auswertung" :text="false" />
 
             <ul class="mt-5 space-y-2 text-sm leading-relaxed text-hvm-textschwarz">
                 @foreach ($fortschritt->lines as $zeile)

@@ -28,7 +28,7 @@
         </x-hvm.card>
     </div>
 
-    <x-hvm.rollout-admin-abschnitt class="mt-16" eyebrow="Bestand" title="Mandanten" :leer="$organisationen === []" leer-icon="building">
+    <x-hvm.abschnitt class="mt-16" eyebrow="Bestand" title="Mandanten" :leer="$organisationen === []" leer-icon="building">
         <table class="hvm-table hvm-table-zebra hvm-table-stack text-sm">
             <caption class="sr-only">Mandanten</caption>
             <thead>
@@ -60,5 +60,5 @@
                 @endforeach
             </tbody>
         </table>
-    </x-hvm.rollout-admin-abschnitt>
+    </x-hvm.abschnitt>
 @endsection

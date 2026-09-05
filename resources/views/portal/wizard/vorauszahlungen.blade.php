@@ -136,17 +136,15 @@
                                     </div>
                                 </div>
 
-                                <label for="{{ $feldId }}-annahme" class="hvm-choice items-start">
-                                    <input type="checkbox" value="1" class="hvm-check mt-0.5"
-                                           id="{{ $feldId }}-annahme"
-                                           name="zeilen[{{ $zeile->tenancyId }}][annahme]"
-                                           @checked($zeile->assumedFromTarget)>
-                                    <span class="min-w-0">
-                                        Ich habe keine Ist-Daten und bestätige ausdrücklich die Annahme
-                                        Ist gleich Soll. Diese Annahme wird protokolliert und in der Abrechnung
-                                        gekennzeichnet.
-                                    </span>
-                                </label>
+                                <x-hvm.field
+                                    :name="'zeilen['.$zeile->tenancyId.'][annahme]'"
+                                    :id="$feldId.'-annahme'"
+                                    type="checkbox"
+                                    value="1"
+                                    align="start"
+                                    :errors="false"
+                                    :checked="$zeile->assumedFromTarget"
+                                    label="Ich habe keine Ist-Daten und bestätige ausdrücklich die Annahme Ist gleich Soll. Diese Annahme wird protokolliert und in der Abrechnung gekennzeichnet." />
 
                                 @if ($zeile->hasDeviation())
                                     <p class="flex items-start gap-1.5 text-sm font-medium text-status-warning">

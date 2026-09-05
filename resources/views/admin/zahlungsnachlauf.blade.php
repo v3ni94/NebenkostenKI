@@ -24,7 +24,7 @@
         </div>
     @endif
 
-    <x-hvm.rollout-admin-abschnitt class="mt-10" eyebrow="Finalisierung" title="Bezahlt, aber nicht finalisiert" :leer="$nicht_finalisiert === []" leer-icon="check-circle">
+    <x-hvm.abschnitt class="mt-10" eyebrow="Finalisierung" title="Bezahlt, aber nicht finalisiert" :leer="$nicht_finalisiert === []" leer-icon="check-circle">
         <table class="hvm-table hvm-table-zebra hvm-table-stack text-sm">
             <caption class="sr-only">Bezahlte Läufe ohne Finalisierung</caption>
             <thead>
@@ -55,9 +55,9 @@
                 @endforeach
             </tbody>
         </table>
-    </x-hvm.rollout-admin-abschnitt>
+    </x-hvm.abschnitt>
 
-    <x-hvm.rollout-admin-abschnitt class="mt-16" eyebrow="Rechnung" title="Bezahlt und finalisiert, aber ohne Rechnung" :leer="$ohne_rechnung === []" leer-icon="receipt">
+    <x-hvm.abschnitt class="mt-16" eyebrow="Rechnung" title="Bezahlt und finalisiert, aber ohne Rechnung" :leer="$ohne_rechnung === []" leer-icon="receipt">
         <table class="hvm-table hvm-table-zebra hvm-table-stack text-sm">
             <caption class="sr-only">Bezahlte und finalisierte Läufe ohne Rechnung</caption>
             <thead>
@@ -84,9 +84,9 @@
                 @endforeach
             </tbody>
         </table>
-    </x-hvm.rollout-admin-abschnitt>
+    </x-hvm.abschnitt>
 
-    <x-hvm.rollout-admin-abschnitt
+    <x-hvm.abschnitt
         class="mt-16"
         eyebrow="Zuordnung"
         title="Zahlungseingang ohne freischaltbaren Lauf"
@@ -116,9 +116,9 @@
                 @endforeach
             </tbody>
         </table>
-    </x-hvm.rollout-admin-abschnitt>
+    </x-hvm.abschnitt>
 
-    <x-hvm.rollout-admin-abschnitt
+    <x-hvm.abschnitt
         class="mt-16"
         eyebrow="Zahlungsanbieter"
         title="Liegen gebliebene Benachrichtigungen des Zahlungsanbieters"
@@ -148,5 +148,5 @@
                 @endforeach
             </tbody>
         </table>
-    </x-hvm.rollout-admin-abschnitt>
+    </x-hvm.abschnitt>
 @endsection

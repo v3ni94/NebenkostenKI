@@ -38,7 +38,7 @@
         <x-hvm.card title="Umsatz je Monat" eyebrow="Verlauf" class="min-w-0">
             <dl class="divide-y divide-hvm-linie">
                 @foreach ($monatsreihe as $monatsname => $cent)
-                    <x-hvm.rollout-admin-kv :label="$monatsname">{{ \App\Application\Admin\MetricsOverview::formatCent($cent) }}</x-hvm.rollout-admin-kv>
+                    <x-hvm.kv :label="$monatsname">{{ \App\Application\Admin\MetricsOverview::formatCent($cent) }}</x-hvm.kv>
                 @endforeach
             </dl>
         </x-hvm.card>
@@ -49,7 +49,7 @@
             @else
                 <dl class="divide-y divide-hvm-linie">
                     @foreach ($abbruchschritte as $schritt => $anzahl)
-                        <x-hvm.rollout-admin-kv :label="'Schritt '.$schritt">{{ $anzahl }}</x-hvm.rollout-admin-kv>
+                        <x-hvm.kv :label="'Schritt '.$schritt">{{ $anzahl }}</x-hvm.kv>
                     @endforeach
                 </dl>
             @endif

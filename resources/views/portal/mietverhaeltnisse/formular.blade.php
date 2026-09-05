@@ -111,12 +111,10 @@
                                     label="Postleitzahl"
                                     inputmode="numeric"
                                     :value="$wert('delivery_postal_code', $mietverhaeltnis?->delivery_postal_code)" />
-                                <div class="sm:col-span-2">
-                                    <x-hvm.field
-                                        name="delivery_city"
-                                        label="Ort"
-                                        :value="$wert('delivery_city', $mietverhaeltnis?->delivery_city)" />
-                                </div>
+                                <x-hvm.field wrapperClass="sm:col-span-2"
+                                    name="delivery_city"
+                                    label="Ort"
+                                    :value="$wert('delivery_city', $mietverhaeltnis?->delivery_city)" />
                             </div>
                         </div>
                     </fieldset>
