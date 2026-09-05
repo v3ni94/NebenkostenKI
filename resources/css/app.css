@@ -6,20 +6,32 @@
 @source '../**/*.js';
 
 /*
-  Designsystem der Hausverwaltung Mueller GmbH.
+  Designsystem der Hausverwaltung Mueller GmbH, Konzept A "Editorial Klarheit".
   Claim: Die digitalste Hausverwaltung.
 
+  Grundidee: Ruhige, hochwertige Editorial-Aesthetik. Die Leinwand ist ein sehr
+  helles, warmes Off-White, Sektionen wechseln zwischen Off-White und Weiss.
+  Typografie traegt das Design (grosse Ueberschriften in Textschwarz mit leicht
+  negativer Laufweite, begrenzte Zeilenlaenge, viel Luft). Karten haben grosse
+  Radien, hauchduenne Linien und praktisch keinen Schatten. Tiefe entsteht
+  durch Flaechenwechsel, nicht durch Schlagschatten.
+
   Verbindliche Regeln:
-  - HVM Orange nur fuer Akzente, primaere Buttons, Fortschritt und
-    Tabellenkoepfe, niemals fuer Fliesstext.
+  - HVM Orange nur als feine Akzentlinie, als Pill, als Zahl in der
+    Schrittfolge und als primaerer Button. Niemals fuer Fliesstext.
+  - Anthrazit (#87888a) nur fuer Sekundaertext ab 14 px fett oder fuer
+    grosse Ueberschriften, nicht fuer normalen Fliesstext (Kontrast 3,4:1).
+    Fuer lesbaren Sekundaertext gibt es den abgeleiteten Ton "text-sekundaer".
   - Status wird nie ausschliesslich ueber Farbe kommuniziert. Jede Statusfarbe
     tritt zusammen mit Text und Symbol auf.
   - Die Mieterabrechnungs-PDFs bleiben bewusst neutral und tragen kein HVM-CI.
+
+  Dokumentation aller Muster: docs/designsystem.md
 */
 @theme {
     --font-sans: system-ui, 'Helvetica Neue', Arial, sans-serif;
 
-    /* Markenfarben */
+    /* Markenfarben (unveraenderlich, aus dem Logo abgeleitet) */
     --color-hvm-orange: #e6a83c;
     --color-hvm-anthrazit: #87888a;
     --color-hvm-mittelgrau: #9c9d9f;
@@ -27,9 +39,41 @@
     --color-hvm-umrissgrau: #ececec;
     --color-hvm-textschwarz: #1a1a1a;
 
-    /* Abgeleitete Interaktionszustaende */
+    /* Abgeleitete Interaktionszustaende (bestehend) */
     --color-hvm-orange-dark: #c98f2b;
     --color-hvm-orange-soft: #fbf1de;
+
+    /*
+      Neue abgeleitete Toene fuer Konzept A. Alle sind Tints oder Shades der
+      Markenfarben, keine neuen Buntfarben.
+    */
+
+    /* Leinwand: sehr helles, warmes Off-White, aus Orange soft stark aufgehellt.
+       Standardhintergrund von body sowie der ruhigen Sektionen. */
+    --color-hvm-canvas: #faf8f4;
+
+    /* Leinwand dunkler: zweite Stufe des warmen Off-White fuer Zeilen,
+       Hover-Flaechen und Eingabefelder auf Off-White. */
+    --color-hvm-canvas-deep: #f3f0ea;
+
+    /* Linie: hauchduenne Trennlinie, Hellgrau leicht ins Warme gezogen,
+       damit sie auf Canvas und Weiss gleich ruhig wirkt. */
+    --color-hvm-linie: #e6e3dd;
+
+    /* Sekundaertext: Shade zwischen Textschwarz und Anthrazit. Kontrast auf
+       Weiss 6,4:1, auf Canvas 6,0:1, daher fuer Fliesstext in 14 px zulaessig. */
+    --color-hvm-text-sekundaer: #5c5c5e;
+
+    /* Graphit: tiefe dunkle Flaeche aus Textschwarz fuer Fusszeile und
+       dunkle Hinweisflaechen. Text darauf: Weiss oder Hellgrau. */
+    --color-hvm-graphit: #141414;
+
+    /* Graphit hell: Karte oder Linie auf Graphit. */
+    --color-hvm-graphit-soft: #262626;
+
+    /* Orange Tint: sehr sanfte Orange-Flaeche fuer aktive Pills und Balken
+       im Abrechnungs-Mockup, zwischen Orange soft und Orange. */
+    --color-hvm-orange-tint: #f3d9a6;
 
     /*
       Statusfarben. Kontrastwerte gegen Weiss und gegen die jeweilige
@@ -44,34 +88,67 @@
     --color-status-error-soft: #fbeaeb;
     --color-status-info: #1f5d8a;
     --color-status-info-soft: #e8f1f8;
+
+    /* Radien: Karten rounded-2xl (1rem) bis rounded-3xl (1.5rem),
+       Bedienelemente rounded-xl (0.75rem), Pills rounded-full. */
+    --radius-card: 1.25rem;
+
+    /* Einziger Schatten des Systems: eine hauchduenne Aussenlinie. */
+    --shadow-hairline: 0 0 0 1px rgb(26 26 26 / 0.06);
+
+    /* Weicher Schatten nur fuer schwebende Elemente (Menue, Dialog). */
+    --shadow-float: 0 12px 32px -12px rgb(26 26 26 / 0.18);
 }
 
 @layer base {
     body {
         color: var(--color-hvm-textschwarz);
-        background-color: #ffffff;
+        background-color: var(--color-hvm-canvas);
         /* Lange deutsche Komposita (z. B. Betriebskostenabrechnung) duerfen auf
            schmalen Bildschirmen nicht ueber den Rand laufen. */
         overflow-wrap: break-word;
         hyphens: auto;
+        -webkit-font-smoothing: antialiased;
     }
 
     h1,
     h2,
     h3,
     h4 {
-        color: var(--color-hvm-anthrazit);
+        color: var(--color-hvm-textschwarz);
         font-weight: 600;
+        /* Leicht negative Laufweite gibt grossen Systemschriften Praegnanz. */
+        letter-spacing: -0.01em;
+        text-wrap: balance;
         /* Nur bei Ueberschriften: "anywhere" senkt die Mindestbreite, damit ein
            langes Kompositum den mobilen Viewport nicht aufweitet. Saubere
            Trennstellen werden im Text mit &shy; gesetzt. */
         overflow-wrap: anywhere;
     }
 
-    /* Sichtbarer Fokus fuer Tastaturbedienung. */
+    p {
+        text-wrap: pretty;
+    }
+
+    /* Sichtbarer Fokus fuer Tastaturbedienung: deutlicher Ring in Orange. */
     :focus-visible {
-        outline: 2px solid var(--color-hvm-orange-dark);
+        outline: 3px solid var(--color-hvm-orange);
         outline-offset: 2px;
+    }
+
+    /* Zahlen in Tabellen und Kennzahlen stehen buendig. */
+    table,
+    .tabular {
+        font-variant-numeric: tabular-nums;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+            animation-duration: 0.01ms !important;
+            transition-duration: 0.01ms !important;
+        }
     }
 }
 
@@ -80,10 +157,10 @@
       HVM-Kennlinie: horizontales Band mit diagonalen Uebergaengen.
       Anthrazit 0 bis 40 Prozent, Mittelgrau 40 bis 60 Prozent,
       Orange 60 bis 67,5 Prozent, Hellgrau 67,5 bis 100 Prozent der Breite.
-      Im Webheader etwa 4 px, auf der HVM-Rechnung etwa 3 mm.
+      Im Web 3 px als Linie ueber dem Header, auf der HVM-Rechnung etwa 3 mm.
     */
     .hvm-kennlinie {
-        height: 4px;
+        height: 3px;
         width: 100%;
         background-image: linear-gradient(
             100deg,
@@ -98,7 +175,113 @@
         );
     }
 
+    /* Kennlinie als dekoratives Element (z. B. im Abrechnungs-Mockup). */
+    .hvm-kennlinie-fein {
+        height: 2px;
+    }
+
+    /*
+      Eingabefeld des Systems. Gross (min-h-12), ruhiger Rahmen, deutlicher
+      Fokusring in Orange. Wird von x-hvm.field verwendet und kann auf jedes
+      input, select und textarea direkt gesetzt werden.
+    */
+    .hvm-input {
+        display: block;
+        width: 100%;
+        min-height: 3rem;
+        border-radius: 0.75rem;
+        border: 1px solid var(--color-hvm-hellgrau);
+        background-color: #ffffff;
+        padding: 0.75rem 1rem;
+        font-size: 1rem;
+        line-height: 1.5;
+        color: var(--color-hvm-textschwarz);
+        transition: border-color 150ms ease, box-shadow 150ms ease;
+    }
+
+    .hvm-input::placeholder {
+        color: var(--color-hvm-mittelgrau);
+    }
+
+    .hvm-input:hover {
+        border-color: var(--color-hvm-mittelgrau);
+    }
+
+    .hvm-input:focus {
+        outline: none;
+        border-color: var(--color-hvm-orange-dark);
+        box-shadow: 0 0 0 4px rgb(230 168 60 / 0.35);
+    }
+
+    .hvm-input[aria-invalid='true'] {
+        border-color: var(--color-status-error);
+    }
+
+    .hvm-input[aria-invalid='true']:focus {
+        box-shadow: 0 0 0 4px rgb(163 36 43 / 0.2);
+    }
+
+    .hvm-input:disabled {
+        background-color: var(--color-hvm-canvas-deep);
+        color: var(--color-hvm-text-sekundaer);
+        cursor: not-allowed;
+    }
+
+    textarea.hvm-input {
+        min-height: 7rem;
+        resize: vertical;
+    }
+
+    /* Auswahlfelder behalten den nativen Pfeil (CSP: keine Data-URIs). */
+    select.hvm-input {
+        padding-right: 2.5rem;
+    }
+
+    /* Kontrollkaestchen und Optionsfelder in Orange. */
+    .hvm-check {
+        height: 1.25rem;
+        width: 1.25rem;
+        border-radius: 0.375rem;
+        border: 1px solid var(--color-hvm-mittelgrau);
+        accent-color: var(--color-hvm-orange-dark);
+    }
+
+    /* Tabelle des Systems: ruhiger Kopf mit Orange-Linie, Zebra in Canvas. */
+    .hvm-table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+    }
+
+    .hvm-table thead th {
+        padding: 0.75rem 1rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--color-hvm-text-sekundaer);
+        border-bottom: 2px solid var(--color-hvm-orange);
+    }
+
+    .hvm-table tbody th,
+    .hvm-table tbody td {
+        padding: 0.875rem 1rem;
+        border-bottom: 1px solid var(--color-hvm-linie);
+        vertical-align: top;
+    }
+
+    .hvm-table tbody tr:last-child th,
+    .hvm-table tbody tr:last-child td {
+        border-bottom: 0;
+    }
+
+    /* Bestehende Klasse, bleibt fuer die uebrigen Seiten kompatibel. */
     .hvm-table-zebra tbody tr:nth-child(even) {
-        background-color: var(--color-hvm-umrissgrau);
+        background-color: var(--color-hvm-canvas-deep);
+    }
+
+    /* Prose-Bereich: begrenzte Zeilenlaenge fuer lange Texte. */
+    .hvm-prose {
+        max-width: 65ch;
     }
 }

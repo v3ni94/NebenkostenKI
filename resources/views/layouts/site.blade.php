@@ -66,37 +66,37 @@
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="bg-white text-hvm-textschwarz antialiased">
+<body class="bg-hvm-canvas text-hvm-textschwarz antialiased">
     <a href="#hauptinhalt"
-       class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded focus:bg-hvm-orange focus:px-4 focus:py-2 focus:font-semibold focus:text-hvm-textschwarz">
+       class="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50 focus:rounded-full focus:bg-hvm-orange focus:px-5 focus:py-3 focus:font-semibold focus:text-hvm-textschwarz">
         Zum Hauptinhalt springen
     </a>
 
-    <header class="sticky top-0 z-40 bg-white shadow-sm" x-data="{ menuOffen: false }">
-        {{-- HVM-Kennlinie direkt unter der Oberkante. --}}
+    <header class="sticky top-0 z-40 border-b border-hvm-linie bg-hvm-canvas/90 backdrop-blur" x-data="{ menuOffen: false }">
+        {{-- HVM-Kennlinie als feine Linie ueber dem Header. --}}
         <div class="hvm-kennlinie" aria-hidden="true"></div>
 
-        <div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+        <div class="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
             {{--
                 Logo der Hausverwaltung Mueller GmbH aus /public/ci (siehe
                 public/ci/README.md). Fehlt die Datei, erscheint ein neutraler
                 Textplatzhalter. Es wird kein Logo erzeugt oder nachgezeichnet.
             --}}
-            <a href="{{ route('site.home') }}" class="flex items-center gap-3 rounded py-1">
-                <x-hvm.logo />
-                <span class="flex flex-col leading-tight">
-                    <span class="text-lg font-bold text-hvm-textschwarz">{{ $brand['name'] }}</span>
-                    <span class="text-xs text-hvm-textschwarz">{{ $brand['relation_short'] }}</span>
+            <a href="{{ route('site.home') }}" class="flex min-w-0 items-center gap-3 rounded-xl py-1 no-underline">
+                <x-hvm.logo height="h-9" />
+                <span class="flex min-w-0 flex-col leading-tight">
+                    <span class="text-base font-semibold tracking-tight whitespace-nowrap text-hvm-textschwarz sm:text-lg">{{ $brand['name'] }}</span>
+                    <span class="truncate text-[11px] text-hvm-text-sekundaer sm:text-xs xl:text-[11px]">{{ $brand['relation_short'] }}</span>
                 </span>
             </a>
 
-            <nav class="hidden lg:block" aria-label="Hauptnavigation">
-                <ul class="flex items-center gap-1">
+            <nav class="hidden xl:block" aria-label="Hauptnavigation">
+                <ul class="flex items-center gap-0.5 rounded-full border border-hvm-linie bg-white/70 p-0.5">
                     @foreach ($navigation as $item)
                         <li>
                             <a href="{{ route($item['route']) }}"
                                @if (request()->routeIs($item['route'])) aria-current="page" @endif
-                               class="block rounded px-3 py-2 text-sm font-medium text-hvm-textschwarz hover:bg-hvm-umrissgrau {{ request()->routeIs($item['route']) ? 'border-b-2 border-hvm-orange' : '' }}">
+                               class="block rounded-full px-2.5 py-2.5 text-xs font-medium whitespace-nowrap no-underline transition-colors {{ request()->routeIs($item['route']) ? 'bg-hvm-textschwarz text-white' : 'text-hvm-textschwarz hover:bg-hvm-canvas-deep' }}">
                                 {{ $item['label'] }}
                             </a>
                         </li>
@@ -104,13 +104,13 @@
                 </ul>
             </nav>
 
-            <div class="hidden items-center gap-2 lg:flex">
-                <x-hvm.button href="{{ $appUrl }}" variant="secondary" size="sm">Anmelden</x-hvm.button>
+            <div class="hidden items-center gap-2 xl:flex">
+                <x-hvm.button href="{{ $appUrl }}" variant="ghost" size="sm" class="px-3!">Anmelden</x-hvm.button>
                 <x-hvm.button href="{{ $appUrl }}" variant="primary" size="sm">Kostenlos starten</x-hvm.button>
             </div>
 
             <button type="button"
-                    class="inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded border border-hvm-mittelgrau px-3 py-2 text-sm font-semibold text-hvm-textschwarz lg:hidden"
+                    class="inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-hvm-hellgrau bg-white px-4 py-2 text-sm font-semibold text-hvm-textschwarz xl:hidden"
                     x-on:click="menuOffen = !menuOffen"
                     x-bind:aria-expanded="menuOffen ? 'true' : 'false'"
                     aria-expanded="false"
@@ -123,22 +123,22 @@
         </div>
 
         <div id="hauptnavigation-mobil"
-             class="border-t border-hvm-umrissgrau lg:hidden"
+             class="border-t border-hvm-linie bg-hvm-canvas xl:hidden"
              x-show="menuOffen"
              x-cloak>
-            <nav class="mx-auto max-w-6xl px-4 py-3 sm:px-6" aria-label="Hauptnavigation mobil">
-                <ul class="flex flex-col">
+            <nav class="mx-auto max-w-7xl px-4 py-4 sm:px-6" aria-label="Hauptnavigation mobil">
+                <ul class="flex flex-col gap-1">
                     @foreach ($navigation as $item)
                         <li>
                             <a href="{{ route($item['route']) }}"
                                @if (request()->routeIs($item['route'])) aria-current="page" @endif
-                               class="block border-b border-hvm-umrissgrau py-3 text-base font-medium text-hvm-textschwarz">
+                               class="block min-h-11 rounded-xl px-4 py-3 text-base font-medium no-underline {{ request()->routeIs($item['route']) ? 'bg-white text-hvm-textschwarz shadow-hairline' : 'text-hvm-textschwarz hover:bg-white' }}">
                                 {{ $item['label'] }}
                             </a>
                         </li>
                     @endforeach
                 </ul>
-                <div class="mt-4 flex flex-col gap-2 pb-2">
+                <div class="mt-4 flex flex-col gap-2 border-t border-hvm-linie pt-4 pb-2">
                     <x-hvm.button href="{{ $appUrl }}" variant="primary">Kostenlos starten</x-hvm.button>
                     <x-hvm.button href="{{ $appUrl }}" variant="secondary">Anmelden</x-hvm.button>
                 </div>
@@ -148,7 +148,7 @@
 
     <main id="hauptinhalt">
         @if (session('status'))
-            <div class="mx-auto max-w-6xl px-4 pt-6 sm:px-6">
+            <div class="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
                 <x-hvm.alert variant="success" label="Erledigt">
                     {{ session('status') }}
                 </x-hvm.alert>
@@ -158,33 +158,37 @@
         @yield('content')
     </main>
 
-    <footer class="mt-20 border-t border-hvm-mittelgrau bg-hvm-umrissgrau">
-        <div class="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-            <div class="grid gap-10 md:grid-cols-3">
-                <div>
-                    <p class="text-xl font-bold text-hvm-anthrazit">Die digitalste Hausverwaltung</p>
-                    <p class="mt-3 text-sm text-hvm-textschwarz">
+    {{--
+        Fusszeile als dunkle Graphitflaeche. Text darauf ist Weiss oder
+        Hellgrau, die Kennlinie schliesst die Seite als Fussakzent ab.
+    --}}
+    <footer class="bg-hvm-graphit text-hvm-hellgrau">
+        <div class="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+            <div class="grid gap-12 lg:grid-cols-12">
+                <div class="lg:col-span-5">
+                    <p class="text-2xl font-semibold tracking-tight text-white sm:text-3xl">Die digitalste Hausverwaltung</p>
+                    <p class="mt-4 max-w-md text-sm leading-relaxed">
                         {{ $brand['relation'] }}
                     </p>
                     {{-- Betreiberangaben in Kurzform. Nicht ergaenzen und nicht abwandeln. --}}
-                    <address class="mt-3 text-sm not-italic text-hvm-textschwarz">
+                    <address class="mt-6 text-sm leading-relaxed not-italic">
                         {{ $operator['legal_name'] }}<br>
                         {{ $operator['address_line'] }}<br>
                         {{ $operator['postal_code'] }} {{ $operator['city'] }}<br>
                         {{ $operator['register_court'] }}, {{ $operator['register_number'] }}<br>
                         Geschäftsführer: {{ $operator['managing_director'] }}
                     </address>
-                    <p class="mt-3 text-sm text-hvm-textschwarz">
-                        <a class="font-medium underline underline-offset-2" href="mailto:kontakt@smart-abrechnen.de">kontakt@smart-abrechnen.de</a>
+                    <p class="mt-4 text-sm">
+                        <a class="font-medium text-white underline decoration-hvm-anthrazit underline-offset-4 hover:decoration-white" href="mailto:kontakt@smart-abrechnen.de">kontakt@smart-abrechnen.de</a>
                     </p>
                 </div>
 
-                <div>
-                    <p class="text-sm font-semibold tracking-wide text-hvm-textschwarz uppercase">Portal</p>
-                    <ul class="mt-3 space-y-2 text-sm">
+                <div class="lg:col-span-3 lg:col-start-7">
+                    <p class="text-xs font-semibold tracking-[0.12em] text-hvm-anthrazit uppercase">Portal</p>
+                    <ul class="mt-4 space-y-3 text-sm">
                         @foreach ($navigation as $item)
                             <li>
-                                <a href="{{ route($item['route']) }}" class="text-hvm-textschwarz underline-offset-2 hover:underline">
+                                <a href="{{ route($item['route']) }}" class="text-hvm-hellgrau no-underline underline-offset-4 hover:text-white hover:underline">
                                     {{ $item['label'] }}
                                 </a>
                             </li>
@@ -192,34 +196,35 @@
                     </ul>
                 </div>
 
-                <div>
-                    <p class="text-sm font-semibold tracking-wide text-hvm-textschwarz uppercase">Rechtliches</p>
-                    <ul class="mt-3 space-y-2 text-sm">
+                <div class="lg:col-span-3">
+                    <p class="text-xs font-semibold tracking-[0.12em] text-hvm-anthrazit uppercase">Rechtliches</p>
+                    <ul class="mt-4 space-y-3 text-sm">
                         @foreach ($legalNavigation as $item)
                             <li>
-                                <a href="{{ route($item['route']) }}" class="text-hvm-textschwarz underline-offset-2 hover:underline">
+                                <a href="{{ route($item['route']) }}" class="text-hvm-hellgrau no-underline underline-offset-4 hover:text-white hover:underline">
                                     {{ $item['label'] }}
                                 </a>
                             </li>
                         @endforeach
                     </ul>
-                    <p class="mt-4 text-sm text-hvm-textschwarz">
-                        <a href="{{ $operator['website'] }}" class="underline underline-offset-2">Website der Hausverwaltung</a>
+                    <p class="mt-6 text-sm">
+                        <a href="{{ $operator['website'] }}" class="text-white underline decoration-hvm-anthrazit underline-offset-4 hover:decoration-white">Website der Hausverwaltung</a>
                     </p>
                 </div>
             </div>
 
-            <div class="mt-10 border-t border-hvm-mittelgrau pt-6 text-sm text-hvm-textschwarz">
+            <div class="mt-14 grid gap-4 border-t border-hvm-graphit-soft pt-8 text-sm leading-relaxed text-hvm-hellgrau lg:grid-cols-2 lg:gap-10">
                 <p>
                     Smart Abrechnen ist ein Software-Werkzeug. Absender und inhaltlich verantwortlich für die
                     Betriebskostenabrechnung bleibt der Vermieter. Eine Rechtsberatung im Einzelfall erfolgt nicht.
                 </p>
-                <p class="mt-2">
+                <p>
                     Ihre Originaldateien werden nur zur Auswertung kurzfristig verarbeitet und anschließend automatisch
                     gelöscht. Bitte bewahren Sie Ihre Originalbelege selbst auf.
                 </p>
             </div>
         </div>
+        <div class="hvm-kennlinie" aria-hidden="true"></div>
     </footer>
 </body>
 </html>

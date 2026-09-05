@@ -3,44 +3,51 @@
 @section('titel', 'Objekte')
 
 @section('content')
-    <div class="flex flex-wrap items-center justify-between gap-3">
-        <x-hvm.section-heading
-            title="Objekte"
-            lead="Ein Objekt ist die Liegenschaft, für die abgerechnet wird. Zu jedem Objekt gehören eine oder mehrere Einheiten." />
-        <x-hvm.button href="{{ route('portal.objekte.create') }}" variant="primary">Objekt anlegen</x-hvm.button>
-    </div>
+    <x-hvm.page-header
+        eyebrow="Bestand"
+        title="Objekte"
+        lead="Ein Objekt ist die Liegenschaft, für die abgerechnet wird. Zu jedem Objekt gehören eine oder mehrere Einheiten.">
+        <x-slot:actions>
+            <x-hvm.button href="{{ route('portal.objekte.create') }}" variant="primary">
+                <x-hvm.icon name="plus" class="h-4 w-4" />
+                Objekt anlegen
+            </x-hvm.button>
+        </x-slot:actions>
+    </x-hvm.page-header>
 
     @if ($objekte === [])
-        <x-hvm.card class="mt-8">
+        <x-hvm.empty-state class="mt-10" icon="house" title="Noch kein Objekt">
             <p>Sie haben noch kein Objekt angelegt.</p>
-        </x-hvm.card>
+            <x-slot:action>
+                <x-hvm.button href="{{ route('portal.objekte.create') }}" variant="primary">Objekt anlegen</x-hvm.button>
+            </x-slot:action>
+        </x-hvm.empty-state>
     @else
-        <div class="mt-8 space-y-4">
+        <div class="mt-10 space-y-4">
             @foreach ($objekte as $objekt)
-                <x-hvm.card>
-                    <div class="flex flex-wrap items-start justify-between gap-4">
-                        <div class="min-w-0">
-                            <h3 class="text-lg font-semibold text-hvm-anthrazit">{{ $objekt->label }}</h3>
-                            <p class="mt-1 text-sm text-hvm-textschwarz">
-                                {{ $objekt->address_line }}, {{ $objekt->postal_code }} {{ $objekt->city }}
-                            </p>
-                            <p class="mt-1 text-sm text-hvm-anthrazit">
+                <x-hvm.card padding="none">
+                    <x-hvm.list-row
+                        :title="$objekt->label"
+                        :subtitle="$objekt->address_line.', '.$objekt->postal_code.' '.$objekt->city">
+                        <div class="space-y-1 text-sm text-hvm-text-sekundaer">
+                            <p>
                                 {{ $objekt->kind->label() }}, {{ $objekt->units_count }}
                                 {{ $objekt->units_count === 1 ? 'Einheit' : 'Einheiten' }}
                             </p>
-                            <p class="mt-1 text-sm text-hvm-anthrazit">
+                            <p>
                                 @if ($objekt->landlord !== null)
                                     Vermieter: {{ $objekt->landlord->company_name !== null ? $objekt->landlord->company_name.', ' : '' }}{{ $objekt->landlord->sender_name }}
                                 @else
                                     Vermieter: noch nicht erfasst. Ohne Vermieter kann die Abrechnung nicht erzeugt werden.
                                 @endif
                             </p>
-                            <div class="mt-3">
-                                @include('portal.partials.status', ['status' => $hinweise[$objekt->getKey()]])
-                            </div>
                         </div>
 
-                        <div class="flex flex-wrap gap-2">
+                        <div class="mt-4 border-t border-hvm-linie pt-4">
+                            @include('portal.partials.status', ['status' => $hinweise[$objekt->getKey()]])
+                        </div>
+
+                        <x-slot:actions>
                             <x-hvm.button href="{{ route('portal.einheiten.index', ['property' => $objekt->getKey()]) }}"
                                           variant="secondary" size="sm">Einheiten</x-hvm.button>
                             <x-hvm.button href="{{ route('portal.objekte.vermieter.edit', ['property' => $objekt->getKey()]) }}"
@@ -52,8 +59,8 @@
                                 @method('DELETE')
                                 <x-hvm.button type="submit" variant="ghost" size="sm">Entfernen</x-hvm.button>
                             </form>
-                        </div>
-                    </div>
+                        </x-slot:actions>
+                    </x-hvm.list-row>
                 </x-hvm.card>
             @endforeach
         </div>

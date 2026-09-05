@@ -1,5 +1,5 @@
 {{--
-    Statusanzeige in der Sprache der Oberflaeche.
+    Statusanzeige in der Sprache der Oberflaeche (Konzept A).
 
     Es erscheint ausschliesslich eine der vier Kategorien Erledigt, Bitte
     prüfen, Fehlt noch und Blockiert die Abrechnung, dazu ein Satz in
@@ -7,21 +7,27 @@
     niemals ausgegeben (Masterprompt 9).
 
     Der Status wird nie allein ueber Farbe kommuniziert, die Kategorie steht
-    immer als Text im Etikett.
+    immer als Text im Etikett, das Etikett traegt zusaetzlich einen
+    Statuspunkt.
 
     Erwartet:
       $status  App\Application\BillingRun\PortalStatus
 --}}
-<div class="space-y-2">
-    <x-hvm.badge :variant="$status->variante()">{{ $status->kategorie }}</x-hvm.badge>
+<div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-4">
+    <x-hvm.badge :variant="$status->variante()" class="shrink-0 self-start">{{ $status->kategorie }}</x-hvm.badge>
 
-    <p class="text-sm text-hvm-textschwarz">{{ $status->hinweis }}</p>
+    <div class="min-w-0 text-sm leading-relaxed text-hvm-text-sekundaer">
+        <p>{{ $status->hinweis }}</p>
 
-    @if ($status->details !== [])
-        <ul class="list-disc space-y-1 pl-5 text-sm text-hvm-textschwarz">
-            @foreach ($status->details as $detail)
-                <li>{{ $detail }}</li>
-            @endforeach
-        </ul>
-    @endif
+        @if ($status->details !== [])
+            <ul class="mt-2 space-y-1">
+                @foreach ($status->details as $detail)
+                    <li class="flex gap-2">
+                        <span class="mt-2 h-1 w-1 shrink-0 rounded-full bg-hvm-mittelgrau" aria-hidden="true"></span>
+                        <span>{{ $detail }}</span>
+                    </li>
+                @endforeach
+            </ul>
+        @endif
+    </div>
 </div>

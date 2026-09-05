@@ -51,34 +51,37 @@
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="min-h-screen bg-hvm-umrissgrau text-hvm-textschwarz antialiased">
+<body class="min-h-screen bg-hvm-canvas text-hvm-textschwarz antialiased">
     <a href="#hauptinhalt"
-       class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded focus:bg-hvm-orange focus:px-4 focus:py-2 focus:font-semibold focus:text-hvm-textschwarz">
+       class="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50 focus:rounded-full focus:bg-hvm-orange focus:px-5 focus:py-3 focus:font-semibold focus:text-hvm-textschwarz">
         Zum Hauptinhalt springen
     </a>
 
-    <header class="bg-white shadow-sm">
-        {{-- HVM-Kennlinie direkt unter der Oberkante. --}}
+    {{-- App-Shell: weisse Kopfleiste mit Kennlinie, Navigation als Pills. --}}
+    <header class="border-b border-hvm-linie bg-white">
         <div class="hvm-kennlinie" aria-hidden="true"></div>
 
-        <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
-            <div class="flex items-center gap-3">
+        <div class="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
+            <div class="flex min-w-0 items-center gap-3">
                 {{-- Logo der Hausverwaltung Mueller GmbH aus /public/ci, sonst Textplatzhalter. --}}
-                <x-hvm.logo />
-                <span class="flex flex-col leading-tight">
-                    <span class="text-lg font-bold text-hvm-textschwarz">{{ $brand['name'] }}</span>
-                    <span class="text-xs text-hvm-anthrazit">{{ $brand['relation_short'] }}</span>
+                <x-hvm.logo height="h-9" />
+                <span class="flex min-w-0 flex-col leading-tight">
+                    <span class="text-base font-semibold tracking-tight whitespace-nowrap text-hvm-textschwarz sm:text-lg">{{ $brand['name'] }}</span>
+                    <span class="truncate text-xs text-hvm-text-sekundaer">{{ $brand['relation_short'] }}</span>
                 </span>
             </div>
 
             @hasSection('ohne_navigation')
-                <a href="{{ route('site.home') }}" class="text-sm font-medium text-hvm-textschwarz underline underline-offset-2">
+                <a href="{{ route('site.home') }}" class="inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-sm font-medium whitespace-nowrap text-hvm-textschwarz no-underline hover:bg-hvm-canvas">
                     Zur Startseite
                 </a>
             @else
                 @if ($benutzer !== null)
-                    <div class="flex flex-wrap items-center gap-3">
-                        <span class="text-sm text-hvm-anthrazit">
+                    <div class="flex shrink-0 items-center gap-3">
+                        <span class="hidden items-center gap-2 text-sm text-hvm-text-sekundaer sm:inline-flex">
+                            <span class="flex h-8 w-8 items-center justify-center rounded-full bg-hvm-canvas-deep text-hvm-textschwarz" aria-hidden="true">
+                                <x-hvm.icon name="user" class="h-4 w-4" />
+                            </span>
                             Angemeldet als {{ $benutzer->name }}
                         </span>
                         <form method="POST" action="{{ route('logout') }}">
@@ -93,13 +96,13 @@
         @hasSection('ohne_navigation')
         @else
             @if ($benutzer !== null)
-                <nav class="border-t border-hvm-umrissgrau" aria-label="Bereichsnavigation">
-                    <ul class="mx-auto flex max-w-6xl flex-wrap gap-1 px-4 sm:px-6">
+                <nav class="mx-auto max-w-7xl px-4 pb-3 sm:px-6 lg:px-8" aria-label="Bereichsnavigation">
+                    <ul class="flex flex-wrap gap-1">
                         @foreach ($navigation as $eintrag)
                             <li>
                                 <a href="{{ route($eintrag['route']) }}"
                                    @if (request()->routeIs($eintrag['route'])) aria-current="page" @endif
-                                   class="block px-3 py-3 text-sm font-medium text-hvm-textschwarz hover:bg-hvm-umrissgrau {{ request()->routeIs($eintrag['route']) ? 'border-b-2 border-hvm-orange' : '' }}">
+                                   class="block min-h-11 rounded-full px-4 py-2.5 text-sm font-medium whitespace-nowrap no-underline transition-colors {{ request()->routeIs($eintrag['route']) ? 'bg-hvm-textschwarz text-white' : 'text-hvm-textschwarz hover:bg-hvm-canvas-deep' }}">
                                     {{ $eintrag['label'] }}
                                 </a>
                             </li>
@@ -110,9 +113,9 @@
         @endif
     </header>
 
-    <main id="hauptinhalt" class="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <main id="hauptinhalt" class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
         @if (session('status'))
-            <div class="mb-6">
+            <div class="mb-8">
                 <x-hvm.alert variant="success" label="Erledigt">
                     {{ session('status') }}
                 </x-hvm.alert>
@@ -120,7 +123,7 @@
         @endif
 
         @if ($errors->any())
-            <div class="mb-6">
+            <div class="mb-8">
                 <x-hvm.alert variant="error" label="Bitte prüfen" title="Ihre Eingabe konnte nicht gespeichert werden">
                     <ul class="list-disc space-y-1 pl-5">
                         @foreach ($errors->all() as $fehler)
@@ -134,21 +137,23 @@
         @yield('content')
     </main>
 
-    <footer class="mt-12 border-t border-hvm-mittelgrau bg-white">
-        <div class="mx-auto max-w-6xl px-4 py-8 text-sm text-hvm-anthrazit sm:px-6">
-            <p>
-                {{ $brand['relation'] }}
-                Absender und inhaltlich verantwortlich für die Betriebskostenabrechnung bleibt der Vermieter.
-            </p>
-            <p class="mt-2">
-                Bitte bewahren Sie Ihre Originalbelege selbst auf. Hochgeladene Dateien werden nach der
-                Auswertung automatisch gelöscht.
-            </p>
-            <ul class="mt-4 flex flex-wrap gap-4">
-                <li><a class="underline underline-offset-2" href="{{ route('legal.impressum') }}">Impressum</a></li>
-                <li><a class="underline underline-offset-2" href="{{ route('legal.datenschutz') }}">Datenschutzerklärung</a></li>
-                <li><a class="underline underline-offset-2" href="{{ route('legal.agb') }}">AGB</a></li>
-                <li><a class="underline underline-offset-2" href="{{ route('legal.widerruf') }}">Widerrufsbelehrung</a></li>
+    <footer class="mt-16 border-t border-hvm-linie bg-white">
+        <div class="mx-auto max-w-7xl px-4 py-10 text-sm leading-relaxed text-hvm-text-sekundaer sm:px-6 lg:px-8">
+            <div class="grid gap-6 lg:grid-cols-2 lg:gap-10">
+                <p>
+                    {{ $brand['relation'] }}
+                    Absender und inhaltlich verantwortlich für die Betriebskostenabrechnung bleibt der Vermieter.
+                </p>
+                <p>
+                    Bitte bewahren Sie Ihre Originalbelege selbst auf. Hochgeladene Dateien werden nach der
+                    Auswertung automatisch gelöscht.
+                </p>
+            </div>
+            <ul class="mt-8 flex flex-wrap gap-x-6 gap-y-2 border-t border-hvm-linie pt-6">
+                <li><a class="text-hvm-textschwarz no-underline underline-offset-4 hover:underline" href="{{ route('legal.impressum') }}">Impressum</a></li>
+                <li><a class="text-hvm-textschwarz no-underline underline-offset-4 hover:underline" href="{{ route('legal.datenschutz') }}">Datenschutzerklärung</a></li>
+                <li><a class="text-hvm-textschwarz no-underline underline-offset-4 hover:underline" href="{{ route('legal.agb') }}">AGB</a></li>
+                <li><a class="text-hvm-textschwarz no-underline underline-offset-4 hover:underline" href="{{ route('legal.widerruf') }}">Widerrufsbelehrung</a></li>
             </ul>
         </div>
     </footer>
