@@ -80,6 +80,17 @@ final class CronUrlTest extends TestCase
         self::assertTrue(User::query()->where('email', 'admin@example.test')->firstOrFail()->adminRoles()->exists());
     }
 
+    public function test_scheduler_schluessel_erlaubt_nur_schedule(): void
+    {
+        config()->set('smartabrechnen.cron_token', null);
+        config()->set('smartabrechnen.cron_schedule_token', self::TOKEN);
+
+        $this->get('/wartung/schedule?token='.self::TOKEN)->assertOk();
+        $this->get('/wartung/install?token='.self::TOKEN)->assertForbidden();
+        $this->get('/wartung/admin?token='.self::TOKEN.'&email=x@example.test')->assertForbidden();
+        $this->assertDatabaseMissing('users', ['email' => 'x@example.test']);
+    }
+
     public function test_admin_ohne_email_wird_abgelehnt(): void
     {
         config()->set('smartabrechnen.cron_token', self::TOKEN);

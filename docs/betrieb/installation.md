@@ -379,6 +379,13 @@ Danach stehen folgende Adressen bereit (Schlüssel jeweils als `token`):
 | Ersten Administrator anlegen | `https://smart-abrechnen.de/wartung/admin?token=…&email=ADRESSE&name=NAME` | einmal; das Einmalpasswort steht genau einmal in der Antwort |
 | Scheduler | `https://smart-abrechnen.de/wartung/schedule?token=…` | als URL-Cronjob jede Minute |
 
+Erlaubt der Hoster keinen Cronjob im Minutentakt (IONOS Webhosting: nur
+wenige Läufe am Tag), ruft ein externer Cron-Dienst (zum Beispiel cron-job.org)
+die Scheduler-Adresse jede Minute auf. Dafür gibt es einen zweiten,
+eingeschränkten Schlüssel `CRON_SCHEDULE_TOKEN`, der ausschließlich
+`/wartung/schedule` erlaubt; Installation und Adminanlage bleiben dem
+`CRON_TOKEN` vorbehalten, der nie an Dritte geht.
+
 Die Antwort ist reiner Text mit dem Ergebnis des Befehls. Fehlt der Schlüssel
 in der `.env`, existiert die Adresse nach außen nicht (404). Ein falscher
 Schlüssel wird abgewiesen (403) und protokolliert, mehr als zehn Aufrufe je

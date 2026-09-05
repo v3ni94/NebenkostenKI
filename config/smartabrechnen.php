@@ -202,6 +202,13 @@ return [
     'cron_token' => env('CRON_TOKEN'),
 
     /*
+    | Zweiter, eingeschraenkter Schluessel nur fuer /wartung/schedule. Er ist
+    | fuer externe Cron-Dienste gedacht, die den Scheduler im Minutentakt
+    | aufrufen; mit ihm lassen sich weder Installation noch Adminanlage starten.
+    */
+    'cron_schedule_token' => env('CRON_SCHEDULE_TOKEN'),
+
+    /*
     |--------------------------------------------------------------------------
     | Erinnerungen fuer Folgejahre
     |--------------------------------------------------------------------------

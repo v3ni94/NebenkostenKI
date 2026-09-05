@@ -28,6 +28,9 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  *   admin         smartabrechnen:admin:create mit email und name als Parameter;
  *                 das Einmalpasswort erscheint genau einmal in der Antwort
  *
+ * Zwei Schluessel: CRON_TOKEN erlaubt alle Aufgaben, CRON_SCHEDULE_TOKEN nur
+ * "schedule" (fuer externe Cron-Dienste im Minutentakt).
+ *
  * Es werden keine weiteren Befehle angenommen. Jeder Aufruf wird protokolliert.
  */
 final class CronController extends Controller
@@ -44,17 +47,28 @@ final class CronController extends Controller
     public function __invoke(Request $request, string $aufgabe): Response
     {
         $token = (string) config('smartabrechnen.cron_token', '');
+        $scheduleToken = (string) config('smartabrechnen.cron_schedule_token', '');
+        $vollzugriff = mb_strlen($token) >= self::TOKEN_MINDESTLAENGE;
+        $nurScheduler = mb_strlen($scheduleToken) >= self::TOKEN_MINDESTLAENGE;
 
-        if (mb_strlen($token) < self::TOKEN_MINDESTLAENGE) {
+        if (! $vollzugriff && ! $nurScheduler) {
             throw new NotFoundHttpException;
         }
 
         $geliefert = (string) $request->query('token', '');
+        $passtVoll = $vollzugriff && $geliefert !== '' && hash_equals($token, $geliefert);
+        $passtScheduler = $nurScheduler && $geliefert !== '' && hash_equals($scheduleToken, $geliefert);
 
-        if ($geliefert === '' || ! hash_equals($token, $geliefert)) {
+        if (! $passtVoll && ! $passtScheduler) {
             Log::warning('Wartungsaufruf mit ungültigem Schlüssel abgewiesen.', ['aufgabe' => $aufgabe, 'ip' => $request->ip()]);
 
             return response('Zugriff verweigert.', 403)->header('Content-Type', 'text/plain; charset=UTF-8');
+        }
+
+        if (! $passtVoll && $aufgabe !== 'schedule') {
+            Log::warning('Wartungsaufruf mit Scheduler-Schlüssel für andere Aufgabe abgewiesen.', ['aufgabe' => $aufgabe, 'ip' => $request->ip()]);
+
+            return response('Dieser Schlüssel erlaubt nur die Aufgabe schedule.', 403)->header('Content-Type', 'text/plain; charset=UTF-8');
         }
 
         if (! array_key_exists($aufgabe, self::AUFGABEN)) {
