@@ -13,7 +13,7 @@ bestätigten und 23 nachverifizierten Befunde sind behoben, drei Funktionen sind
 für den Start bewusst ausgeschlossen (ADR-016 bis ADR-018). Die adversariale Nachprüfung
 der Behebungen (16 unabhängige Prüfer) ergab 39 Folgepunkte, die in einer zweiten Runde
 behoben wurden; eine dritte Nachprüfung ergab 14 mittlere Restpunkte, die in Runde 3 behoben
-wurden. 2.409 Tests mit 15.075 Assertions grün, PHPStan Level 6 projektweit fehlerfrei, Pint sauber. Der
+wurden. 2.421 Tests mit 15.116 Assertions grün, PHPStan Level 6 projektweit fehlerfrei, Pint sauber. Der
 Livegang ist durch Betreiberangaben und den Staging-Nachweis blockiert, nicht
 durch offene Entwicklungsarbeit. Die frühere Abschlussprüfung ist in
 [docs/abnahme.md](docs/abnahme.md) protokolliert.
