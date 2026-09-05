@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Maintenance\CronController;
 use App\Http\Controllers\ReminderUnsubscribeController;
 use App\Http\Controllers\Webhook\StripeWebhookController;
 use Illuminate\Support\Facades\Route;
@@ -45,6 +46,16 @@ Route::name('legal.')->group(function (): void {
     Route::view('/agb', 'legal.agb')->name('agb');
     Route::view('/widerrufsbelehrung', 'legal.widerruf')->name('widerruf');
 });
+
+// --- Wartungsaufruf per URL --------------------------------------------------
+//
+// Fuer Hosting ohne Shell (Cronjob nur als Webadresse). Nur mit CRON_TOKEN
+// aktiv, jeder Aufruf verlangt den Schluessel, siehe CronController.
+
+Route::get('/wartung/{aufgabe}', CronController::class)
+    ->middleware('throttle:wartung')
+    ->where('aufgabe', '[a-z-]+')
+    ->name('wartung');
 
 // --- Erinnerungen abmelden und wieder aktivieren -----------------------------
 //

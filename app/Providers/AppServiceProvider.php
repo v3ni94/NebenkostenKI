@@ -54,6 +54,12 @@ class AppServiceProvider extends ServiceProvider
          * Wiederholungsversuche von Stripe nach einem Ausfall nicht verworfen
          * werden. Die eigentliche Echtheitspruefung leistet die Signatur.
          */
+        // Wartungsaufruf per URL: der Minutenjob braucht einen Aufruf je Minute,
+        // Fehlversuche mit falschem Schluessel werden so gebremst.
+        RateLimiter::for('wartung', function (Request $request): Limit {
+            return Limit::perMinute(10)->by('wartung:'.$request->ip());
+        });
+
         RateLimiter::for('webhooks', function (Request $request): Limit {
             return Limit::perMinute(120)->by('webhooks:'.$request->ip());
         });

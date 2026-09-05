@@ -187,6 +187,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Wartungsaufruf per URL
+    |--------------------------------------------------------------------------
+    |
+    | Hostingtarife ohne Shell (z. B. IONOS Webhosting) koennen Cronjobs nur
+    | als Aufruf einer Webadresse anlegen. Der Wartungsaufruf unter
+    | /wartung/{aufgabe} fuehrt dann schedule:run, die idempotente Installation,
+    | die Konfigurationspruefung oder das Anlegen des ersten Administrators aus.
+    |
+    | Er ist nur aktiv, wenn CRON_TOKEN gesetzt ist (mindestens 32 Zeichen), und
+    | verlangt den Token in jedem Aufruf. Ohne Token antwortet die Route mit 404.
+    |
+    */
+    'cron_token' => env('CRON_TOKEN'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Erinnerungen fuer Folgejahre
     |--------------------------------------------------------------------------
     |
